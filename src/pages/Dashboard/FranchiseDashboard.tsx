@@ -1,7 +1,7 @@
 import { formatCurrency } from '../../utils/format';
 import React from 'react';
 import { Box, Typography, Grid, Card, CardContent } from '@mui/material';
-import { Inventory, Receipt, Warning } from '@mui/icons-material';
+import { Inventory, Receipt, Warning, Assessment, CheckCircle } from '@mui/icons-material';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const data = [
