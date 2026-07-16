@@ -17,7 +17,7 @@ const InventoryReport: React.FC = () => {
     { field: 'product', headerName: 'Product', flex: 1 },
     { field: 'category', headerName: 'Category', width: 150 },
     { field: 'stock', headerName: 'Live Inventory', width: 150, type: 'number' },
-    { field: 'value', headerName: 'Valuation', width: 150, valueFormatter: (params: any) => `$${Number(params.value).toFixed(2)}` },
+    { field: 'value', headerName: 'Valuation', width: 150, valueFormatter: (params: any) => `₹${Number(params.value).toFixed(2)}` },
     { field: 'status', headerName: 'Status', width: 150 },
   ];
 

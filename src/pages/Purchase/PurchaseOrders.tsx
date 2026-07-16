@@ -216,7 +216,7 @@ const PurchaseOrders: React.FC = () => {
       field: 'total_amount', 
       headerName: 'Total Amount', 
       width: 150,
-      valueFormatter: (params: any) => `$${Number(params.value).toFixed(2)}`
+      valueFormatter: (params: any) => `₹${Number(params.value).toFixed(2)}`
     },
     { 
       field: 'status', 
@@ -337,7 +337,7 @@ const PurchaseOrders: React.FC = () => {
                       />
                     </TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>
-                      ${item.total.toFixed(2)}
+                      ₹{item.total.toFixed(2)}
                     </TableCell>
                     <TableCell>
                       <IconButton color="error" size="small" onClick={() => handleRemoveItem(index)}>
@@ -355,7 +355,7 @@ const PurchaseOrders: React.FC = () => {
               Add Item
             </Button>
             <Typography variant="h6">
-              Grand Total: ${calculateGrandTotal().toFixed(2)}
+              Grand Total: ₹{calculateGrandTotal().toFixed(2)}
             </Typography>
           </Box>
         </DialogContent>

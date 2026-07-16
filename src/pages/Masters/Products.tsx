@@ -124,7 +124,7 @@ const Products: React.FC = () => {
       width: 130,
       valueFormatter: (params: any) => {
         const val = Number(params.value);
-        return isNaN(val) ? '-' : `$${val.toFixed(2)}`;
+        return isNaN(val) ? '-' : `₹${val.toFixed(2)}`;
       }
     },
     { 
