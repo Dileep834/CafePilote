@@ -8,7 +8,7 @@ import type { DailyInventory } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useFeedback } from '../../hooks/useFeedback';
-import { FormControl, InputLabel, Select, MenuItem, SelectChangeEvent } from '@mui/material';
+import { FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 
 interface StockRow extends DailyInventory {
   productName: string;
@@ -266,7 +266,7 @@ const DailyStockUpdate: React.FC = () => {
                 labelId="outlet-select-label"
                 value={selectedOutlet}
                 label="Select Outlet"
-                onChange={(e: SelectChangeEvent) => setSelectedOutlet(e.target.value)}
+                onChange={(e: any) => setSelectedOutlet(e.target.value as string)}
               >
                 {outlets.map((f) => (
                   <MenuItem key={f.id} value={f.id}>{f.name}</MenuItem>

@@ -6,6 +6,7 @@ import AuthLayout from '../layouts/AuthLayout';
 
 // Mock pages for now
 import { ERPMasterLayout } from '../modules/core/layouts/ERPMasterLayout';
+import { POSDashboard } from '../modules/pos/pages/POSDashboard';
 
 const Login = React.lazy(() => import('../pages/Login'));
 const AdminDashboard = React.lazy(() => import('../pages/Dashboard/AdminDashboard'));
@@ -67,7 +68,7 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }>
           <Route index element={<div className="p-8"><h1>ERP Dashboard (Coming Soon)</h1></div>} />
-          <Route path="pos" element={<div className="p-8"><h1>POS Module (Building)</h1></div>} />
+          <Route path="pos" element={<POSDashboard />} />
           <Route path="inventory" element={<div className="p-8"><h1>Inventory Module</h1></div>} />
           <Route path="purchase" element={<div className="p-8"><h1>Purchase Module</h1></div>} />
           <Route path="kitchen" element={<div className="p-8"><h1>Kitchen Module</h1></div>} />

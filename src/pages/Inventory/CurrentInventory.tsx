@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Chip, FormControl, InputLabel, Select, MenuItem, Accordion, AccordionSummary, AccordionDetails, Typography, Button } from '@mui/material';
-import type { SelectChangeEvent } from '@mui/material';
 import type { GridColDef } from '@mui/x-data-grid';
 import { ExpandMore, Download } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
@@ -172,7 +171,7 @@ const CurrentInventory: React.FC = () => {
                 labelId="outlet-select-label"
                 value={selectedOutlet}
                 label="Select Outlet"
-                onChange={(e: SelectChangeEvent) => setSelectedOutlet(e.target.value)}
+                onChange={(e: any) => setSelectedOutlet(e.target.value as string)}
               >
                 <MenuItem value="all">All Outlets (Master List)</MenuItem>
                 {outlets.map((f) => (
