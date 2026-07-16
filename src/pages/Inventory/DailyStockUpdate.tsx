@@ -23,6 +23,7 @@ const DailyStockUpdate: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
   const handleCloseSnackbar = () => setSnackbar({ ...snackbar, open: false });
@@ -71,6 +72,12 @@ const DailyStockUpdate: React.FC = () => {
     const closingStock = Number(newRow.openingStock) + Number(newRow.purchase) - Number(newRow.consumption) - Number(newRow.waste);
     const updatedRow = { ...newRow, closingStock };
     setRows(prevRows => prevRows.map((r) => (r.id === newRow.id ? updatedRow : r)));
+    
+    // Mark that we have unsaved changes if any values were actually changed
+    if (newRow.purchase !== _oldRow.purchase || newRow.consumption !== _oldRow.consumption || newRow.waste !== _oldRow.waste) {
+      setHasUnsavedChanges(true);
+    }
+    
     return updatedRow;
   };
 
@@ -147,6 +154,7 @@ const DailyStockUpdate: React.FC = () => {
           
       if (invErr) throw invErr;
 
+      setHasUnsavedChanges(false);
       setSnackbar({ open: true, message: "Inventory submitted successfully!", severity: 'success' });
     } catch (err: any) {
       console.error("Error submitting inventory", err);
@@ -197,7 +205,7 @@ const DailyStockUpdate: React.FC = () => {
             color="primary" 
             startIcon={<Save />} 
             onClick={handleSubmit}
-            disabled={submitting}
+            disabled={submitting || !hasUnsavedChanges}
           >
             {submitting ? 'Submitting...' : 'Submit Inventory'}
           </Button>
