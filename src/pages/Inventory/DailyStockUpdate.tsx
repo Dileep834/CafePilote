@@ -181,7 +181,8 @@ const DailyStockUpdate: React.FC = () => {
       const inventoryPayloads = payloads.map(p => ({
         outlet_id: p.outlet_id,
         product_id: p.product_id,
-        current_quantity: p.closing_stock
+        current_quantity: p.closing_stock,
+        updated_at: new Date().toISOString()
       }));
 
       const { error: invErr } = await supabase

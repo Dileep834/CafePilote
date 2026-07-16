@@ -155,7 +155,8 @@ const PurchaseOrders: React.FC = () => {
             await supabase.from('inventory').upsert({
               outlet_id: user.outletId,
               product_id: item.product_id,
-              current_quantity: currentQty + Number(item.quantity)
+              current_quantity: currentQty + Number(item.quantity),
+              updated_at: new Date().toISOString()
             }, { onConflict: 'outlet_id, product_id' });
 
             // Update Daily Stock purchase

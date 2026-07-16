@@ -95,7 +95,8 @@ const StockAdjustments: React.FC = () => {
       const { error: invErr } = await supabase.from('inventory').upsert({
         outlet_id: user.outletId,
         product_id: productId,
-        current_quantity: newQty
+        current_quantity: newQty,
+        updated_at: new Date().toISOString()
       }, { onConflict: 'outlet_id, product_id' });
 
       if (invErr) throw invErr;
