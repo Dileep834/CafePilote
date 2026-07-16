@@ -5,6 +5,8 @@ import DashboardLayout from '../layouts/DashboardLayout';
 import AuthLayout from '../layouts/AuthLayout';
 
 // Mock pages for now
+import { ERPMasterLayout } from '../modules/core/layouts/ERPMasterLayout';
+
 const Login = React.lazy(() => import('../pages/Login'));
 const AdminDashboard = React.lazy(() => import('../pages/Dashboard/AdminDashboard'));
 const OutletDashboard = React.lazy(() => import('../pages/Dashboard/OutletDashboard'));
@@ -58,6 +60,24 @@ const AppRoutes = () => {
           <Route path="/forgot-password" element={<div>Forgot Password</div>} />
         </Route>
 
+        {/* New Modular ERP Routes */}
+        <Route path="/erp" element={
+          <ProtectedRoute>
+            <ERPMasterLayout />
+          </ProtectedRoute>
+        }>
+          <Route index element={<div className="p-8"><h1>ERP Dashboard (Coming Soon)</h1></div>} />
+          <Route path="pos" element={<div className="p-8"><h1>POS Module (Building)</h1></div>} />
+          <Route path="inventory" element={<div className="p-8"><h1>Inventory Module</h1></div>} />
+          <Route path="purchase" element={<div className="p-8"><h1>Purchase Module</h1></div>} />
+          <Route path="kitchen" element={<div className="p-8"><h1>Kitchen Module</h1></div>} />
+          <Route path="crm" element={<div className="p-8"><h1>CRM Module</h1></div>} />
+          <Route path="reports" element={<div className="p-8"><h1>Reports Module</h1></div>} />
+          <Route path="franchise" element={<div className="p-8"><h1>Franchise Module</h1></div>} />
+          <Route path="settings" element={<div className="p-8"><h1>Settings Module</h1></div>} />
+        </Route>
+
+        {/* Legacy MVP Routes */}
         <Route path="/" element={
           <ProtectedRoute>
             <DashboardLayout />
