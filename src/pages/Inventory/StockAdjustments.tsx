@@ -133,8 +133,8 @@ const StockAdjustments: React.FC = () => {
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 3 }}>
       <Paper sx={{ p: 3 }}>
         <Typography variant="h6" gutterBottom>New Stock Adjustment</Typography>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={3}>
+        <Grid container spacing={2} alignItems="flex-start">
+          <Grid item xs={12} md={3}>
             <TextField 
               select 
               fullWidth 
@@ -148,10 +148,10 @@ const StockAdjustments: React.FC = () => {
               ))}
             </TextField>
           </Grid>
-          <Grid item xs={12} sm={3}>
+          <Grid item xs={12} md={3}>
             <TextField 
               fullWidth 
-              label="Quantity (Use +/-)" 
+              label="Quantity" 
               type="number" 
               size="small"
               value={adjustment}
@@ -159,7 +159,7 @@ const StockAdjustments: React.FC = () => {
               helperText="E.g. -5 to deduct, 10 to add"
             />
           </Grid>
-          <Grid item xs={12} sm={4}>
+          <Grid item xs={12} md={4}>
             <TextField 
               fullWidth 
               label="Reason" 
@@ -168,7 +168,7 @@ const StockAdjustments: React.FC = () => {
               onChange={(e) => setReason(e.target.value)}
             />
           </Grid>
-          <Grid item xs={12} sm={2}>
+          <Grid item xs={12} md={2}>
             <Button 
               variant="contained" 
               fullWidth 
