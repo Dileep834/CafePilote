@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Button, Typography, Container, Paper } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { ErrorOutline, Home } from '@mui/icons-material';
+import { Warning, Home } from '@mui/icons-material';
 
 const NotFound: React.FC = () => {
   const navigate = useNavigate();
@@ -22,7 +22,7 @@ const NotFound: React.FC = () => {
           boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
         }}
       >
-        <ErrorOutline sx={{ fontSize: 100, color: 'primary.main', mb: 2, opacity: 0.8 }} />
+        <Warning sx={{ fontSize: 100, color: 'primary.main', mb: 2, opacity: 0.8 }} />
         
         <Typography variant="h1" sx={{ fontWeight: 900, color: 'text.primary', mb: 1, fontSize: { xs: '4rem', md: '6rem' } }}>
           404
