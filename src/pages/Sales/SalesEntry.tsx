@@ -3,10 +3,12 @@ import { Box, Button, TextField, Typography, Autocomplete, Grid, Paper, Table, T
 import { Delete, ShoppingCart, PrecisionManufacturing } from '@mui/icons-material';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useFeedback } from '../../hooks/useFeedback';
 import { v4 as uuidv4 } from 'uuid';
 
 const SalesEntry: React.FC = () => {
   const { user } = useAuthStore();
+  const { showFeedback, FeedbackComponent } = useFeedback();
   const [products, setProducts] = useState<any[]>([]);
   const [recipes, setRecipes] = useState<any[]>([]);
   
@@ -179,6 +181,64 @@ const SalesEntry: React.FC = () => {
         
       if (itemsErr) throw itemsErr;
 
+      // 3. Update Inventory and Daily Stock for Raw Materials
+      const dateStr = new Date().toISOString().split('T')[0];
+      
+      for (const [productId, data] of Object.entries(consumptionMap)) {
+        // Fetch current inventory
+        const { data: invData } = await supabase
+          .from('inventory')
+          .select('current_quantity')
+          .eq('outlet_id', user.outletId)
+          .eq('product_id', productId)
+          .single();
+          
+        const currentQty = invData ? Number(invData.current_quantity) : 0;
+        
+        // Deduct from inventory
+        await supabase.from('inventory').upsert({
+          outlet_id: user.outletId,
+          product_id: productId,
+          current_quantity: currentQty - data.totalQty
+        }, { onConflict: 'outlet_id, product_id' });
+
+        // Update Daily Stock consumption
+        const { data: dsData } = await supabase
+          .from('daily_stock')
+          .select('id, opening_stock, purchase, consumption, waste')
+          .eq('outlet_id', user.outletId)
+          .eq('product_id', productId)
+          .eq('date', dateStr)
+          .single();
+
+        if (dsData) {
+          const newConsumption = Number(dsData.consumption) + data.totalQty;
+          const newClosing = Number(dsData.opening_stock) + Number(dsData.purchase) - newConsumption - Number(dsData.waste);
+          await supabase.from('daily_stock').update({
+            consumption: newConsumption,
+            closing_stock: newClosing
+          }).eq('id', dsData.id);
+        } else {
+          // Create daily stock entry if it doesn't exist
+          const opening = currentQty; 
+          const newConsumption = data.totalQty;
+          const newClosing = opening - newConsumption;
+          
+          await supabase.from('daily_stock').insert({
+            company_id: user.companyId,
+            outlet_id: user.outletId,
+            product_id: productId,
+            date: dateStr,
+            opening_stock: opening,
+            purchase: 0,
+            consumption: newConsumption,
+            waste: 0,
+            closing_stock: newClosing,
+            status: 'Draft'
+          });
+        }
+      }
+
       // Add to local UI history so they instantly see it with raw materials calculated
       const newSale = {
         id: saleData.id,
@@ -189,11 +249,11 @@ const SalesEntry: React.FC = () => {
 
       setSalesHistory([newSale, ...salesHistory]);
       setCart([]);
-      setToastOpen(true);
+      showFeedback("Sale processed successfully! Inventory deducted.", "success");
       
     } catch (err: any) {
       console.error('Error processing sale:', err);
-      alert('Failed to process sale: ' + err.message);
+      showFeedback('Failed to process sale: ' + err.message, "error");
     } finally {
       setProcessing(false);
     }
@@ -329,11 +389,7 @@ const SalesEntry: React.FC = () => {
         </Grid>
       </Grid>
       
-      <Snackbar open={toastOpen} autoHideDuration={4000} onClose={() => setToastOpen(false)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert onClose={() => setToastOpen(false)} severity="success" sx={{ width: '100%' }} variant="filled">
-          Sale Processed! Saved securely to the database.
-        </Alert>
-      </Snackbar>
+      {FeedbackComponent}
     </Box>
   );
 };

@@ -5,9 +5,11 @@ import { Add, Edit, Delete } from '@mui/icons-material';
 import DataTable from '../../components/DataTable';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useFeedback } from '../../hooks/useFeedback';
 
 const Outlets: React.FC = () => {
   const { user } = useAuthStore();
+  const { showFeedback, FeedbackComponent } = useFeedback();
   const [outlets, setOutlets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -71,7 +73,7 @@ const Outlets: React.FC = () => {
       fetchOutlets();
     } catch (error) {
       console.error("Error saving outlet", error);
-      alert("Error saving outlet.");
+      showFeedback("Error saving outlet.", "error");
     } finally {
       setSaving(false);
     }
@@ -163,6 +165,7 @@ const Outlets: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      {FeedbackComponent}
     </Box>
   );
 };
