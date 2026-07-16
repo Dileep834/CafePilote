@@ -22,6 +22,7 @@ const DailyStockUpdate: React.FC = () => {
   const [rows, setRows] = useState<StockRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetchProducts();
@@ -93,6 +94,65 @@ const DailyStockUpdate: React.FC = () => {
     XLSX.writeFile(workbook, `Daily_Stock_Update_${dateStr}.xlsx`);
   };
 
+  const handleSubmit = async () => {
+    if (!user?.outletId) {
+      alert("You must be assigned to an Outlet to submit inventory.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const dateStr = new Date().toISOString().split('T')[0];
+      
+      // Filter rows that actually have data entered
+      const payloads = rows
+        .filter(r => r.purchase > 0 || r.consumption > 0 || r.waste > 0 || r.closingStock > 0)
+        .map(r => ({
+          date: dateStr,
+          outlet_id: user.outletId,
+          product_id: r.product_id,
+          opening_stock: r.openingStock,
+          purchase: r.purchase,
+          consumption: r.consumption,
+          waste: r.waste,
+          closing_stock: r.closingStock,
+          status: InventoryStatus.SUBMITTED
+        }));
+
+      if (payloads.length === 0) {
+        alert("Please enter some stock data before submitting.");
+        setSubmitting(false);
+        return;
+      }
+
+      // Upsert into daily_stock
+      const { error } = await supabase
+        .from('daily_stock')
+        .upsert(payloads, { onConflict: 'date, outlet_id, product_id' });
+      
+      if (error) throw error;
+      
+      // Update live inventory table as well
+      const inventoryPayloads = payloads.map(p => ({
+        outlet_id: p.outlet_id,
+        product_id: p.product_id,
+        current_quantity: p.closing_stock
+      }));
+
+      const { error: invErr } = await supabase
+        .from('inventory')
+        .upsert(inventoryPayloads, { onConflict: 'outlet_id, product_id' });
+          
+      if (invErr) throw invErr;
+
+      alert('Inventory submitted successfully!');
+    } catch (err: any) {
+      console.error("Error submitting inventory", err);
+      alert('Failed to submit inventory: ' + err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const columns: GridColDef[] = [
     { field: 'productName', headerName: 'Product', flex: 1, minWidth: 200 },
     { field: 'unit', headerName: 'Unit', width: 80 },
@@ -129,8 +189,14 @@ const DailyStockUpdate: React.FC = () => {
           <Button variant="outlined" color="primary" startIcon={<Download />} onClick={exportToExcel}>
             Export to Excel
           </Button>
-          <Button variant="contained" color="primary" startIcon={<Save />}>
-            Submit Inventory
+          <Button 
+            variant="contained" 
+            color="primary" 
+            startIcon={<Save />} 
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? 'Submitting...' : 'Submit Inventory'}
           </Button>
         </Box>
       </Box>
