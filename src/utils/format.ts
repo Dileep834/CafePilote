@@ -1,6 +1,6 @@
 // Currency formatter that adapts to region settings
 // You can change 'currency' and 'locale' based on user settings or region
-export const formatCurrency = (value: number | string, currency: string = 'USD', locale: string = 'en-US') => {
+export const formatCurrency = (value: number | string, currency: string = 'INR', locale: string = 'en-IN') => {
   const numValue = Number(value);
   if (isNaN(numValue)) return value;
 
