@@ -5,10 +5,10 @@ import { DataGrid } from '@mui/x-data-grid';
 import { Save, ExpandMore, Search, Download } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
 import type { DailyInventory } from '../../types';
-import { InventoryStatus } from '../../constants';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useFeedback } from '../../hooks/useFeedback';
+import { FormControl, InputLabel, Select, MenuItem, SelectChangeEvent } from '@mui/material';
 
 interface StockRow extends DailyInventory {
   productName: string;
@@ -21,6 +21,8 @@ interface StockRow extends DailyInventory {
 const DailyStockUpdate: React.FC = () => {
   const { user } = useAuthStore();
   const [rows, setRows] = useState<StockRow[]>([]);
+  const [outlets, setOutlets] = useState<any[]>([]);
+  const [selectedOutlet, setSelectedOutlet] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -31,16 +33,40 @@ const DailyStockUpdate: React.FC = () => {
   // const handleCloseSnackbar = () => setSnackbar({ ...snackbar, open: false });
 
   useEffect(() => {
-    if (user?.outletId) {
-      fetchDailyData();
-    } else if (user?.role === 'Super Admin' || user?.role === 'Admin') {
-      // For Admins testing without an outlet
-      fetchDailyData();
+    if (user?.role === 'Super Admin' || user?.role === 'Admin') {
+      fetchOutlets();
+    } else if (user?.outletId) {
+      setSelectedOutlet(user.outletId);
     }
   }, [user]);
 
-  const fetchDailyData = async () => {
+  useEffect(() => {
+    if (selectedOutlet) {
+      fetchDailyData(selectedOutlet);
+    } else {
+      setLoading(false);
+    }
+  }, [selectedOutlet]);
+
+  const fetchOutlets = async () => {
     try {
+      const { data, error } = await supabase.from('outlets').select('id, name').eq('is_active', true);
+      if (error) throw error;
+      if (data && data.length > 0) {
+        setOutlets(data);
+        // Default to the first outlet if not selected
+        if (!selectedOutlet) {
+          setSelectedOutlet(data[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching outlets:', error);
+    }
+  };
+
+  const fetchDailyData = async (outletId: string) => {
+    try {
+      setLoading(true);
       // 1. Fetch Products
       let pQuery = supabase.from('products').select('*, categories(name)').eq('is_active', true).order('name');
       if (user?.role !== 'Super Admin' && user?.companyId) {
@@ -51,8 +77,8 @@ const DailyStockUpdate: React.FC = () => {
 
       // 2. Fetch Live Inventory for Opening Stock
       let invMap: Record<string, number> = {};
-      if (user?.outletId) {
-        const { data: invData } = await supabase.from('inventory').select('product_id, current_quantity').eq('outlet_id', user.outletId);
+      if (outletId) {
+        const { data: invData } = await supabase.from('inventory').select('product_id, current_quantity').eq('outlet_id', outletId);
         if (invData) {
           invData.forEach(item => { invMap[item.product_id] = Number(item.current_quantity); });
         }
@@ -61,8 +87,8 @@ const DailyStockUpdate: React.FC = () => {
       // 3. Fetch Today's Daily Stock (if already saved)
       const dateStr = new Date().toISOString().split('T')[0];
       let dailyMap: Record<string, any> = {};
-      if (user?.outletId) {
-        const { data: dailyData } = await supabase.from('daily_stock').select('*').eq('outlet_id', user.outletId).eq('date', dateStr);
+      if (outletId) {
+        const { data: dailyData } = await supabase.from('daily_stock').select('*').eq('outlet_id', outletId).eq('date', dateStr);
         if (dailyData) {
           dailyData.forEach(item => { dailyMap[item.product_id] = item; });
         }
@@ -135,16 +161,16 @@ const DailyStockUpdate: React.FC = () => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Daily Stock');
     
-    // Generate file and download
     const dateStr = new Date().toISOString().split('T')[0];
     XLSX.writeFile(workbook, `Daily_Stock_Update_${dateStr}.xlsx`);
   };
 
   const handleSubmit = async () => {
-    if (!user?.outletId) {
-      showFeedback("You must be assigned to an Outlet to submit inventory.", "error");
+    if (!selectedOutlet) {
+      showFeedback("Please select an outlet first.", "error");
       return;
     }
+
     setSubmitting(true);
     try {
       const dateStr = new Date().toISOString().split('T')[0];
@@ -154,7 +180,7 @@ const DailyStockUpdate: React.FC = () => {
         .filter(r => r.purchase > 0 || r.consumption > 0 || r.waste > 0 || r.closingStock > 0)
         .map(r => ({
           date: dateStr,
-          outlet_id: user.outletId,
+          outlet_id: selectedOutlet,
           product_id: r.product_id,
           opening_stock: r.openingStock,
           purchase: r.purchase,
@@ -232,7 +258,22 @@ const DailyStockUpdate: React.FC = () => {
         <Typography variant="h5" sx={{ fontWeight: "bold", fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
           Daily Stock Update - {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
         </Typography>
-        <Box sx={{ display: 'flex', gap: 2 }}>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          {(user?.role === 'Super Admin' || user?.role === 'Admin') && (
+            <FormControl sx={{ minWidth: 200 }} size="small">
+              <InputLabel id="outlet-select-label">Select Outlet</InputLabel>
+              <Select
+                labelId="outlet-select-label"
+                value={selectedOutlet}
+                label="Select Outlet"
+                onChange={(e: SelectChangeEvent) => setSelectedOutlet(e.target.value)}
+              >
+                {outlets.map((f) => (
+                  <MenuItem key={f.id} value={f.id}>{f.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
           <Button variant="outlined" color="primary" startIcon={<Download />} onClick={exportToExcel}>
             Export to Excel
           </Button>
