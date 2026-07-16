@@ -1,6 +1,6 @@
 import { formatCurrency } from '../../utils/format';
 import React from 'react';
-import { Box, Typography, Grid, Card, CardContent } from '@mui/material';
+import { Box, Typography, Grid, Card, CardContent, Alert } from '@mui/material';
 import { Inventory, Assessment, Warning, CheckCircle } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
@@ -38,6 +38,11 @@ const AdminDashboard: React.FC = () => {
       <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold' }}>
         Overview
       </Typography>
+      
+      <Alert severity="warning" sx={{ mb: 4 }}>
+        <strong>Notice:</strong> This dashboard is currently displaying mockup/dummy data. It is not yet connected to the live database metrics.
+      </Alert>
+
       <Box sx={{ 
         display: 'grid', 
         gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(4, 1fr)' }, 
