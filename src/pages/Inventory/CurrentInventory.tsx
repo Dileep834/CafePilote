@@ -7,9 +7,11 @@ import * as XLSX from 'xlsx';
 import DataTable from '../../components/DataTable';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useFeedback } from '../../hooks/useFeedback';
 
 const CurrentInventory: React.FC = () => {
   const { user } = useAuthStore();
+  const { showFeedback, FeedbackComponent } = useFeedback();
   const [inventory, setInventory] = useState<any[]>([]);
   const [outlets, setOutlets] = useState<any[]>([]);
   const [selectedOutlet, setSelectedOutlet] = useState<string>('all');
@@ -49,7 +51,7 @@ const CurrentInventory: React.FC = () => {
       if (error) throw error;
       if (data) {
         // Fetch actual inventory levels
-        let invQuery = supabase.from('inventory').select('product_id, current_quantity, updated_at');
+        let invQuery = supabase.from('inventory').select('product_id, current_quantity');
         if (selectedOutlet && selectedOutlet !== 'all') {
           invQuery = invQuery.eq('outlet_id', selectedOutlet);
         } else if (user?.companyId && user.role !== 'Super Admin') {
@@ -61,16 +63,13 @@ const CurrentInventory: React.FC = () => {
         if (invErr) throw invErr;
 
         // Aggregate inventory by product ID (in case 'all' outlets is selected)
-        const invMap: Record<string, { qty: number, lastUpdate: string }> = {};
+        const invMap: Record<string, { qty: number }> = {};
         if (invData) {
           invData.forEach(item => {
             if (!invMap[item.product_id]) {
-              invMap[item.product_id] = { qty: 0, lastUpdate: item.updated_at };
+              invMap[item.product_id] = { qty: 0 };
             }
             invMap[item.product_id].qty += Number(item.current_quantity) || 0;
-            if (new Date(item.updated_at) > new Date(invMap[item.product_id].lastUpdate)) {
-              invMap[item.product_id].lastUpdate = item.updated_at;
-            }
           });
         }
 
@@ -89,13 +88,14 @@ const CurrentInventory: React.FC = () => {
             unit: p.unit || 'Unit',
             minStock: min,
             status: qty < min ? 'Low Stock' : 'Optimal',
-            lastUpdated: liveStock ? liveStock.lastUpdate : new Date().toISOString()
+            lastUpdated: new Date().toISOString()
           };
         });
         setInventory(mapped);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching inventory:', error);
+      showFeedback('Failed to load live inventory: ' + error.message, 'error');
     } finally {
       setLoading(false);
     }
@@ -210,6 +210,7 @@ const CurrentInventory: React.FC = () => {
           ))
         )}
       </Box>
+      {FeedbackComponent}
     </Box>
   );
 };
