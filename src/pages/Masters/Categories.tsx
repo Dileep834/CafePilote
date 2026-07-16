@@ -5,9 +5,11 @@ import { Add, Edit, Delete } from '@mui/icons-material';
 import DataTable from '../../components/DataTable';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useFeedback } from '../../hooks/useFeedback';
 
 const Categories: React.FC = () => {
   const { user } = useAuthStore();
+  const { showFeedback, FeedbackComponent } = useFeedback();
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -69,7 +71,7 @@ const Categories: React.FC = () => {
       fetchCategories();
     } catch (error) {
       console.error("Error saving category", error);
-      alert("Error saving category.");
+      showFeedback("Error saving category.", "error");
     } finally {
       setSaving(false);
     }
@@ -133,6 +135,7 @@ const Categories: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      {FeedbackComponent}
     </Box>
   );
 };

@@ -8,6 +8,7 @@ import type { DailyInventory } from '../../types';
 import { InventoryStatus } from '../../constants';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useFeedback } from '../../hooks/useFeedback';
 
 interface StockRow extends DailyInventory {
   productName: string;
@@ -24,44 +25,79 @@ const DailyStockUpdate: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
-
-  const handleCloseSnackbar = () => setSnackbar({ ...snackbar, open: false });
+  const { showFeedback, FeedbackComponent } = useFeedback();
+  // Snackbar is now handled by useFeedback
+  // const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+  // const handleCloseSnackbar = () => setSnackbar({ ...snackbar, open: false });
 
   useEffect(() => {
-    fetchProducts();
+    if (user?.outletId) {
+      fetchDailyData();
+    } else if (user?.role === 'Super Admin' || user?.role === 'Admin') {
+      // For Admins testing without an outlet
+      fetchDailyData();
+    }
   }, [user]);
 
-  const fetchProducts = async () => {
+  const fetchDailyData = async () => {
     try {
-      let query = supabase.from('products').select('*, categories(name)').eq('is_active', true).order('name');
-      
+      // 1. Fetch Products
+      let pQuery = supabase.from('products').select('*, categories(name)').eq('is_active', true).order('name');
       if (user?.role !== 'Super Admin' && user?.companyId) {
-        query = query.eq('company_id', user.companyId);
+        pQuery = pQuery.eq('company_id', user.companyId);
       }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      
-      if (data) {
-        const mappedRows = data.map(p => ({
-          id: p.id,
-          product_id: p.id,
-          productName: p.name,
-          categoryName: (p.categories as any)?.name || 'Uncategorized',
-          unit: p.unit || 'Unit',
-          openingStock: 0,
-          purchase: 0,
-          consumption: 0,
-          waste: 0,
-          closingStock: 0,
-          status: InventoryStatus.DRAFT,
-          date: new Date().toISOString()
-        }));
+      const { data: productsData, error: pErr } = await pQuery;
+      if (pErr) throw pErr;
+
+      // 2. Fetch Live Inventory for Opening Stock
+      let invMap: Record<string, number> = {};
+      if (user?.outletId) {
+        const { data: invData } = await supabase.from('inventory').select('product_id, current_quantity').eq('outlet_id', user.outletId);
+        if (invData) {
+          invData.forEach(item => { invMap[item.product_id] = Number(item.current_quantity); });
+        }
+      }
+
+      // 3. Fetch Today's Daily Stock (if already saved)
+      const dateStr = new Date().toISOString().split('T')[0];
+      let dailyMap: Record<string, any> = {};
+      if (user?.outletId) {
+        const { data: dailyData } = await supabase.from('daily_stock').select('*').eq('outlet_id', user.outletId).eq('date', dateStr);
+        if (dailyData) {
+          dailyData.forEach(item => { dailyMap[item.product_id] = item; });
+        }
+      }
+
+      // 4. Merge Data
+      if (productsData) {
+        const mappedRows = productsData.map(p => {
+          const daily = dailyMap[p.id];
+          const opening = daily ? Number(daily.opening_stock) : (invMap[p.id] || 0);
+          const pur = daily ? Number(daily.purchase) : 0;
+          const con = daily ? Number(daily.consumption) : 0;
+          const was = daily ? Number(daily.waste) : 0;
+          const clos = daily ? Number(daily.closing_stock) : opening;
+
+          return {
+            id: p.id,
+            product_id: p.id,
+            productName: p.name,
+            categoryName: (p.categories as any)?.name || 'Uncategorized',
+            unit: p.unit || 'Unit',
+            openingStock: opening,
+            purchase: pur,
+            consumption: con,
+            waste: was,
+            closingStock: clos,
+            status: daily ? daily.status : InventoryStatus.DRAFT,
+            date: dateStr
+          };
+        });
         setRows(mappedRows);
       }
     } catch (error) {
-      console.error('Error fetching products:', error);
+      console.error('Error fetching daily data:', error);
+      showFeedback('Error loading inventory data.', 'error');
     } finally {
       setLoading(false);
     }
@@ -106,7 +142,7 @@ const DailyStockUpdate: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!user?.outletId) {
-      setSnackbar({ open: true, message: "You must be assigned to an Outlet to submit inventory.", severity: 'error' });
+      showFeedback("You must be assigned to an Outlet to submit inventory.", "error");
       return;
     }
     setSubmitting(true);
@@ -129,7 +165,7 @@ const DailyStockUpdate: React.FC = () => {
         }));
 
       if (payloads.length === 0) {
-        setSnackbar({ open: true, message: "Please enter some stock data before submitting.", severity: 'error' });
+        showFeedback("Please enter some stock data before submitting.", "error");
         setSubmitting(false);
         return;
       }
@@ -155,10 +191,10 @@ const DailyStockUpdate: React.FC = () => {
       if (invErr) throw invErr;
 
       setHasUnsavedChanges(false);
-      setSnackbar({ open: true, message: "Inventory submitted successfully!", severity: 'success' });
+      showFeedback("Inventory submitted successfully!", "success");
     } catch (err: any) {
       console.error("Error submitting inventory", err);
-      setSnackbar({ open: true, message: 'Failed to submit inventory: ' + err.message, severity: 'error' });
+      showFeedback('Failed to submit inventory: ' + err.message, "error");
     } finally {
       setSubmitting(false);
     }
@@ -277,11 +313,7 @@ const DailyStockUpdate: React.FC = () => {
         )}
       </Box>
 
-      <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
-        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%', boxShadow: 3 }}>
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
+      {FeedbackComponent}
     </Box>
   );
 };

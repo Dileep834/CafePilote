@@ -4,8 +4,10 @@ import type { GridColDef } from '@mui/x-data-grid';
 import { Add, Edit, Delete } from '@mui/icons-material';
 import DataTable from '../../components/DataTable';
 import { supabase } from '../../lib/supabase';
+import { useFeedback } from '../../hooks/useFeedback';
 
 const Companies: React.FC = () => {
+  const { showFeedback, FeedbackComponent } = useFeedback();
   const [companies, setCompanies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -68,7 +70,7 @@ const Companies: React.FC = () => {
       fetchCompanies();
     } catch (error: any) {
       console.error("Error saving company", error);
-      alert("Error saving company: " + (error.message || JSON.stringify(error)));
+      showFeedback("Error saving company: " + (error.message || JSON.stringify(error)), "error");
     } finally {
       setSaving(false);
     }
@@ -82,7 +84,7 @@ const Companies: React.FC = () => {
         fetchCompanies();
       } catch (error: any) {
         console.error("Error deleting company", error);
-        alert("Cannot delete company. It may have associated records (Outlets, Users, etc).");
+        showFeedback("Cannot delete company. It may have associated records (Outlets, Users, etc).", "error");
       }
     }
   };
@@ -159,6 +161,7 @@ const Companies: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      {FeedbackComponent}
     </Box>
   );
 };
