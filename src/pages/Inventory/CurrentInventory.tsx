@@ -48,18 +48,50 @@ const CurrentInventory: React.FC = () => {
       
       if (error) throw error;
       if (data) {
-        // Map products to inventory format for MVP
-        const mapped = data.map(p => ({
-          id: p.id,
-          productCode: p.code,
-          productName: p.name,
-          category: (p.categories as any)?.name || 'Uncategorized',
-          quantity: 0,
-          unit: p.unit || 'Unit',
-          minStock: p.min_stock || 10,
-          status: 'Low Stock',
-          lastUpdated: new Date().toISOString()
-        }));
+        // Fetch actual inventory levels
+        let invQuery = supabase.from('inventory').select('product_id, current_quantity, updated_at');
+        if (selectedOutlet && selectedOutlet !== 'all') {
+          invQuery = invQuery.eq('outlet_id', selectedOutlet);
+        } else if (user?.companyId && user.role !== 'Super Admin') {
+          // If viewing 'all' outlets but restricted to a company, we should filter by outlets in that company
+          // But for now, we'll just fetch all inventory for this company's products
+        }
+        
+        const { data: invData, error: invErr } = await invQuery;
+        if (invErr) throw invErr;
+
+        // Aggregate inventory by product ID (in case 'all' outlets is selected)
+        const invMap: Record<string, { qty: number, lastUpdate: string }> = {};
+        if (invData) {
+          invData.forEach(item => {
+            if (!invMap[item.product_id]) {
+              invMap[item.product_id] = { qty: 0, lastUpdate: item.updated_at };
+            }
+            invMap[item.product_id].qty += Number(item.current_quantity) || 0;
+            if (new Date(item.updated_at) > new Date(invMap[item.product_id].lastUpdate)) {
+              invMap[item.product_id].lastUpdate = item.updated_at;
+            }
+          });
+        }
+
+        // Map products to inventory format combining with live stock data
+        const mapped = data.map(p => {
+          const liveStock = invMap[p.id];
+          const qty = liveStock ? liveStock.qty : 0;
+          const min = p.min_stock || 10;
+          
+          return {
+            id: p.id,
+            productCode: p.code,
+            productName: p.name,
+            category: (p.categories as any)?.name || 'Uncategorized',
+            quantity: qty,
+            unit: p.unit || 'Unit',
+            minStock: min,
+            status: qty < min ? 'Low Stock' : 'Optimal',
+            lastUpdated: liveStock ? liveStock.lastUpdate : new Date().toISOString()
+          };
+        });
         setInventory(mapped);
       }
     } catch (error) {
