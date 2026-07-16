@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Button, TextField, Typography, Paper, Grid, MenuItem } from '@mui/material';
+import { Box, Button, TextField, Typography, Paper, Grid, MenuItem, Snackbar, Alert } from '@mui/material';
 import type { GridColDef } from '@mui/x-data-grid';
 import { DataGrid } from '@mui/x-data-grid';
 import { Add } from '@mui/icons-material';
@@ -16,6 +16,9 @@ const StockAdjustments: React.FC = () => {
   const [adjustment, setAdjustment] = useState('');
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+
+  const handleCloseSnackbar = () => setSnackbar({ ...snackbar, open: false });
 
   useEffect(() => {
     fetchProducts();
@@ -57,7 +60,7 @@ const StockAdjustments: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!productId || !adjustment || !reason || !user?.outletId) {
-      alert("Please fill all fields. Ensure you are logged in as an Outlet Manager.");
+      setSnackbar({ open: true, message: "Please fill all fields. Ensure you are logged in as an Outlet Manager.", severity: 'warning' });
       return;
     }
 
@@ -97,15 +100,15 @@ const StockAdjustments: React.FC = () => {
 
       if (invErr) throw invErr;
 
-      // Reset form
       setProductId('');
       setAdjustment('');
       setReason('');
       fetchAdjustments();
+      setSnackbar({ open: true, message: "Stock adjustment saved successfully!", severity: 'success' });
 
     } catch (err: any) {
       console.error(err);
-      alert("Error saving adjustment: " + err.message);
+      setSnackbar({ open: true, message: "Error saving adjustment: " + err.message, severity: 'error' });
     } finally {
       setLoading(false);
     }
@@ -183,9 +186,20 @@ const StockAdjustments: React.FC = () => {
       <Paper sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', p: 2 }}>
         <Typography variant="h6" gutterBottom>Adjustment History</Typography>
         <Box sx={{ flexGrow: 1, minHeight: 300 }}>
-          <DataGrid rows={rows} columns={columns} sx={{ border: 'none' }} />
+          <DataGrid
+          rows={rows}
+          columns={columns}
+          autoHeight
+          disableRowSelectionOnClick
+        />
         </Box>
       </Paper>
+
+      <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%', boxShadow: 3 }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

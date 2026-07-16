@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Box, Button, Typography, Paper, Accordion, AccordionSummary, AccordionDetails, Chip, TextField, InputAdornment } from '@mui/material';
+import { Box, Button, Typography, Paper, Accordion, AccordionSummary, AccordionDetails, Chip, TextField, InputAdornment, Snackbar, Alert } from '@mui/material';
 import type { GridColDef } from '@mui/x-data-grid';
 import { DataGrid } from '@mui/x-data-grid';
 import { Save, ExpandMore, Search, Download } from '@mui/icons-material';
@@ -23,6 +23,9 @@ const DailyStockUpdate: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+
+  const handleCloseSnackbar = () => setSnackbar({ ...snackbar, open: false });
 
   useEffect(() => {
     fetchProducts();
@@ -67,7 +70,7 @@ const DailyStockUpdate: React.FC = () => {
     // Formula: Closing = Opening + Purchase - Consumption - Waste
     const closingStock = Number(newRow.openingStock) + Number(newRow.purchase) - Number(newRow.consumption) - Number(newRow.waste);
     const updatedRow = { ...newRow, closingStock };
-    setRows(rows.map((r) => (r.id === newRow.id ? updatedRow : r)));
+    setRows(prevRows => prevRows.map((r) => (r.id === newRow.id ? updatedRow : r)));
     return updatedRow;
   };
 
@@ -96,7 +99,7 @@ const DailyStockUpdate: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!user?.outletId) {
-      alert("You must be assigned to an Outlet to submit inventory.");
+      setSnackbar({ open: true, message: "You must be assigned to an Outlet to submit inventory.", severity: 'error' });
       return;
     }
     setSubmitting(true);
@@ -119,7 +122,7 @@ const DailyStockUpdate: React.FC = () => {
         }));
 
       if (payloads.length === 0) {
-        alert("Please enter some stock data before submitting.");
+        setSnackbar({ open: true, message: "Please enter some stock data before submitting.", severity: 'error' });
         setSubmitting(false);
         return;
       }
@@ -144,10 +147,10 @@ const DailyStockUpdate: React.FC = () => {
           
       if (invErr) throw invErr;
 
-      alert('Inventory submitted successfully!');
+      setSnackbar({ open: true, message: "Inventory submitted successfully!", severity: 'success' });
     } catch (err: any) {
       console.error("Error submitting inventory", err);
-      alert('Failed to submit inventory: ' + err.message);
+      setSnackbar({ open: true, message: 'Failed to submit inventory: ' + err.message, severity: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -265,6 +268,12 @@ const DailyStockUpdate: React.FC = () => {
           ))
         )}
       </Box>
+
+      <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%', boxShadow: 3 }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

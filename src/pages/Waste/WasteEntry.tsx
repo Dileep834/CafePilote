@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Button, TextField, Typography, Paper, Grid, MenuItem } from '@mui/material';
+import { Box, Button, TextField, Typography, Paper, Grid, MenuItem, Snackbar, Alert } from '@mui/material';
 import type { GridColDef } from '@mui/x-data-grid';
 import { DataGrid } from '@mui/x-data-grid';
 import { Add } from '@mui/icons-material';
@@ -11,6 +11,9 @@ const WasteEntry: React.FC = () => {
   const [rows, setRows] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+
+  const handleCloseSnackbar = () => setSnackbar({ ...snackbar, open: false });
   
   // Form State
   const [productId, setProductId] = useState('');
@@ -67,7 +70,7 @@ const WasteEntry: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!productId || !quantity || !reason || !user?.outletId) {
-      alert("Please fill all fields. Ensure you are logged in as a Outlet Manager.");
+      setSnackbar({ open: true, message: "Please fill all fields. Ensure you are logged in as a Outlet Manager.", severity: 'error' });
       return;
     }
 
@@ -83,7 +86,7 @@ const WasteEntry: React.FC = () => {
 
     if (error) {
       console.error(error);
-      alert("Error adding waste log.");
+      setSnackbar({ open: true, message: "Error adding waste log.", severity: 'error' });
       return;
     }
 
@@ -112,6 +115,7 @@ const WasteEntry: React.FC = () => {
     setQuantity('');
     setReason('');
     fetchWasteLogs(); // Refresh grid
+    setSnackbar({ open: true, message: "Waste log added successfully!", severity: 'success' });
   };
 
   const columns: GridColDef[] = [
@@ -165,6 +169,12 @@ const WasteEntry: React.FC = () => {
           <DataGrid rows={rows} columns={columns} loading={loading} sx={{ border: 'none' }} />
         </Box>
       </Paper>
+      
+      <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%', boxShadow: 3 }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

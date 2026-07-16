@@ -1,6 +1,6 @@
 import { formatCurrency } from '../../utils/format';
 import React, { useState, useEffect } from 'react';
-import { Box, Button, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, Typography, IconButton, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material';
+import { Box, Button, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, Typography, IconButton, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Snackbar, Alert } from '@mui/material';
 import type { GridColDef } from '@mui/x-data-grid';
 import { Add, Delete, Save } from '@mui/icons-material';
 import DataTable from '../../components/DataTable';
@@ -18,6 +18,9 @@ const PurchaseOrders: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<any>({ status: 'Draft' });
   const [items, setItems] = useState<any[]>([]);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+
+  const handleCloseSnackbar = () => setSnackbar({ ...snackbar, open: false });
 
   useEffect(() => {
     fetchPOs();
@@ -102,7 +105,7 @@ const PurchaseOrders: React.FC = () => {
 
   const handleSave = async () => {
     if (!formData.vendor || items.length === 0) {
-      alert("Please enter a vendor and at least one item.");
+      setSnackbar({ open: true, message: "Please enter a vendor and at least one item.", severity: 'error' });
       return;
     }
     
@@ -136,9 +139,10 @@ const PurchaseOrders: React.FC = () => {
       
       handleClose();
       fetchPOs();
+      setSnackbar({ open: true, message: "Purchase Order saved successfully!", severity: 'success' });
     } catch (error: any) {
       console.error("Error saving PO", error);
-      alert("Error saving Purchase Order: " + error.message);
+      setSnackbar({ open: true, message: "Error saving Purchase Order: " + error.message, severity: 'error' });
     } finally {
       setSaving(false);
     }
@@ -302,6 +306,12 @@ const PurchaseOrders: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      
+      <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%', boxShadow: 3 }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
