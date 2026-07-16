@@ -5,8 +5,10 @@ import type { GridColDef } from '@mui/x-data-grid';
 import DataTable from '../../components/DataTable';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../../lib/supabase';
+import { useAuthStore } from '../../store/useAuthStore';
 
 const Recipes: React.FC = () => {
+  const { user } = useAuthStore();
   const [recipes, setRecipes] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,15 +20,23 @@ const Recipes: React.FC = () => {
   const [ingredients, setIngredients] = useState<any[]>([]);
   const [currentIngredient, setCurrentIngredient] = useState<any | null>(null);
   const [currentQuantity, setCurrentQuantity] = useState<number>(0);
+  // Track existing recipe ID if we're editing
+  const [currentRecipeId, setCurrentRecipeId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchProducts();
-    loadRecipes();
-  }, []);
+    if (user?.companyId) {
+      fetchProducts();
+      loadRecipes();
+    }
+  }, [user]);
 
   const fetchProducts = async () => {
     try {
-      const { data, error } = await supabase.from('products').select('*').order('name');
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('company_id', user?.companyId)
+        .order('name');
       if (error) throw error;
       if (data) setProducts(data);
     } catch (err) {
@@ -34,27 +44,55 @@ const Recipes: React.FC = () => {
     }
   };
 
-  const loadRecipes = () => {
-    const saved = localStorage.getItem('mock_recipes');
-    if (saved) {
-      setRecipes(JSON.parse(saved));
-    } else {
-      setRecipes([]);
-    }
-    setLoading(false);
-  };
+  const loadRecipes = async () => {
+    setLoading(true);
+    try {
+      // Fetch recipes with their linked product and ingredients
+      const { data, error } = await supabase
+        .from('recipes')
+        .select(`
+          id,
+          product_id,
+          product:products!recipes_product_id_fkey(name),
+          recipe_ingredients (
+            id,
+            raw_material_id,
+            quantity_consumed,
+            raw_material:products!recipe_ingredients_raw_material_id_fkey(name, unit)
+          )
+        `)
+        .eq('company_id', user?.companyId);
 
-  const saveToDb = (data: any[]) => {
-    setRecipes(data);
-    localStorage.setItem('mock_recipes', JSON.stringify(data));
+      if (error) throw error;
+      
+      const formattedRecipes = (data || []).map((r: any) => ({
+        id: r.id,
+        productId: r.product_id,
+        productName: r.product?.name,
+        ingredients: (r.recipe_ingredients || []).map((ing: any) => ({
+          productId: ing.raw_material_id,
+          name: ing.raw_material?.name,
+          unit: ing.raw_material?.unit,
+          quantity: ing.quantity_consumed
+        }))
+      }));
+      
+      setRecipes(formattedRecipes);
+    } catch (err) {
+      console.error('Error loading recipes:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleOpen = (recipe?: any) => {
     if (recipe) {
+      setCurrentRecipeId(recipe.id);
       const prod = products.find(p => p.id === recipe.productId);
       setSelectedProduct(prod || null);
       setIngredients(recipe.ingredients || []);
     } else {
+      setCurrentRecipeId(null);
       setSelectedProduct(null);
       setIngredients([]);
     }
@@ -63,6 +101,7 @@ const Recipes: React.FC = () => {
 
   const handleClose = () => {
     setOpen(false);
+    setCurrentRecipeId(null);
     setSelectedProduct(null);
     setIngredients([]);
     setCurrentIngredient(null);
@@ -85,34 +124,79 @@ const Recipes: React.FC = () => {
     setIngredients(ingredients.filter(i => i.productId !== productId));
   };
 
-  const handleSave = () => {
-    if (!selectedProduct) return;
+  const handleSave = async () => {
+    if (!selectedProduct || ingredients.length === 0 || !user?.companyId) return;
     setSaving(true);
     
-    const newRecipe = {
-      id: selectedProduct.id, // 1 recipe per product
-      productId: selectedProduct.id,
-      productName: selectedProduct.name,
-      ingredients: ingredients
-    };
+    try {
+      let recipeId = currentRecipeId;
+      
+      if (!recipeId) {
+        // Create new recipe
+        const { data: newRecipe, error: recipeErr } = await supabase
+          .from('recipes')
+          .insert([{ product_id: selectedProduct.id, company_id: user.companyId }])
+          .select()
+          .single();
+          
+        if (recipeErr) {
+          if (recipeErr.code === '23505') {
+            alert('A recipe for this product already exists!');
+            setSaving(false);
+            return;
+          }
+          throw recipeErr;
+        }
+        recipeId = newRecipe.id;
+      } else {
+        // If editing, first delete old ingredients so we can insert new ones
+        const { error: delErr } = await supabase
+          .from('recipe_ingredients')
+          .delete()
+          .eq('recipe_id', recipeId);
+        if (delErr) throw delErr;
+        
+        // Also update the product_id if they changed the finished product
+        const { error: updErr } = await supabase
+          .from('recipes')
+          .update({ product_id: selectedProduct.id })
+          .eq('id', recipeId);
+        if (updErr) throw updErr;
+      }
 
-    let updated;
-    const exists = recipes.find(r => r.id === newRecipe.id);
-    if (exists) {
-      updated = recipes.map(r => r.id === newRecipe.id ? newRecipe : r);
-    } else {
-      updated = [...recipes, newRecipe];
+      // Insert all ingredients
+      const ingsToInsert = ingredients.map(ing => ({
+        recipe_id: recipeId,
+        raw_material_id: ing.productId,
+        quantity_consumed: ing.quantity
+      }));
+      
+      const { error: ingErr } = await supabase
+        .from('recipe_ingredients')
+        .insert(ingsToInsert);
+        
+      if (ingErr) throw ingErr;
+      
+      await loadRecipes();
+      handleClose();
+    } catch (err: any) {
+      console.error('Error saving recipe:', err);
+      alert('Failed to save recipe: ' + err.message);
+    } finally {
+      setSaving(false);
     }
-    
-    saveToDb(updated);
-    setSaving(false);
-    handleClose();
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm("Delete this recipe?")) {
-      const updated = recipes.filter(r => r.id !== id);
-      saveToDb(updated);
+      try {
+        const { error } = await supabase.from('recipes').delete().eq('id', id);
+        if (error) throw error;
+        await loadRecipes();
+      } catch (err: any) {
+        console.error('Error deleting recipe:', err);
+        alert('Failed to delete recipe: ' + err.message);
+      }
     }
   };
 
@@ -155,9 +239,9 @@ const Recipes: React.FC = () => {
       </Box>
 
       <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
-        <DialogTitle>{selectedProduct ? 'Edit Recipe' : 'Create New Recipe'}</DialogTitle>
+        <DialogTitle>{currentRecipeId ? 'Edit Recipe' : 'Create New Recipe'}</DialogTitle>
         <DialogContent dividers>
-          <Box sx={{ mb: 4 }}>
+          <Box sx={{ mb: 4, pt: 1 }}>
             <Typography variant="subtitle2" gutterBottom>1. Select Finished Product (What you sell)</Typography>
             <Autocomplete
               options={products}
@@ -195,7 +279,7 @@ const Recipes: React.FC = () => {
                 />
               </Grid>
               <Grid item xs={4} sm={2}>
-                <Button variant="outlined" fullWidth onClick={addIngredient} disabled={!currentIngredient || currentQuantity <= 0}>Add</Button>
+                <Button variant="outlined" fullWidth onClick={addIngredient} disabled={!currentIngredient || currentQuantity <= 0} sx={{ height: '56px' }}>Add</Button>
               </Grid>
             </Grid>
 

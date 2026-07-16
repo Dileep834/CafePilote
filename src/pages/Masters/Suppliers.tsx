@@ -3,9 +3,11 @@ import { Box, Button, IconButton, Chip, Dialog, DialogTitle, DialogContent, Dial
 import type { GridColDef } from '@mui/x-data-grid';
 import { Add, Edit, Delete } from '@mui/icons-material';
 import DataTable from '../../components/DataTable';
-import { v4 as uuidv4 } from 'uuid';
+import { supabase } from '../../lib/supabase';
+import { useAuthStore } from '../../store/useAuthStore';
 
 const Suppliers: React.FC = () => {
+  const { user } = useAuthStore();
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -14,27 +16,32 @@ const Suppliers: React.FC = () => {
   const [formData, setFormData] = useState<any>({ is_active: true });
 
   useEffect(() => {
-    // Mock DB fetch from localStorage
-    const saved = localStorage.getItem('mock_suppliers');
-    if (saved) {
-      setSuppliers(JSON.parse(saved));
-    } else {
-      setSuppliers([
-        { id: '1', name: 'Fresh Farms Inc', contact_name: 'John Doe', phone: '+91 9876543210', category: 'Vegetables', is_active: true },
-        { id: '2', name: 'Metro Dairy', contact_name: 'Jane Smith', phone: '+91 9123456789', category: 'Dairy', is_active: true }
-      ]);
+    if (user?.companyId) {
+      fetchSuppliers();
     }
-    setLoading(false);
-  }, []);
+  }, [user]);
 
-  const saveToDb = (data: any[]) => {
-    setSuppliers(data);
-    localStorage.setItem('mock_suppliers', JSON.stringify(data));
+  const fetchSuppliers = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('*')
+        .eq('company_id', user?.companyId)
+        .order('name', { ascending: true });
+        
+      if (error) throw error;
+      setSuppliers(data || []);
+    } catch (err) {
+      console.error('Error fetching suppliers:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleOpen = (supplier?: any) => {
     if (supplier) setFormData(supplier);
-    else setFormData({ is_active: true, id: uuidv4() });
+    else setFormData({ is_active: true });
     setOpen(true);
   };
 
@@ -44,25 +51,47 @@ const Suppliers: React.FC = () => {
   };
 
   const handleSave = async () => {
+    if (!user?.companyId) return;
     setSaving(true);
-    setTimeout(() => {
-      let updated;
-      const exists = suppliers.find(s => s.id === formData.id);
-      if (exists) {
-        updated = suppliers.map(s => s.id === formData.id ? formData : s);
+    try {
+      const payload = {
+        name: formData.name,
+        category: formData.category,
+        contact_name: formData.contact_name,
+        phone: formData.phone,
+        address: formData.address,
+        is_active: formData.is_active,
+        company_id: user.companyId
+      };
+
+      if (formData.id) {
+        const { error } = await supabase.from('suppliers').update(payload).eq('id', formData.id);
+        if (error) throw error;
       } else {
-        updated = [...suppliers, formData];
+        const { error } = await supabase.from('suppliers').insert([payload]);
+        if (error) throw error;
       }
-      saveToDb(updated);
-      setSaving(false);
+      
+      await fetchSuppliers();
       handleClose();
-    }, 500);
+    } catch (err) {
+      console.error('Error saving supplier:', err);
+      alert('Failed to save supplier');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this supplier?")) {
-      const updated = suppliers.filter(s => s.id !== id);
-      saveToDb(updated);
+      try {
+        const { error } = await supabase.from('suppliers').delete().eq('id', id);
+        if (error) throw error;
+        await fetchSuppliers();
+      } catch (err) {
+        console.error('Error deleting supplier:', err);
+        alert('Failed to delete supplier');
+      }
     }
   };
 
@@ -114,9 +143,9 @@ const Suppliers: React.FC = () => {
       </Box>
 
       <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-        <DialogTitle>{formData.name ? 'Edit Supplier' : 'Add New Supplier'}</DialogTitle>
+        <DialogTitle>{formData.id ? 'Edit Supplier' : 'Add New Supplier'}</DialogTitle>
         <DialogContent dividers>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <TextField fullWidth label="Vendor Name" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} />
             <TextField fullWidth label="Category (e.g. Dairy, Meat, Packaging)" value={formData.category || ''} onChange={e => setFormData({...formData, category: e.target.value})} />
             <TextField fullWidth label="Contact Person" value={formData.contact_name || ''} onChange={e => setFormData({...formData, contact_name: e.target.value})} />

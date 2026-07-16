@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Box, Button, TextField, Typography, Autocomplete, Grid, Paper, Table, TableBody, TableCell, TableHead, TableRow, IconButton, Divider, Alert, Snackbar } from '@mui/material';
 import { Delete, ShoppingCart, PrecisionManufacturing } from '@mui/icons-material';
 import { supabase } from '../../lib/supabase';
+import { useAuthStore } from '../../store/useAuthStore';
 import { v4 as uuidv4 } from 'uuid';
 
 const SalesEntry: React.FC = () => {
+  const { user } = useAuthStore();
   const [products, setProducts] = useState<any[]>([]);
   const [recipes, setRecipes] = useState<any[]>([]);
   
@@ -14,23 +16,97 @@ const SalesEntry: React.FC = () => {
   
   const [salesHistory, setSalesHistory] = useState<any[]>([]);
   const [toastOpen, setToastOpen] = useState(false);
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
-    fetchProducts();
-    const savedRecipes = localStorage.getItem('mock_recipes');
-    if (savedRecipes) setRecipes(JSON.parse(savedRecipes));
-    
-    const savedSales = localStorage.getItem('mock_sales');
-    if (savedSales) setSalesHistory(JSON.parse(savedSales));
-  }, []);
+    if (user?.companyId) {
+      fetchProducts();
+      fetchRecipes();
+      fetchSalesHistory();
+    }
+  }, [user]);
 
   const fetchProducts = async () => {
     try {
-      const { data, error } = await supabase.from('products').select('*').order('name');
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('company_id', user?.companyId)
+        .order('name');
       if (error) throw error;
       if (data) setProducts(data);
     } catch (err) {
       console.error('Error fetching products:', err);
+    }
+  };
+
+  const fetchRecipes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('recipes')
+        .select(`
+          id,
+          product_id,
+          recipe_ingredients (
+            raw_material_id,
+            quantity_consumed,
+            raw_material:products!recipe_ingredients_raw_material_id_fkey(name, unit)
+          )
+        `)
+        .eq('company_id', user?.companyId);
+      if (error) throw error;
+      
+      const formatted = (data || []).map((r: any) => ({
+        productId: r.product_id,
+        ingredients: (r.recipe_ingredients || []).map((ing: any) => ({
+          productId: ing.raw_material_id,
+          name: ing.raw_material?.name,
+          unit: ing.raw_material?.unit,
+          quantity: ing.quantity_consumed
+        }))
+      }));
+      setRecipes(formatted);
+    } catch (err) {
+      console.error('Error fetching recipes:', err);
+    }
+  };
+
+  const fetchSalesHistory = async () => {
+    if (!user?.franchiseId) return;
+    try {
+      // Fetch recent sales for this franchise
+      const { data, error } = await supabase
+        .from('sales')
+        .select(`
+          id,
+          sale_date,
+          sale_items (
+            quantity,
+            product:products!sale_items_product_id_fkey(id, name)
+          )
+        `)
+        .eq('franchise_id', user.franchiseId)
+        .order('sale_date', { ascending: false })
+        .limit(10);
+        
+      if (error) throw error;
+      
+      const formatted = (data || []).map((sale: any) => ({
+        id: sale.id,
+        timestamp: sale.sale_date,
+        items: (sale.sale_items || []).map((item: any) => ({
+          id: uuidv4(),
+          qty: item.quantity,
+          product: { id: item.product?.id, name: item.product?.name }
+        })),
+        // Raw materials deduction history logic is complex to re-derive historically without joining recipes again,
+        // so for historical rows we will just show the items sold. The new rows will calculate it on the fly.
+        rawMaterialsConsumed: [] 
+      }));
+      
+      setSalesHistory(formatted);
+    } catch (err) {
+      console.error('Error fetching sales history:', err);
     }
   };
 
@@ -55,39 +131,72 @@ const SalesEntry: React.FC = () => {
     setCart(cart.filter(item => item.id !== id));
   };
 
-  const processSale = () => {
-    if (cart.length === 0) return;
+  const processSale = async () => {
+    if (cart.length === 0 || !user?.companyId || !user?.franchiseId) return;
+    setProcessing(true);
     
-    const timestamp = new Date().toISOString();
-    
-    // Calculate raw material consumption
-    const consumptionMap: Record<string, {name: string, unit: string, totalQty: number}> = {};
-    
-    cart.forEach(cartItem => {
-      const recipe = recipes.find(r => r.productId === cartItem.product.id);
-      if (recipe && recipe.ingredients) {
-        recipe.ingredients.forEach((ing: any) => {
-          if (!consumptionMap[ing.productId]) {
-            consumptionMap[ing.productId] = { name: ing.name, unit: ing.unit, totalQty: 0 };
-          }
-          consumptionMap[ing.productId].totalQty += (ing.quantity * cartItem.qty);
-        });
-      }
-    });
+    try {
+      // Calculate raw material consumption for UI log
+      const consumptionMap: Record<string, {name: string, unit: string, totalQty: number}> = {};
+      
+      cart.forEach(cartItem => {
+        const recipe = recipes.find(r => r.productId === cartItem.product.id);
+        if (recipe && recipe.ingredients) {
+          recipe.ingredients.forEach((ing: any) => {
+            if (!consumptionMap[ing.productId]) {
+              consumptionMap[ing.productId] = { name: ing.name, unit: ing.unit, totalQty: 0 };
+            }
+            consumptionMap[ing.productId].totalQty += (ing.quantity * cartItem.qty);
+          });
+        }
+      });
 
-    const newSale = {
-      id: uuidv4(),
-      timestamp,
-      items: cart,
-      rawMaterialsConsumed: Object.values(consumptionMap)
-    };
+      // 1. Insert into Sales table
+      const { data: saleData, error: saleErr } = await supabase
+        .from('sales')
+        .insert([{
+          company_id: user.companyId,
+          franchise_id: user.franchiseId,
+          sold_by: user.id,
+          total_amount: 0 // Mock price for now
+        }])
+        .select()
+        .single();
+        
+      if (saleErr) throw saleErr;
 
-    const newHistory = [newSale, ...salesHistory];
-    setSalesHistory(newHistory);
-    localStorage.setItem('mock_sales', JSON.stringify(newHistory));
-    
-    setCart([]);
-    setToastOpen(true);
+      // 2. Insert into Sale Items table
+      const saleItems = cart.map(item => ({
+        sale_id: saleData.id,
+        product_id: item.product.id,
+        quantity: item.qty,
+        price_at_sale: 0
+      }));
+      
+      const { error: itemsErr } = await supabase
+        .from('sale_items')
+        .insert(saleItems);
+        
+      if (itemsErr) throw itemsErr;
+
+      // Add to local UI history so they instantly see it with raw materials calculated
+      const newSale = {
+        id: saleData.id,
+        timestamp: saleData.sale_date,
+        items: cart,
+        rawMaterialsConsumed: Object.values(consumptionMap)
+      };
+
+      setSalesHistory([newSale, ...salesHistory]);
+      setCart([]);
+      setToastOpen(true);
+      
+    } catch (err: any) {
+      console.error('Error processing sale:', err);
+      alert('Failed to process sale: ' + err.message);
+    } finally {
+      setProcessing(false);
+    }
   };
 
   return (
@@ -172,9 +281,9 @@ const SalesEntry: React.FC = () => {
               fullWidth 
               sx={{ mt: 3, py: 2, fontSize: '1.1rem' }}
               onClick={processSale}
-              disabled={cart.length === 0}
+              disabled={cart.length === 0 || processing}
             >
-              Process Sale & Deduct Inventory
+              {processing ? 'Processing...' : 'Process Sale & Deduct Inventory'}
             </Button>
           </Paper>
         </Grid>
@@ -189,7 +298,7 @@ const SalesEntry: React.FC = () => {
               <Typography color="text.secondary">No sales recorded yet.</Typography>
             ) : (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, overflowY: 'auto', maxHeight: '70vh' }}>
-                {salesHistory.slice(0, 5).map(sale => (
+                {salesHistory.map(sale => (
                   <Paper key={sale.id} sx={{ p: 3, borderLeft: '4px solid', borderColor: 'primary.main' }}>
                     <Typography variant="caption" color="text.secondary">
                       {new Date(sale.timestamp).toLocaleString()}
@@ -202,12 +311,16 @@ const SalesEntry: React.FC = () => {
                       ))}
                     </ul>
 
-                    <Typography variant="subtitle2" color="error.main" sx={{ mt: 2, fontWeight: 'bold' }}>Auto-Deducted Raw Materials:</Typography>
-                    <ul style={{ margin: 0, paddingLeft: '20px', color: 'gray' }}>
-                      {sale.rawMaterialsConsumed.map((rm: any, idx: number) => (
-                        <li key={idx}>-{rm.totalQty} {rm.unit} of {rm.name}</li>
-                      ))}
-                    </ul>
+                    {sale.rawMaterialsConsumed && sale.rawMaterialsConsumed.length > 0 && (
+                      <>
+                        <Typography variant="subtitle2" color="error.main" sx={{ mt: 2, fontWeight: 'bold' }}>Auto-Deducted Raw Materials:</Typography>
+                        <ul style={{ margin: 0, paddingLeft: '20px', color: 'gray' }}>
+                          {sale.rawMaterialsConsumed.map((rm: any, idx: number) => (
+                            <li key={idx}>-{rm.totalQty} {rm.unit} of {rm.name}</li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
                   </Paper>
                 ))}
               </Box>
@@ -218,7 +331,7 @@ const SalesEntry: React.FC = () => {
       
       <Snackbar open={toastOpen} autoHideDuration={4000} onClose={() => setToastOpen(false)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert onClose={() => setToastOpen(false)} severity="success" sx={{ width: '100%' }} variant="filled">
-          Sale Processed! Inventory automatically deducted via BOM.
+          Sale Processed! Saved securely to the database.
         </Alert>
       </Snackbar>
     </Box>
