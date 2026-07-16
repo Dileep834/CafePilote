@@ -199,8 +199,7 @@ const SalesEntry: React.FC = () => {
         await supabase.from('inventory').upsert({
           outlet_id: user.outletId,
           product_id: productId,
-          current_quantity: currentQty - data.totalQty,
-          updated_at: new Date().toISOString()
+          current_quantity: currentQty - data.totalQty
         }, { onConflict: 'outlet_id, product_id' });
 
         // Update Daily Stock consumption

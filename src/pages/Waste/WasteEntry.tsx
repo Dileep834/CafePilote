@@ -105,8 +105,7 @@ const WasteEntry: React.FC = () => {
       await supabase.from('inventory').upsert({
         outlet_id: user.outletId,
         product_id: productId,
-        current_quantity: newQty,
-        updated_at: new Date().toISOString()
+        current_quantity: newQty
       }, { onConflict: 'outlet_id, product_id' });
     } catch (err) {
       console.error("Error updating inventory:", err);
