@@ -1,18 +1,127 @@
-import React, { useState } from 'react';
-import { Box, Button, TextField, Typography, Paper, Grid } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, Button, TextField, Typography, Paper, Grid, MenuItem } from '@mui/material';
 import type { GridColDef } from '@mui/x-data-grid';
 import { DataGrid } from '@mui/x-data-grid';
 import { Add } from '@mui/icons-material';
-
-
+import { supabase } from '../../lib/supabase';
+import { useAuthStore } from '../../store/useAuthStore';
 
 const StockAdjustments: React.FC = () => {
-  const [rows] = useState([]);
+  const { user } = useAuthStore();
+  const [rows, setRows] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  
+  // Form State
+  const [productId, setProductId] = useState('');
+  const [adjustment, setAdjustment] = useState('');
+  const [reason, setReason] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchProducts();
+    fetchAdjustments();
+  }, [user]);
+
+  const fetchProducts = async () => {
+    let query = supabase.from('products').select('id, name, unit').eq('is_active', true).order('name');
+    if (user?.role !== 'Super Admin' && user?.companyId) {
+      query = query.eq('company_id', user.companyId);
+    }
+    const { data } = await query;
+    if (data) setProducts(data);
+  };
+
+  const fetchAdjustments = async () => {
+    let query = supabase.from('stock_adjustments').select(`
+      id, date, adjustment, reason, approved_by,
+      product:products(name, unit)
+    `).order('date', { ascending: false }).limit(50);
+    
+    if (user?.role !== 'Super Admin' && user?.outletId) {
+      query = query.eq('outlet_id', user.outletId);
+    }
+    
+    const { data } = await query;
+    if (data) {
+      setRows(data.map((item: any) => ({
+        id: item.id,
+        date: new Date(item.date).toLocaleDateString(),
+        product: item.product?.name || 'Unknown',
+        adjustment: item.adjustment,
+        unit: item.product?.unit || '',
+        reason: item.reason,
+        approvedBy: item.approved_by
+      })));
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!productId || !adjustment || !reason || !user?.outletId) {
+      alert("Please fill all fields. Ensure you are logged in as an Outlet Manager.");
+      return;
+    }
+
+    setLoading(true);
+    const adjValue = parseFloat(adjustment);
+
+    try {
+      // 1. Insert into stock_adjustments
+      const { error: insertErr } = await supabase.from('stock_adjustments').insert([{
+        outlet_id: user.outletId,
+        company_id: user.companyId,
+        product_id: productId,
+        adjustment: adjValue,
+        reason: reason,
+        approved_by: user.name,
+        date: new Date().toISOString().split('T')[0]
+      }]);
+
+      if (insertErr) throw insertErr;
+
+      // 2. Update live inventory
+      const { data: invData } = await supabase
+        .from('inventory')
+        .select('current_quantity')
+        .eq('outlet_id', user.outletId)
+        .eq('product_id', productId)
+        .single();
+        
+      const currentQty = invData ? Number(invData.current_quantity) : 0;
+      const newQty = currentQty + adjValue; // Positive adds, negative subtracts
+      
+      const { error: invErr } = await supabase.from('inventory').upsert({
+        outlet_id: user.outletId,
+        product_id: productId,
+        current_quantity: newQty
+      }, { onConflict: 'outlet_id, product_id' });
+
+      if (invErr) throw invErr;
+
+      // Reset form
+      setProductId('');
+      setAdjustment('');
+      setReason('');
+      fetchAdjustments();
+
+    } catch (err: any) {
+      console.error(err);
+      alert("Error saving adjustment: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const columns: GridColDef[] = [
     { field: 'date', headerName: 'Date', width: 130 },
     { field: 'product', headerName: 'Product', flex: 1 },
-    { field: 'adjustment', headerName: 'Adjustment Qty', width: 150 },
+    { field: 'adjustment', headerName: 'Adjustment Qty', width: 150,
+      renderCell: (params) => (
+        <Box sx={{ color: params.value > 0 ? 'success.main' : 'error.main', fontWeight: 'bold' }}>
+          {params.value > 0 ? `+${params.value}` : params.value}
+        </Box>
+      )
+    },
+    { field: 'unit', headerName: 'Unit', width: 100 },
     { field: 'reason', headerName: 'Reason', flex: 1 },
     { field: 'approvedBy', headerName: 'Approved By', width: 150 },
   ];
@@ -21,12 +130,54 @@ const StockAdjustments: React.FC = () => {
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 3 }}>
       <Paper sx={{ p: 3 }}>
         <Typography variant="h6" gutterBottom>New Stock Adjustment</Typography>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '2fr 1fr 2fr auto' }, gap: 2, alignItems: 'center' }}>
-          <TextField fullWidth label="Product" size="small" />
-          <TextField fullWidth label="Quantity (Use +/-)" type="number" size="small" />
-          <TextField fullWidth label="Reason" size="small" />
-          <Button variant="contained" fullWidth startIcon={<Add />}>Submit</Button>
-        </Box>
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} sm={3}>
+            <TextField 
+              select 
+              fullWidth 
+              label="Product" 
+              size="small"
+              value={productId}
+              onChange={(e) => setProductId(e.target.value)}
+            >
+              {products.map(p => (
+                <MenuItem key={p.id} value={p.id}>{p.name} ({p.unit})</MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid item xs={12} sm={3}>
+            <TextField 
+              fullWidth 
+              label="Quantity (Use +/-)" 
+              type="number" 
+              size="small"
+              value={adjustment}
+              onChange={(e) => setAdjustment(e.target.value)}
+              helperText="E.g. -5 to deduct, 10 to add"
+            />
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <TextField 
+              fullWidth 
+              label="Reason" 
+              size="small"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </Grid>
+          <Grid item xs={12} sm={2}>
+            <Button 
+              variant="contained" 
+              fullWidth 
+              startIcon={<Add />} 
+              onClick={handleSubmit}
+              disabled={loading}
+              sx={{ height: 40 }}
+            >
+              Submit
+            </Button>
+          </Grid>
+        </Grid>
       </Paper>
       
       <Paper sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', p: 2 }}>

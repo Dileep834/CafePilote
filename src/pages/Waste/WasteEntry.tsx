@@ -73,6 +73,7 @@ const WasteEntry: React.FC = () => {
 
     const { error } = await supabase.from('waste_logs').insert([{
       outlet_id: user.outletId,
+      company_id: user.companyId,
       product_id: productId,
       quantity: parseFloat(quantity),
       reason: reason,
@@ -80,15 +81,37 @@ const WasteEntry: React.FC = () => {
       date: new Date().toISOString().split('T')[0]
     }]);
 
-    if (!error) {
-      setProductId('');
-      setQuantity('');
-      setReason('');
-      fetchWasteLogs(); // Refresh grid
-    } else {
+    if (error) {
       console.error(error);
       alert("Error adding waste log.");
+      return;
     }
+
+    // Deduct from inventory
+    try {
+      const { data: invData } = await supabase
+        .from('inventory')
+        .select('current_quantity')
+        .eq('outlet_id', user.outletId)
+        .eq('product_id', productId)
+        .single();
+        
+      const currentQty = invData ? Number(invData.current_quantity) : 0;
+      const newQty = currentQty - parseFloat(quantity);
+      
+      await supabase.from('inventory').upsert({
+        outlet_id: user.outletId,
+        product_id: productId,
+        current_quantity: newQty
+      }, { onConflict: 'outlet_id, product_id' });
+    } catch (err) {
+      console.error("Error updating inventory:", err);
+    }
+
+    setProductId('');
+    setQuantity('');
+    setReason('');
+    fetchWasteLogs(); // Refresh grid
   };
 
   const columns: GridColDef[] = [

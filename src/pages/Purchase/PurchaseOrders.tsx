@@ -61,7 +61,8 @@ const PurchaseOrders: React.FC = () => {
       vendor: '',
       date: new Date().toISOString().split('T')[0],
       status: 'Draft',
-      outlet_id: user?.companyId === 'SYSTEM' ? null : user?.companyId
+      company_id: user?.companyId,
+      outlet_id: user?.outletId
     });
     setItems([]);
     setOpen(true);
