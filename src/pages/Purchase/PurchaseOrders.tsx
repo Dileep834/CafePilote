@@ -135,6 +135,65 @@ const PurchaseOrders: React.FC = () => {
         
         const { error: itemsError } = await supabase.from('purchase_order_items').insert(poItems);
         if (itemsError) throw itemsError;
+
+        // 3. Update Inventory if Status is Received
+        if (formData.status === 'Received' && user?.outletId) {
+          const dateStr = new Date().toISOString().split('T')[0];
+          
+          for (const item of items) {
+            // Fetch current inventory
+            const { data: invData } = await supabase
+              .from('inventory')
+              .select('current_quantity')
+              .eq('outlet_id', user.outletId)
+              .eq('product_id', item.product_id)
+              .single();
+              
+            const currentQty = invData ? Number(invData.current_quantity) : 0;
+            
+            // Add to inventory
+            await supabase.from('inventory').upsert({
+              outlet_id: user.outletId,
+              product_id: item.product_id,
+              current_quantity: currentQty + Number(item.quantity)
+            }, { onConflict: 'outlet_id, product_id' });
+
+            // Update Daily Stock purchase
+            const { data: dsData } = await supabase
+              .from('daily_stock')
+              .select('id, opening_stock, purchase, consumption, waste')
+              .eq('outlet_id', user.outletId)
+              .eq('product_id', item.product_id)
+              .eq('date', dateStr)
+              .single();
+
+            if (dsData) {
+              const newPurchase = Number(dsData.purchase) + Number(item.quantity);
+              const newClosing = Number(dsData.opening_stock) + newPurchase - Number(dsData.consumption) - Number(dsData.waste);
+              await supabase.from('daily_stock').update({
+                purchase: newPurchase,
+                closing_stock: newClosing
+              }).eq('id', dsData.id);
+            } else {
+              const opening = currentQty; 
+              const newPurchase = Number(item.quantity);
+              const newClosing = opening + newPurchase;
+              
+              await supabase.from('daily_stock').insert({
+                company_id: user.companyId,
+                outlet_id: user.outletId,
+                product_id: item.product_id,
+                date: dateStr,
+                opening_stock: opening,
+                purchase: newPurchase,
+                consumption: 0,
+                waste: 0,
+                closing_stock: newClosing,
+                status: 'Draft'
+              });
+            }
+          }
+        }
       }
       
       handleClose();
