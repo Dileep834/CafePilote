@@ -1,6 +1,7 @@
 import React, { createContext, useState, useMemo, useContext, useEffect } from 'react';
-import { ThemeProvider, CssBaseline } from '@mui/material';
+import { ThemeProvider, CssBaseline, GlobalStyles } from '@mui/material';
 import { lightTheme, darkTheme } from '../theme/theme';
+import { useSettingsStore } from '../store/useSettingsStore';
 
 interface ThemeContextType {
   mode: 'light' | 'dark';
@@ -16,6 +17,7 @@ export const useThemeContext = () => useContext(ThemeContext);
 
 export const CustomThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [mode, setMode] = useState<'light' | 'dark'>('light');
+  const { viewScale } = useSettingsStore();
 
   useEffect(() => {
     const savedMode = localStorage.getItem('themeMode') as 'light' | 'dark';
@@ -38,6 +40,7 @@ export const CustomThemeProvider: React.FC<{ children: React.ReactNode }> = ({ c
     <ThemeContext.Provider value={{ mode, toggleTheme }}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
+        <GlobalStyles styles={{ html: { fontSize: `${viewScale}% !important` } }} />
         {children}
       </ThemeProvider>
     </ThemeContext.Provider>

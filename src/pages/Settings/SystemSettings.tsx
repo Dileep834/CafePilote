@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Paper, Grid, TextField, Switch, FormControlLabel, Button, Divider, Snackbar, Alert, InputAdornment, IconButton } from '@mui/material';
+import { Box, Typography, Paper, Grid, TextField, Switch, FormControlLabel, Button, Divider, Snackbar, Alert, InputAdornment, IconButton, MenuItem } from '@mui/material';
 import { Save, Visibility, VisibilityOff } from '@mui/icons-material';
+import { useSettingsStore } from '../../store/useSettingsStore';
 
 const SystemSettings: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [toastOpen, setToastOpen] = useState(false);
+  const { viewScale, setViewScale } = useSettingsStore();
 
   // Form State
   const [settings, setSettings] = useState({
@@ -73,6 +75,28 @@ const SystemSettings: React.FC = () => {
           </Grid>
           <Grid sx={{ width: { xs: '100%', sm: '50%' } }}>
             <TextField fullWidth label="Contact Email" value={settings.email} onChange={e => handleChange('email', e.target.value)} />
+          </Grid>
+        </Grid>
+      </Paper>
+
+      <Paper sx={{ p: 4 }}>
+        <Typography variant="h6" gutterBottom>Display Settings</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          Adjust the global zoom level of the application interface.
+        </Typography>
+        <Grid container spacing={3}>
+          <Grid sx={{ width: { xs: '100%', sm: '50%' } }}>
+            <TextField 
+              select 
+              fullWidth 
+              label="Interface View Scale" 
+              value={viewScale} 
+              onChange={e => setViewScale(Number(e.target.value))}
+            >
+              <MenuItem value={70}>Small (70%)</MenuItem>
+              <MenuItem value={80}>Normal (80%)</MenuItem>
+              <MenuItem value={100}>Large (100%)</MenuItem>
+            </TextField>
           </Grid>
         </Grid>
       </Paper>
