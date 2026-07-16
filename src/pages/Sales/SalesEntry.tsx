@@ -72,9 +72,9 @@ const SalesEntry: React.FC = () => {
   };
 
   const fetchSalesHistory = async () => {
-    if (!user?.franchiseId) return;
+    if (!user?.outletId) return;
     try {
-      // Fetch recent sales for this franchise
+      // Fetch recent sales for this outlet
       const { data, error } = await supabase
         .from('sales')
         .select(`
@@ -85,7 +85,7 @@ const SalesEntry: React.FC = () => {
             product:products!sale_items_product_id_fkey(id, name)
           )
         `)
-        .eq('franchise_id', user.franchiseId)
+        .eq('outlet_id', user.outletId)
         .order('sale_date', { ascending: false })
         .limit(10);
         
@@ -132,7 +132,7 @@ const SalesEntry: React.FC = () => {
   };
 
   const processSale = async () => {
-    if (cart.length === 0 || !user?.companyId || !user?.franchiseId) return;
+    if (cart.length === 0 || !user?.companyId || !user?.outletId) return;
     setProcessing(true);
     
     try {
@@ -156,7 +156,7 @@ const SalesEntry: React.FC = () => {
         .from('sales')
         .insert([{
           company_id: user.companyId,
-          franchise_id: user.franchiseId,
+          outlet_id: user.outletId,
           sold_by: user.id,
           total_amount: 0 // Mock price for now
         }])

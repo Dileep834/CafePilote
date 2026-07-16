@@ -68,8 +68,8 @@ const Login: React.FC = () => {
           id: 'd2000000-0000-0000-0000-000000000002',
           name: 'Ghatkopar Manager',
           email: 'ghatkopar@backbenchers.com',
-          role: Role.FRANCHISE_OWNER,
-          franchiseId: 'f1000000-0000-0000-0000-000000000001',
+          role: Role.OUTLET_OWNER,
+          outletId: 'f1000000-0000-0000-0000-000000000001',
           companyId: 'c1000000-0000-0000-0000-000000000001',
           isActive: true
         }, 'mock-jwt-token');
@@ -80,7 +80,7 @@ const Login: React.FC = () => {
           name: 'Ghatkopar Staff',
           email: 'staff@backbenchers.com',
           role: Role.STAFF,
-          franchiseId: 'f1000000-0000-0000-0000-000000000001',
+          outletId: 'f1000000-0000-0000-0000-000000000001',
           companyId: 'c1000000-0000-0000-0000-000000000001',
           isActive: true
         }, 'mock-jwt-token');

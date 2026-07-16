@@ -7,10 +7,10 @@ import AuthLayout from '../layouts/AuthLayout';
 // Mock pages for now
 const Login = React.lazy(() => import('../pages/Login'));
 const AdminDashboard = React.lazy(() => import('../pages/Dashboard/AdminDashboard'));
-const FranchiseDashboard = React.lazy(() => import('../pages/Dashboard/FranchiseDashboard'));
+const OutletDashboard = React.lazy(() => import('../pages/Dashboard/OutletDashboard'));
 const Products = React.lazy(() => import('../pages/Masters/Products'));
 const Categories = React.lazy(() => import('../pages/Masters/Categories'));
-const Franchises = React.lazy(() => import('../pages/Masters/Franchises'));
+const Outlets = React.lazy(() => import('../pages/Masters/Outlets'));
 const Users = React.lazy(() => import('../pages/Masters/Users'));
 const Companies = React.lazy(() => import('../pages/Masters/Companies'));
 const Suppliers = React.lazy(() => import('../pages/Masters/Suppliers'));
@@ -45,7 +45,7 @@ const RoleBasedDashboard = () => {
   if (user?.role === 'Super Admin' || user?.role === 'Admin') {
     return <AdminDashboard />;
   }
-  return <FranchiseDashboard />;
+  return <OutletDashboard />;
 };
 
 const AppRoutes = () => {
@@ -67,7 +67,7 @@ const AppRoutes = () => {
           
           <Route path="masters/products" element={<Products />} />
           <Route path="masters/categories" element={<Categories />} />
-          <Route path="masters/franchises" element={<Franchises />} />
+          <Route path="masters/outlets" element={<Outlets />} />
           <Route path="masters/companies" element={
             <ProtectedRoute allowedRoles={['Super Admin']}>
               <Companies />

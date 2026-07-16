@@ -11,7 +11,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 const Users: React.FC = () => {
   const { user } = useAuthStore();
   const [users, setUsers] = useState<any[]>([]);
-  const [franchises, setFranchises] = useState<any[]>([]);
+  const [outlets, setOutlets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Dialog State
@@ -21,20 +21,20 @@ const Users: React.FC = () => {
 
   useEffect(() => {
     fetchUsers();
-    fetchFranchises();
+    fetchOutlets();
   }, [user]);
 
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      let query = supabase.from('users').select(`*, franchise:franchises(name)`).order('name');
+      let query = supabase.from('users').select(`*, outlet:outlets(name)`).order('name');
       if (user?.role !== 'Super Admin' && user?.companyId) {
         query = query.eq('company_id', user.companyId);
       }
       const { data, error } = await query;
       if (error) throw error;
       if (data) {
-        setUsers(data.map(u => ({...u, franchiseName: u.franchise?.name})));
+        setUsers(data.map(u => ({...u, outletName: u.outlet?.name})));
       }
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -43,14 +43,14 @@ const Users: React.FC = () => {
     }
   };
 
-  const fetchFranchises = async () => {
+  const fetchOutlets = async () => {
     try {
-      let query = supabase.from('franchises').select('id, name');
+      let query = supabase.from('outlets').select('id, name');
       if (user?.role !== 'Super Admin' && user?.companyId) {
         query = query.eq('company_id', user.companyId);
       }
       const { data } = await query;
-      if (data) setFranchises(data);
+      if (data) setOutlets(data);
     } catch (error) {
       console.error(error);
     }
@@ -64,7 +64,7 @@ const Users: React.FC = () => {
         role: Role.STAFF,
         is_active: true,
         company_id: user?.companyId === 'SYSTEM' ? null : user?.companyId,
-        franchise_id: (user?.role === Role.FRANCHISE_OWNER || user?.role === Role.STORE_MANAGER) ? user?.franchiseId : ''
+        outlet_id: (user?.role === Role.OUTLET_OWNER || user?.role === Role.STORE_MANAGER) ? user?.outletId : ''
       });
     }
     setOpen(true);
@@ -72,8 +72,8 @@ const Users: React.FC = () => {
 
   const getAvailableRoles = () => {
     if (user?.role === Role.SUPER_ADMIN) return Object.values(Role);
-    if (user?.role === Role.ADMIN) return [Role.ADMIN, Role.FRANCHISE_OWNER, Role.STORE_MANAGER, Role.STAFF];
-    if (user?.role === Role.FRANCHISE_OWNER || user?.role === Role.STORE_MANAGER) return [Role.STORE_MANAGER, Role.STAFF];
+    if (user?.role === Role.ADMIN) return [Role.ADMIN, Role.OUTLET_OWNER, Role.STORE_MANAGER, Role.STAFF];
+    if (user?.role === Role.OUTLET_OWNER || user?.role === Role.STORE_MANAGER) return [Role.STORE_MANAGER, Role.STAFF];
     return [];
   };
 
@@ -86,8 +86,8 @@ const Users: React.FC = () => {
     setSaving(true);
     try {
       const dataToSave = { ...formData };
-      delete dataToSave.franchise;
-      delete dataToSave.franchiseName;
+      delete dataToSave.outlet;
+      delete dataToSave.outletName;
       delete dataToSave.password; // Don't send the mock password to the DB
       
       if (dataToSave.id) {
@@ -120,7 +120,7 @@ const Users: React.FC = () => {
     { field: 'name', headerName: 'Name', flex: 1, minWidth: 150 },
     { field: 'email', headerName: 'Email', flex: 1, minWidth: 200 },
     { field: 'role', headerName: 'Role', width: 150 },
-    { field: 'franchiseName', headerName: 'Franchise', width: 180 },
+    { field: 'outletName', headerName: 'Outlet', width: 180 },
     { 
       field: 'is_active', 
       headerName: 'Status', 
@@ -198,13 +198,13 @@ const Users: React.FC = () => {
             <TextField 
               select
               fullWidth 
-              label="Assign to Franchise" 
-              value={formData.franchise_id || ''} 
-              onChange={e => setFormData({...formData, franchise_id: e.target.value})} 
-              disabled={user?.role === Role.FRANCHISE_OWNER || user?.role === Role.STORE_MANAGER}
+              label="Assign to Outlet" 
+              value={formData.outlet_id || ''} 
+              onChange={e => setFormData({...formData, outlet_id: e.target.value})} 
+              disabled={user?.role === Role.OUTLET_OWNER || user?.role === Role.STORE_MANAGER}
             >
               <MenuItem value=""><em>None</em></MenuItem>
-              {franchises.map(f => (
+              {outlets.map(f => (
                 <MenuItem key={f.id} value={f.id}>{f.name}</MenuItem>
               ))}
             </TextField>

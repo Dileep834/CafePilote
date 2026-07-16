@@ -66,13 +66,13 @@ const WasteEntry: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    if (!productId || !quantity || !reason || !user?.franchiseId) {
-      alert("Please fill all fields. Ensure you are logged in as a Franchise Manager.");
+    if (!productId || !quantity || !reason || !user?.outletId) {
+      alert("Please fill all fields. Ensure you are logged in as a Outlet Manager.");
       return;
     }
 
     const { error } = await supabase.from('waste_logs').insert([{
-      franchise_id: user.franchiseId,
+      outlet_id: user.outletId,
       product_id: productId,
       quantity: parseFloat(quantity),
       reason: reason,
@@ -103,7 +103,7 @@ const WasteEntry: React.FC = () => {
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 3 }}>
       <Paper sx={{ p: 3 }}>
-        <Typography variant="h6" gutterBottom>Log Waste Entry</Typography>
+        <Typography variant="h6" gutterBottom>Log Wastage Log</Typography>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '2fr 1fr 2fr auto' }, gap: 2, alignItems: 'center' }}>
           <TextField 
             select 

@@ -82,7 +82,7 @@ const Companies: React.FC = () => {
         fetchCompanies();
       } catch (error: any) {
         console.error("Error deleting company", error);
-        alert("Cannot delete company. It may have associated records (Franchises, Users, etc).");
+        alert("Cannot delete company. It may have associated records (Outlets, Users, etc).");
       }
     }
   };

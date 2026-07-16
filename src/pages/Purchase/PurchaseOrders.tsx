@@ -29,7 +29,7 @@ const PurchaseOrders: React.FC = () => {
     try {
       let query = supabase.from('purchase_orders').select('*').order('date', { ascending: false });
       if (user?.role !== 'Super Admin' && user?.companyId) {
-        query = query.eq('franchise_id', user.companyId); // Assuming franchise_id maps to companyId for this demo
+        query = query.eq('outlet_id', user.companyId); // Assuming outlet_id maps to companyId for this demo
       }
       const { data, error } = await query;
       if (error) throw error;
@@ -61,7 +61,7 @@ const PurchaseOrders: React.FC = () => {
       vendor: '',
       date: new Date().toISOString().split('T')[0],
       status: 'Draft',
-      franchise_id: user?.companyId === 'SYSTEM' ? null : user?.companyId
+      outlet_id: user?.companyId === 'SYSTEM' ? null : user?.companyId
     });
     setItems([]);
     setOpen(true);

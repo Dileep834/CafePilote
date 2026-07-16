@@ -16,7 +16,7 @@ const InventoryReport: React.FC = () => {
   const columns: GridColDef[] = [
     { field: 'product', headerName: 'Product', flex: 1 },
     { field: 'category', headerName: 'Category', width: 150 },
-    { field: 'stock', headerName: 'Current Stock', width: 150, type: 'number' },
+    { field: 'stock', headerName: 'Live Inventory', width: 150, type: 'number' },
     { field: 'value', headerName: 'Valuation', width: 150, valueFormatter: (params: any) => `$${Number(params.value).toFixed(2)}` },
     { field: 'status', headerName: 'Status', width: 150 },
   ];
@@ -36,7 +36,7 @@ const InventoryReport: React.FC = () => {
           <Tab label="Inventory Valuation" />
           <Tab label="Purchase History" />
           <Tab label="Consumption & Waste" />
-          <Tab label="Franchise Performance" />
+          <Tab label="Outlet Performance" />
         </Tabs>
       </Paper>
 

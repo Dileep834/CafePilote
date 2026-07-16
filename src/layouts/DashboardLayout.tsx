@@ -44,16 +44,16 @@ const drawerWidth = 260;
 const menuItems = [
   { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
   { text: 'Companies', icon: <Store />, path: '/masters/companies' },
-  { text: 'Sales Entry', icon: <ShoppingCart />, path: '/sales/entry' },
-  { text: 'Current Stock', icon: <Inventory />, path: '/inventory/current' },
+  { text: 'Point of Sale (POS)', icon: <ShoppingCart />, path: '/sales/entry' },
+  { text: 'Live Inventory', icon: <Inventory />, path: '/inventory/current' },
   { text: 'Daily Update', icon: <Assessment />, path: '/inventory/daily-update' },
   { text: 'Adjustments', icon: <Inventory />, path: '/inventory/adjustments' },
-  { text: 'Purchases', icon: <Receipt />, path: '/purchase/orders' },
-  { text: 'Waste Entry', icon: <Warning />, path: '/waste' },
+  { text: 'Purchase Orders', icon: <Receipt />, path: '/purchase/orders' },
+  { text: 'Wastage Log', icon: <Warning />, path: '/waste' },
   { text: 'Products', icon: <Store />, path: '/masters/products' },
   { text: 'Recipes', icon: <PrecisionManufacturing />, path: '/masters/recipes' },
   { text: 'Categories', icon: <Store />, path: '/masters/categories' },
-  { text: 'Franchises', icon: <Store />, path: '/masters/franchises' },
+  { text: 'Outlets', icon: <Store />, path: '/masters/outlets' },
   { text: 'Suppliers', icon: <Store />, path: '/masters/suppliers' },
   { text: 'Users', icon: <People />, path: '/users' },
   { text: 'Settings', icon: <Settings />, path: '/settings' },
@@ -105,14 +105,14 @@ const DashboardLayout: React.FC = () => {
           
           // Staff can only see Sales, Stock, and Waste
           if (role === 'Staff') {
-            const staffAllowed = ['Dashboard', 'Sales Entry', 'Current Stock', 'Daily Update', 'Adjustments', 'Waste Entry'];
+            const staffAllowed = ['Dashboard', 'Point of Sale (POS)', 'Live Inventory', 'Daily Update', 'Adjustments', 'Wastage Log'];
             if (!staffAllowed.includes(item.text)) return null;
           }
 
-          // Franchise Managers can see Sales and Suppliers but NOT Recipes/Products
-          if (role === 'Franchise Manager' || role === 'Franchise Owner') {
-            const franchiseAllowed = ['Dashboard', 'Sales Entry', 'Current Stock', 'Daily Update', 'Adjustments', 'Purchases', 'Waste Entry', 'Suppliers', 'Settings'];
-            if (!franchiseAllowed.includes(item.text)) return null;
+          // Outlet Managers can see Sales and Suppliers but NOT Recipes/Products
+          if (role === 'Outlet Manager' || role === 'Outlet Owner') {
+            const outletAllowed = ['Dashboard', 'Point of Sale (POS)', 'Live Inventory', 'Daily Update', 'Adjustments', 'Purchase Orders', 'Wastage Log', 'Suppliers', 'Settings'];
+            if (!outletAllowed.includes(item.text)) return null;
           }
 
           const isSelected = location.pathname.startsWith(item.path);

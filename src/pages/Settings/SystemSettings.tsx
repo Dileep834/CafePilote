@@ -80,7 +80,7 @@ const SystemSettings: React.FC = () => {
       <Paper sx={{ p: 4 }}>
         <Typography variant="h6" gutterBottom>Inventory Update Configuration</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Configure the daily stock submission window and reminders for franchisees.
+          Configure the daily stock submission window and reminders for outletes.
         </Typography>
 
         <Grid container spacing={3}>

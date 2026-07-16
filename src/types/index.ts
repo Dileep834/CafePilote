@@ -5,12 +5,12 @@ export interface User {
   name: string;
   email: string;
   role: RoleType;
-  franchiseId?: string;
+  outletId?: string;
   companyId: string;
   isActive: boolean;
 }
 
-export interface Franchise {
+export interface Outlet {
   id: string;
   name: string;
   location: string;
@@ -46,7 +46,7 @@ export interface Product {
 export interface InventoryItem {
   id: string;
   productId: string;
-  franchiseId: string;
+  outletId: string;
   currentQuantity: number;
   unit: string;
   lastUpdated: string;
@@ -55,7 +55,7 @@ export interface InventoryItem {
 export interface DailyInventory {
   id: string;
   date: string;
-  franchiseId: string;
+  outletId: string;
   productId: string;
   openingStock: number;
   purchase: number;

@@ -6,9 +6,9 @@ import DataTable from '../../components/DataTable';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 
-const Franchises: React.FC = () => {
+const Outlets: React.FC = () => {
   const { user } = useAuthStore();
-  const [franchises, setFranchises] = useState<any[]>([]);
+  const [outlets, setOutlets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Dialog State
@@ -17,13 +17,13 @@ const Franchises: React.FC = () => {
   const [formData, setFormData] = useState<any>({ is_active: true });
 
   useEffect(() => {
-    fetchFranchises();
+    fetchOutlets();
   }, [user]);
 
-  const fetchFranchises = async () => {
+  const fetchOutlets = async () => {
     setLoading(true);
     try {
-      let query = supabase.from('franchises').select('*').order('name');
+      let query = supabase.from('outlets').select('*').order('name');
       
       if (user?.role !== 'Super Admin' && user?.companyId) {
         query = query.eq('company_id', user.companyId);
@@ -31,17 +31,17 @@ const Franchises: React.FC = () => {
       
       const { data, error } = await query;
       if (error) throw error;
-      if (data) setFranchises(data);
+      if (data) setOutlets(data);
     } catch (error) {
-      console.error('Error fetching franchises:', error);
+      console.error('Error fetching outlets:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleOpen = (franchise?: any) => {
-    if (franchise) {
-      setFormData(franchise);
+  const handleOpen = (outlet?: any) => {
+    if (outlet) {
+      setFormData(outlet);
     } else {
       setFormData({ 
         code: `FRA-${Math.floor(100 + Math.random() * 900)}`,
@@ -61,32 +61,32 @@ const Franchises: React.FC = () => {
     setSaving(true);
     try {
       if (formData.id) {
-        const { error } = await supabase.from('franchises').update(formData).eq('id', formData.id);
+        const { error } = await supabase.from('outlets').update(formData).eq('id', formData.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('franchises').insert([formData]);
+        const { error } = await supabase.from('outlets').insert([formData]);
         if (error) throw error;
       }
       handleClose();
-      fetchFranchises();
+      fetchOutlets();
     } catch (error) {
-      console.error("Error saving franchise", error);
-      alert("Error saving franchise.");
+      console.error("Error saving outlet", error);
+      alert("Error saving outlet.");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this franchise?")) {
-      const { error } = await supabase.from('franchises').delete().eq('id', id);
-      if (!error) fetchFranchises();
+    if (window.confirm("Are you sure you want to delete this outlet?")) {
+      const { error } = await supabase.from('outlets').delete().eq('id', id);
+      if (!error) fetchOutlets();
     }
   };
 
   const columns: GridColDef[] = [
     { field: 'code', headerName: 'Code', width: 100 },
-    { field: 'name', headerName: 'Franchise Name', flex: 1, minWidth: 200 },
+    { field: 'name', headerName: 'Outlet Name', flex: 1, minWidth: 200 },
     { field: 'location', headerName: 'Location', flex: 1, minWidth: 250 },
     { 
       field: 'is_active', 
@@ -114,39 +114,39 @@ const Franchises: React.FC = () => {
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Box sx={{ flexGrow: 1 }}>
         <DataTable 
-          title="Franchise Management" 
+          title="Outlet Management" 
           columns={columns} 
-          rows={franchises} 
+          rows={outlets} 
           loading={loading}
           action={
             <Button variant="contained" startIcon={<Add />} onClick={() => handleOpen()}>
-              Add Franchise
+              Add Outlet
             </Button>
           }
         />
       </Box>
 
       <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-        <DialogTitle>{formData.id ? 'Edit Franchise' : 'Add New Franchise'}</DialogTitle>
+        <DialogTitle>{formData.id ? 'Edit Outlet' : 'Add New Outlet'}</DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField 
                 fullWidth 
-                label="Franchise Code" 
+                label="Outlet Code" 
                 value={formData.code || ''} 
                 onChange={e => setFormData({...formData, code: e.target.value})} 
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField 
                 fullWidth 
-                label="Franchise Name" 
+                label="Outlet Name" 
                 value={formData.name || ''} 
                 onChange={e => setFormData({...formData, name: e.target.value})} 
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid xs={12}>
               <TextField 
                 fullWidth 
                 label="Location" 
@@ -159,7 +159,7 @@ const Franchises: React.FC = () => {
         <DialogActions>
           <Button onClick={handleClose}>Cancel</Button>
           <Button variant="contained" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving...' : 'Save Franchise'}
+            {saving ? 'Saving...' : 'Save Outlet'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -167,4 +167,4 @@ const Franchises: React.FC = () => {
   );
 };
 
-export default Franchises;
+export default Outlets;

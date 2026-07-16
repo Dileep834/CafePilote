@@ -32,11 +32,11 @@ const Widget = ({ title, value, icon, color }: any) => (
   </Card>
 );
 
-const FranchiseDashboard: React.FC = () => {
+const OutletDashboard: React.FC = () => {
   return (
     <Box>
       <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold' }}>
-        Franchise Overview - Downtown
+        Outlet Overview - Downtown
       </Typography>
       <Box sx={{ 
         display: 'grid', 
@@ -69,4 +69,4 @@ const FranchiseDashboard: React.FC = () => {
   );
 };
 
-export default FranchiseDashboard;
+export default OutletDashboard;

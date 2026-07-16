@@ -11,29 +11,29 @@ import { useAuthStore } from '../../store/useAuthStore';
 const CurrentInventory: React.FC = () => {
   const { user } = useAuthStore();
   const [inventory, setInventory] = useState<any[]>([]);
-  const [franchises, setFranchises] = useState<any[]>([]);
-  const [selectedFranchise, setSelectedFranchise] = useState<string>('all');
+  const [outlets, setOutlets] = useState<any[]>([]);
+  const [selectedOutlet, setSelectedOutlet] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (user?.role === 'Super Admin' || user?.role === 'Admin') {
-      fetchFranchises();
-    } else if (user?.franchiseId) {
-      setSelectedFranchise(user.franchiseId);
+      fetchOutlets();
+    } else if (user?.outletId) {
+      setSelectedOutlet(user.outletId);
     }
   }, [user]);
 
   useEffect(() => {
     fetchInventory();
-  }, [selectedFranchise]);
+  }, [selectedOutlet]);
 
-  const fetchFranchises = async () => {
+  const fetchOutlets = async () => {
     try {
-      const { data, error } = await supabase.from('franchises').select('id, name');
+      const { data, error } = await supabase.from('outlets').select('id, name');
       if (error) throw error;
-      if (data) setFranchises(data);
+      if (data) setOutlets(data);
     } catch (error) {
-      console.error('Error fetching franchises:', error);
+      console.error('Error fetching outlets:', error);
     }
   };
 
@@ -74,7 +74,7 @@ const CurrentInventory: React.FC = () => {
       'Category': item.category,
       'Product Code': item.productCode,
       'Product Name': item.productName,
-      'Current Stock': item.quantity,
+      'Live Inventory': item.quantity,
       'Unit': item.unit,
       'Min Stock': item.minStock,
       'Status': item.quantity < item.minStock ? 'Low Stock' : 'Optimal',
@@ -83,7 +83,7 @@ const CurrentInventory: React.FC = () => {
 
     const worksheet = XLSX.utils.json_to_sheet(excelData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Current Stock');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Live Inventory');
     
     const dateStr = new Date().toISOString().split('T')[0];
     XLSX.writeFile(workbook, `Current_Stock_${dateStr}.xlsx`);
@@ -92,7 +92,7 @@ const CurrentInventory: React.FC = () => {
   const columns: GridColDef[] = [
     { field: 'productCode', headerName: 'Product Code', width: 120 },
     { field: 'productName', headerName: 'Product Name', width: 250 },
-    { field: 'quantity', headerName: 'Current Stock', width: 150, align: 'right', headerAlign: 'right',
+    { field: 'quantity', headerName: 'Live Inventory', width: 150, align: 'right', headerAlign: 'right',
       renderCell: (params: any) => (
         <Box sx={{ fontWeight: 'bold' }}>
           {params.value} {params.row.unit}
@@ -127,7 +127,7 @@ const CurrentInventory: React.FC = () => {
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="h5" sx={{ fontWeight: "bold", fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
-          Current Stock Status
+          Live Inventory Status
         </Typography>
         <Box sx={{ display: 'flex', gap: 2 }}>
           <Button variant="outlined" color="primary" startIcon={<Download />} onClick={exportToExcel}>
@@ -135,15 +135,15 @@ const CurrentInventory: React.FC = () => {
           </Button>
           {(user?.role === 'Super Admin' || user?.role === 'Admin') && (
             <FormControl sx={{ minWidth: 250 }} size="small">
-              <InputLabel id="franchise-select-label">Select Franchise</InputLabel>
+              <InputLabel id="outlet-select-label">Select Outlet</InputLabel>
               <Select
-                labelId="franchise-select-label"
-                value={selectedFranchise}
-                label="Select Franchise"
-                onChange={(e: SelectChangeEvent) => setSelectedFranchise(e.target.value)}
+                labelId="outlet-select-label"
+                value={selectedOutlet}
+                label="Select Outlet"
+                onChange={(e: SelectChangeEvent) => setSelectedOutlet(e.target.value)}
               >
-                <MenuItem value="all">All Franchises (Master List)</MenuItem>
-                {franchises.map((f) => (
+                <MenuItem value="all">All Outlets (Master List)</MenuItem>
+                {outlets.map((f) => (
                   <MenuItem key={f.id} value={f.id}>{f.name}</MenuItem>
                 ))}
               </Select>
