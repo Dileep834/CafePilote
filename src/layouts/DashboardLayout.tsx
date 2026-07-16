@@ -206,11 +206,48 @@ const DashboardLayout: React.FC = () => {
             transformOrigin={{ vertical: 'top', horizontal: 'right' }}
             open={Boolean(anchorEl)}
             onClose={handleClose}
+            PaperProps={{
+              elevation: 4,
+              sx: {
+                width: 280,
+                mt: 1.5,
+                overflow: 'visible',
+                '&:before': {
+                  content: '""',
+                  display: 'block',
+                  position: 'absolute',
+                  top: 0,
+                  right: 14,
+                  width: 10,
+                  height: 10,
+                  bgcolor: 'background.paper',
+                  transform: 'translateY(-50%) rotate(45deg)',
+                  zIndex: 0,
+                },
+              },
+            }}
           >
-            <MenuItem onClick={handleClose}>Profile</MenuItem>
-            <MenuItem onClick={handleLogout}>
+            <Box sx={{ px: 2, py: 1.5 }}>
+              <Typography variant="subtitle1" noWrap sx={{ fontWeight: 600, color: 'text.primary' }}>
+                {user?.name || 'User'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" noWrap>
+                {user?.email || 'user@example.com'}
+              </Typography>
+              <Box sx={{ mt: 1, display: 'inline-block', px: 1, py: 0.25, bgcolor: 'primary.light', color: 'primary.contrastText', borderRadius: 1, fontSize: '0.75rem', fontWeight: 'bold' }}>
+                {user?.role || 'Staff'}
+              </Box>
+            </Box>
+            <Divider />
+            <MenuItem onClick={() => { handleClose(); navigate('/settings'); }} sx={{ mt: 1 }}>
               <ListItemIcon>
-                <Logout fontSize="small" />
+                <Settings fontSize="small" />
+              </ListItemIcon>
+              Settings
+            </MenuItem>
+            <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
+              <ListItemIcon>
+                <Logout fontSize="small" color="error" />
               </ListItemIcon>
               Logout
             </MenuItem>
