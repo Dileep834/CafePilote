@@ -25,6 +25,7 @@ const PurchaseOrders = React.lazy(() => import('../pages/Purchase/PurchaseOrders
 const WasteEntry = React.lazy(() => import('../pages/Waste/WasteEntry'));
 const InventoryReport = React.lazy(() => import('../pages/Reports/InventoryReport'));
 const SystemSettings = React.lazy(() => import('../pages/Settings/SystemSettings'));
+const NotFound = React.lazy(() => import('../pages/NotFound'));
 
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
   const { isAuthenticated, user } = useAuthStore();
@@ -94,8 +95,11 @@ const AppRoutes = () => {
           <Route path="settings" element={<SystemSettings />} />
 
           {/* Master Pages */}
-          <Route path="*" element={<div>Not Found</div>} />
+          <Route path="*" element={<NotFound />} />
         </Route>
+        
+        {/* Top-level catch-all route for URLs outside of the dashboard path */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </React.Suspense>
   );
