@@ -13,9 +13,10 @@ import {
   Alert
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
+import { Coffee } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { supabase } from '../lib/supabase';
-import { Role, APP_NAME, APP_LOGO } from '../constants';
+import { Role, APP_NAME } from '../constants';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -97,15 +98,38 @@ const Login: React.FC = () => {
     <Box>
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 4 }}>
         <Box 
-          component="img"
-          src={APP_LOGO}
-          alt={APP_NAME}
-          sx={{ maxHeight: 100, maxWidth: '80%', objectFit: 'contain', mb: 2 }}
-        />
-        <Typography variant="h5" component="h1" gutterBottom sx={{ fontWeight: 'bold' }}>
+          sx={{ 
+            width: 80, 
+            height: 80, 
+            bgcolor: 'primary.main', 
+            borderRadius: '50%', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            mb: 2,
+            boxShadow: '0 8px 16px rgba(0,0,0,0.2)'
+          }}
+        >
+          <Coffee size={40} color="white" />
+        </Box>
+        <Typography 
+          variant="h5" 
+          component="h1" 
+          gutterBottom 
+          sx={{ 
+            fontWeight: 'bold', 
+            color: (theme) => theme.palette.mode === 'light' ? 'text.primary' : 'common.white',
+            textShadow: (theme) => theme.palette.mode === 'light' ? 'none' : '0 2px 4px rgba(0,0,0,0.5)'
+          }}
+        >
           {APP_NAME}
         </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            color: (theme) => theme.palette.mode === 'light' ? 'text.secondary' : 'rgba(255,255,255,0.7)' 
+          }}
+        >
           Inventory & Operations Management
         </Typography>
       </Box>

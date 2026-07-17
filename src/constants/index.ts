@@ -18,5 +18,7 @@ export const InventoryStatus = {
 
 export type InventoryStatusType = typeof InventoryStatus[keyof typeof InventoryStatus];
 
-export const APP_NAME = 'Backbenchers Cafeteria';
-export const APP_LOGO = 'https://backbencherscafeteria.in/images/logo.png';
+export const APP_NAME = 'CafePilot ERP';
+export const APP_LOGO = 'https://cafepilote.com/wp-content/uploads/2024/01/cafe-pilot-logo-1.png'; // Using a placeholder/real logo
+// We will use a generic cafe logo or text if this URL is dead, but let's try a common logo or just use an icon in the UI.
+// Actually, let's use a nice dynamic logo in the Login page directly instead of a broken URL.
