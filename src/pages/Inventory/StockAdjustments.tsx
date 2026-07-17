@@ -116,7 +116,7 @@ const StockAdjustments: React.FC = () => {
 
   const columns: GridColDef[] = [
     { field: 'date', headerName: 'Date', width: 130 },
-    { field: 'product', headerName: 'Product', flex: 1 },
+    { field: 'product', headerName: 'Product', minWidth: 200, flex: 1 },
     { field: 'adjustment', headerName: 'Adjustment Qty', width: 150,
       renderCell: (params) => (
         <Box sx={{ color: params.value > 0 ? 'success.main' : 'error.main', fontWeight: 'bold' }}>
@@ -125,7 +125,7 @@ const StockAdjustments: React.FC = () => {
       )
     },
     { field: 'unit', headerName: 'Unit', width: 100 },
-    { field: 'reason', headerName: 'Reason', flex: 1 },
+    { field: 'reason', headerName: 'Reason', minWidth: 150, flex: 1 },
     { field: 'approvedBy', headerName: 'Approved By', width: 150 },
   ];
 
@@ -133,8 +133,8 @@ const StockAdjustments: React.FC = () => {
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 3 }}>
       <Paper sx={{ p: 3 }}>
         <Typography variant="h6" gutterBottom>New Stock Adjustment</Typography>
-        <Grid container spacing={2} alignItems="flex-start">
-          <Grid item xs={12} md={3}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'flex-start' }}>
+          <Box sx={{ flex: '1 1 200px', minWidth: 150 }}>
             <TextField 
               select 
               fullWidth 
@@ -147,8 +147,8 @@ const StockAdjustments: React.FC = () => {
                 <MenuItem key={p.id} value={p.id}>{p.name} ({p.unit})</MenuItem>
               ))}
             </TextField>
-          </Grid>
-          <Grid item xs={12} md={3}>
+          </Box>
+          <Box sx={{ flex: '1 1 200px', minWidth: 150 }}>
             <TextField 
               fullWidth 
               label="Quantity" 
@@ -158,8 +158,8 @@ const StockAdjustments: React.FC = () => {
               onChange={(e) => setAdjustment(e.target.value)}
               helperText="E.g. -5 to deduct, 10 to add"
             />
-          </Grid>
-          <Grid item xs={12} md={4}>
+          </Box>
+          <Box sx={{ flex: '2 1 300px', minWidth: 200 }}>
             <TextField 
               fullWidth 
               label="Reason" 
@@ -167,8 +167,8 @@ const StockAdjustments: React.FC = () => {
               value={reason}
               onChange={(e) => setReason(e.target.value)}
             />
-          </Grid>
-          <Grid item xs={12} md={2}>
+          </Box>
+          <Box sx={{ flex: '0 1 150px', minWidth: 120 }}>
             <Button 
               variant="contained" 
               fullWidth 
@@ -179,19 +179,32 @@ const StockAdjustments: React.FC = () => {
             >
               Submit
             </Button>
-          </Grid>
-        </Grid>
+          </Box>
+        </Box>
       </Paper>
       
       <Paper sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', p: 2 }}>
         <Typography variant="h6" gutterBottom>Adjustment History</Typography>
         <Box sx={{ flexGrow: 1, minHeight: 300 }}>
           <DataGrid
-          rows={rows}
-          columns={columns}
-          autoHeight
-          disableRowSelectionOnClick
-        />
+            rows={rows}
+            columns={columns}
+            autoHeight
+            disableRowSelectionOnClick
+            disableColumnVirtualization
+            sx={{
+              '& .MuiDataGrid-columnHeader[data-field="product"], & .MuiDataGrid-cell[data-field="product"]': {
+                position: 'sticky',
+                left: 0,
+                zIndex: 1,
+                backgroundColor: 'background.paper',
+                boxShadow: (theme) => theme.palette.mode === 'light' ? '2px 0 4px -2px rgba(0,0,0,0.2)' : '2px 0 4px -2px rgba(0,0,0,0.5)'
+              },
+              '& .MuiDataGrid-columnHeader[data-field="product"]': {
+                zIndex: 2,
+              }
+            }}
+          />
         </Box>
       </Paper>
 

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv='cache-control' content='no-cache'>
+    <meta http-equiv='expires' content='0'>
+    <meta http-equiv='pragma' content='no-cache'>
+    <meta charset="utf-8"/>    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <title>
+            Backbenchers Cafeteria            </title>
+    <script type="text/javascript">
+        window.GUMLET_CONFIG = {
+            hosts: [{
+                current: "https://d39lw9ekqlu6je.cloudfront.net/",
+                gumlet: "domainlogo.gumlet.io"  
+            },{
+                current: "",
+                gumlet: "dineinpetweb.gumlet.io"
+            }],
+            lazy_load: true
+        };
+        (function(){d=document;s=d.createElement("script");s.src="https://cdn.jsdelivr.net/npm/gumlet.js@2.2/dist/gumlet.min.js";s.async=1;d.getElementsByTagName("head")[0].appendChild(s);})();
+    </script>
+    <meta property="og:title" content="Backbenchers Cafeteria" />
+    <meta property="og:url" content="https://backbencherscafeteria.in/onlineorder/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="backbencherscafeteriaoow" />
+        
+        <link rel="canonical" href="https://backbencherscafeteria.in/onlineorder/" />
+        <meta property="og:image" content="https://oow-domain-logo.s3.ap-southeast-1.amazonaws.com/1706703995_favicon.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <link rel="shortcut icon" type="image/x-icon" href="https://oow-domain-logo.s3.ap-southeast-1.amazonaws.com/1706703995_favicon.png"  sizes="48x48">
+        <script src="https://backbencherscafeteria.in/onlineorder/js/jqmn2a.js" type="text/javascript"></script>    <link rel="stylesheet" href="https://backbencherscafeteria.in/onlineorder/css/font-awesome.min.css" type="text/css"/><link rel="stylesheet" href="https://backbencherscafeteria.in/onlineorder/css/bootstrap.min.css" type="text/css"/><link rel="stylesheet" href="https://backbencherscafeteria.in/onlineorder/css/mdb.min.css" type="text/css"/><link rel="stylesheet" href="https://backbencherscafeteria.in/onlineorder/css/swiper-bundle.min.css" type="text/css"/><link rel="stylesheet" href="https://backbencherscafeteria.in/onlineorder/css/style.css" type="text/css"/><link rel="stylesheet" href="https://backbencherscafeteria.in/onlineorder/css/style-new.css" type="text/css"/>  
+    <script src="https://backbencherscafeteria.in/onlineorder/js/crypto.js" type="text/javascript"></script>    <script src="https://backbencherscafeteria.in/onlineorder/js/Encryption.js" type="text/javascript"></script>    <script> 
+        var site_url = 'https://backbencherscafeteria.in/onlineorder/';
+        var table_reservation_url = 'https://tablereservation.petpooja.com/';
+        var site_title = 'Petpooja Widget';
+        var globalLimits = jQuery.parseJSON('{"defaultUserPageLimit":20,"userPageLimits":[5,10,20,25,50],"defaultExportlimit":300,"defaultRedirectionMilliSeconds":3000,"defaultRedirectionSeconds":3,"defaultPageLimit":10,"defaultMaxLengthListingSearch":100,"listingSearchMaxLength":100,"minImageHeight":200,"minImageWidth":200,"maxImageHeight":5000,"maxImageWidth":5000,"Agent":{"username":100,"password":16,"passwordMin":8},"Order":{"name":150,"email":100,"minMobileNumber":10,"mobileNumber":10,"otp":10,"address":500,"couponCode":25,"callcenterCode":20,"managedby":150,"extraNote":150,"defaultPageLimit":50},"User":{"firstName":50,"lastName":50,"email":100,"passwordMin":8,"password":16,"phoneMin":5,"phone":10,"phoneCode":5,"address":100,"pictureSupportedType":["png","jpg","jpeg"],"pictureSizeByte":2097152,"pictureNameLength":250},"Logo":{"pictureSupportedType":["png","jpg"],"pictureSizeByte":2097152,"pictureNameLength":250}}');
+        var globalMessages = jQuery.parseJSON('{"SyncMeta":{"invalidRequest":"Invalid request.","authenticationFail":"Access denied. Invalid sync key.","invalidRequestType":"Requested invalid operation. Please check your request parameters.","restaurantDomainSyncSuccess":"All Outlet details synced syccessfully.","restaurantDomainSyncError":"Problem syncing outlets, check your request param.","itemSyncSuccess":"Outlet items synced successfully.","itemSyncError":"Invalid outlet menu sharing code. Please check code again.","noRestaurantToMenuSync":"All outlet menus already synced.","menuSyncStatus":"Following outlets synced: #SUCCESS#. Error occured while syncing following outlets: #FAILED#","refundOrderStatus":"Refunded Orders: #SUCCESS#. Failed to refund: #FAILED#. Waiting to refund: #WAITING#. Refund success but API update fail: #API_FAILED#"},"Order":{"mobileNumberInvalid":"OTP could not sent. Please check mobile number again.","restaurantInvalid":"Selected outlet is not available online. Thank you for showing interest.","otpInvalid":"OTP you entered is invalid. Kindly try again or resend it.","removeCartItemConfirm":"Are you sure you want to remove item from cart?","updateCartFail":"Problem updating your orders. Please reload the page and try again.","setExtraNoteSuccess":"Problem setting extra note.","closeCheckoutPopupConfirm":"Are you sure want to close? All entered details will be wiped out.","checkoutInvalid":"Problem checking out your order. Try again after reloading page.","clearCartConfirm":"Are you sure want to clear all orders?","modifyCartItemConfirm":"Are you sure you wish modify your order items?","checkoutOrderInvalid":"Either cart is empty or service unavailable. Please try again after sometime.","invalidPaymentProcess":"Invalid Access. Seems unauthorised access of payment processing request.","invalidPaymentProcessAmount":"Your paid amount is not matched with order amount. Order failed.","orderSummaryInvalid":"Invalid Access. Plese checkout again with required details.","paymentOptionInvalid":"Payment option not exist. Please try again after sometime.","minOrderAmountRequired":"Sorry Your cart sub total is below Rs. #MIN_AMOUNT#. You can not place an Order.","advanceOrderRequired":"Outlet accepts only advanced order. Please select valid time.","advanceOrderInvalid":"Invalid order time. Outlet is closed at selected time. Kindly try again later.","duplicateOrderPaymentError":"Given order is processed and could not process again.","orderNotExist":"Order does not exist. Please check URL again.","processOrderConfirm":"Do you wish to continue placing an order?","restaurantClosedAtTime":"Sorry, the outlet is closed.","couponInvalid":"Coupon you entered is invalid. Kindly try again.","couponredeemlimit":"You have reached the redemption limit of this coupon.","couponredeemlimituser":"Your redemption limit of this coupon is over.","couponApplied":"Coupon applied.","couponAlreadyApplied":"Coupon already applied.","couponRemoved":"Coupon removed.","numberInvalid":"Mobile number you entered is invalid. Kindly try again it.","subTotalExceed":"Order Sub total should be greater or equal to #MIN_DISCOUNT_VALUE#.","minTotalNeeded":"Sorry Your cart sub total is insufficient to get Discount.","couponDiscountExpired":"Sorry Coupon\/Discount used in cart is expired\/invalid. Kindly try again.","selectOneArea":"Please select location to proceed.","takeAwayError":"Outlet is not allowing take away orders.","discountText":"Flat #DISCOUNT# Off","couponText":"Use Code - #COUPON_CODE#","couponRedeemText":"Use Code - #COUPON_CODE# to redeem #MAX_DISCOUNTED_AMOUNT# Rs.","orderStatusPendingNote":"You will get a confirmation SMS once your order is accepted.","orderStatusCancelNote":"Your order has been cancelled by outlet.","orderStatusCancelPaymentRefundNote":"We will refund if you already have paid for this or you can contact us for refund.","orderStatusAcceptNote":"Your order has been accepted by outlet. It will be served you shortly.","orderStatusPrepareNote":"Your food has been cooked. It will be served you shortly.","orderStatusPosFailNote":"Problem submitting order to kitchen. Please try again after some time.","orderStatusConfirmNote":"Order is confirmed by outlet. It will be served you shortly.","orderStatusDispatchNote":"Order is out for delivery. It will be served you shortly.","orderStatusReadyNote":"Your order has been ready for pickup.","failedOrderPaymentHeader":"Order process failed!!","failedOrderPaymentNote":"Problem occured while processing your order.<br\/>We will refund if you already have paid for this or you can contact us for refund.","pendingOrderPaymentHeader":"Your Payment status is pending. You will get a confirmation SMS once your order is accepted.","pendingOrderPaymentNote":"","refundedOrderPaymentHeader":"Order amount refunded!!","refundedOrderPaymentNote":"Sorry for inconvenience caused. Please give us a chance to serve you again.<br\/>You can always contact us for your suggestions.","codeInvalid":"Code you entered is invalid. Kindly try again.","codeApplied":"Code accepted successfully."}}');
+        var globalValidations = jQuery.parseJSON('{"Common":{"minLength":"Please enter at least %length% characters.","maxLength":"Please enter no more than %length% characters.","alphaNumeric":"Only Alphanumeric allowed.","alphaNumericWithSpaceHyphen":"Only Alphanumeric with space and hyphen(-) allowed.","alphaNumericWithUnderscrollHyphen":"Only Alphanumeric with undescroll or hyphen(-) allowed.","smallalphaNumericWithUnderscrollHyphen":"Only small Alphanumeric with undescroll or hyphen(-) allowed.","alphaNumericWithSpaceUnderscrollHyphenSlash":"Alphanumeric with undescroll, slash or hyphen(-) allowed.","name":"Name should contain only alphanumeric values with undescroll, quot(\u0027) or hyphen(-).","password":"Alphanumeric with atleast one capital and special characters (!.@#$-%^&*_) allowed.","address":"Address should contain only alphanumeric with undescroll, slash or hyphen(-).","price":"Only numeric values with at most 2 decimal points.","creditCard":"Invalid credit card number.","selectSingleRecord":"Please select atleast one record."},"forgotPassword":{"equalsTo":"Confirm password must match with passoword."},"Group":{"addName":"Please enter name of group.","selectGroup":"Please select atleast one group."},"Agent":{"username":"Please enter username.","password":"Please enter password.","invalidUsername":"Invalid Username","invalidPassword":"Invalid Password"},"Order":{"enterMobileNumber":"Please enter valid mobile number.","enterValidOtp":"Please enter OTP.","mobileVerificationRequired":"Click on \u0027Send OTP\u0027 to verify phone number and proceed further.","itemAlreadyInCart":"Item already added in cart. You can change quantity from cart.","noItemInCart":"Can not proceed as you have not added any item in cart.","restrictLastItemRemove":"You can not remove all items. Atleast one item required to process.","addOnNotExist":"Ited does not have any addons. Please try again late.","mobileNumberAlreadyVerified":"Mobile number already verified. Change number before update.","selectPaymentMethod":"Please select payment method before proceed.","selectRestaurantBranch":"Please select branch to proceed.","enterCouponCode":"Please enter valid coupon code.","advanceOrderSelectTime":"Select valid time for advance ordering."},"User":{"firstName":"Please enter name.","lastName":"Please enter last name.","email":"Please enter email address.","emailValid":"Please enter valid email address.","emailUnique":"Email already exsist.","password":"Please enter password.","currentPassword":"Please enter current password.","newPassword":"Please enter new password.","confirmPassword":"Please enter confirm password.","confirmPasswordMatch":"Confirm password should match.","mobileNumber":"Please enter mobile number.","mobileUnique":"Mobile number already registered.","mobileNumeric":"Mobile number should be numeric.","mobileValid":"Please enter valid mobile number.","mobileLength":"Please enter mobile number between 5 to 10.","mobileCode":"Please enter mobile number code.","mobileCodeValid":"Please enter valid mobile number code.","countryCode":"Please select country.","invalidCurrentPassword":"Invalid current password.","otp":"Please enter OTP."}}');
+        var globalLabels = jQuery.parseJSON('{"Common":{"add":"Add","cancel":"Cancel","update":"Update","select":"Select","save":"Save Changes","delete":"Delete","check":"Check","toolTipSearchClear":"Clear All","toolTipSelectAll":"Select all","toolTipSingleSelect":"Select","action":"Select Action","statusActive":"Active","statusInactive":"Inactive","search":"Search"},"forgetPassword":{"headerLabel":"Reset password","new_password":"New password","confirm_password":"Confirm password","submit":"Submit"},"Group":{"noGroupFound":"No Group found!","name":"Name","status":"Status","check":"Check","header":"Add","save":"Save","editHeader":"Edit","action":"Action","statusActive":"Active","statusInactive":"Inactive"},"Order":{"itemOtherNotes":"Specify Extra notes"},"Payment":{"paid":"Paid","pending":"Pending","fail":"Failed","refund":"Refunded"},"Search":{"searchByCompany":"Search by Company","searchByCategory":"Search by Category","companyCount":"Total Company Count","documentCount":"Total Document Count"},"User":{"email":"Email Address","password":"Password","signIn":"Log In","signOut":"Logout","takeMeIn":"Take Me In","requestNewPassword":"Request new password","forgotPassword":"Forgot Password","editProfile":"Edit Profile","Name":"Name","firstName":"First Name","lastName":"Last Name","Active":"Active","Inactive":"Inactive","gender":"Gender","nickName":"Nick name","status":"Status","mobileNumber":"Mobile number","mobileNumberCode":"Mobile Number Code","country":"Country","address":"Address","action":"Select Action","viewDetails":"View details","userDetails":"User Details","noUserFound":"No record found!","check":"Check","statusActive":"Active","statusInactive":"Inactive","excelDownload":"Excel","dob":"Birth date","Sr":"","currentPassword":"Current Password","changePassword":"Change Password","newPassword":"New Password","confirmNewPassword":"Confirm Password","excelFileName":"IP_Userlist","addUser":"Add User","addHeader":"Personal Information","selectCountry":"Select country","selectGroup":"Select Group","changePasswordHeader":"Change Password","selectAppType":"Select App Type"}}'); 
+        var datepickerFormat = 'dd/mm/yyyy';
+        var datepickerFormatSeperator = '/';
+        var currencysy = 'Rs'; 
+        var decimal_places_jquery = '';
+        var tag_manager = '0';
+        var API_COUNTRY_FLAG  = 'IN';
+        let encryption = new Encryption();
+        $.ajaxSetup({
+            headers: { 'X-CSRF-Token': '4268c86dfe51089a658709179d3639dbb42acfccf3e60e4bedfb327c1f10bd9492f6ff32384f38fdda70726415be2bc5415abbf729cd7f6be362e0a5606a1e3d' },
+        });
+                var is_web_version = '1';
+                var DomainId = '38167';
+        var water_sport = '8785';
+                    var menuurl = 'https://backbencherscafeteria.in/onlineorder/orders/menu';
+            </script> 
+        
+    <!-- Google Tag Manager -->
+        <!-- End Google Tag Manager -->
+                <link href="https://backbencherscafeteria.in/onlineorder/fonts/stylesheet.css" rel="stylesheet"> 
+    </head>
+<body class="OrdBg ">
+        <script>
+    var globalValidations = jQuery.parseJSON('{"Common":{"minLength":"Please enter at least %length% characters.","maxLength":"Please enter no more than %length% characters.","alphaNumeric":"Only Alphanumeric allowed.","alphaNumericWithSpaceHyphen":"Only Alphanumeric with space and hyphen(-) allowed.","alphaNumericWithUnderscrollHyphen":"Only Alphanumeric with undescroll or hyphen(-) allowed.","smallalphaNumericWithUnderscrollHyphen":"Only small Alphanumeric with undescroll or hyphen(-) allowed.","alphaNumericWithSpaceUnderscrollHyphenSlash":"Alphanumeric with undescroll, slash or hyphen(-) allowed.","name":"Name should contain only alphanumeric values with undescroll, quot(\u0027) or hyphen(-).","password":"Alphanumeric with atleast one capital and special characters (!.@#$-%^&*_) allowed.","address":"Address should contain only alphanumeric with undescroll, slash or hyphen(-).","price":"Only numeric values with at most 2 decimal points.","creditCard":"Invalid credit card number.","selectSingleRecord":"Please select atleast one record."},"forgotPassword":{"equalsTo":"Confirm password must match with passoword."},"Group":{"addName":"Please enter name of group.","selectGroup":"Please select atleast one group."},"Agent":{"username":"Please enter username.","password":"Please enter password.","invalidUsername":"Invalid Username","invalidPassword":"Invalid Password"},"Order":{"enterMobileNumber":"Please enter valid mobile number.","enterValidOtp":"Please enter OTP.","mobileVerificationRequired":"Click on \u0027Send OTP\u0027 to verify phone number and proceed further.","itemAlreadyInCart":"Item already added in cart. You can change quantity from cart.","noItemInCart":"Can not proceed as you have not added any item in cart.","restrictLastItemRemove":"You can not remove all items. Atleast one item required to process.","addOnNotExist":"Ited does not have any addons. Please try again late.","mobileNumberAlreadyVerified":"Mobile number already verified. Change number before update.","selectPaymentMethod":"Please select payment method before proceed.","selectRestaurantBranch":"Please select branch to proceed.","enterCouponCode":"Please enter valid coupon code.","advanceOrderSelectTime":"Select valid time for advance ordering."},"User":{"firstName":"Please enter name.","lastName":"Please enter last name.","email":"Please enter email address.","emailValid":"Please enter valid email address.","emailUnique":"Email already exsist.","password":"Please enter password.","currentPassword":"Please enter current password.","newPassword":"Please enter new password.","confirmPassword":"Please enter confirm password.","confirmPasswordMatch":"Confirm password should match.","mobileNumber":"Please enter mobile number.","mobileUnique":"Mobile number already registered.","mobileNumeric":"Mobile number should be numeric.","mobileValid":"Please enter valid mobile number.","mobileLength":"Please enter mobile number between 5 to 10.","mobileCode":"Please enter mobile number code.","mobileCodeValid":"Please enter valid mobile number code.","countryCode":"Please select country.","invalidCurrentPassword":"Invalid current password.","otp":"Please enter OTP."}}');
+    </script>
+     
+    <div class="order-slider-form">
+    <form name="landing-form" id="landing-form" class="landing-formcls" action="javascript:void(0);" method= "post">
+    <div style="display:none;">
+    <input type="hidden" name="_method" value="POST">
+    <input type="hidden" name="_csrfToken" autocomplete="off" value="4268c86dfe51089a658709179d3639dbb42acfccf3e60e4bedfb327c1f10bd9492f6ff32384f38fdda70726415be2bc5415abbf729cd7f6be362e0a5606a1e3d">
+    </div>
+    <input type="hidden" name="is_location" value="0">
+                <div class="order-form ">
+                <a href="https://backbencherscafeteria.in/"> 
+                     
+                    <center><img src="https://d2mhjbbt909gve.cloudfront.net/1706703990_logo.png" class="img-fluid home-logo" alt="logo logo-mobile"/></center> 
+                </a>
+                <h4>Search Your Delivery Location</h4>
+                <div class="row">
+                  <div class="col-md-12 col-sm-12 col-lg-12 col-xs-12 col-xl-12 col-12">
+                    <div class="form-group form-control-div select-dropdown select-city-drop citydiv">
+                      <select class="form-control" id="cityselection" required name="city">>
+                                                <option value="mumbai">Mumbai</option>                      </select>
+                      <!--<div class="alert-div alert alert-danger" role="alert">
+                          Please select City
+                      </div>-->
+                    </div><!--end of col-12-->
+                    <div class="form-group form-control-div select-dropdown enter-your-location-drop locationdiv">
+                      <select class="form-control" id="locationselection" required name="location">
+                        <option value="">Enter your location</option>
+                      </select>
+                    </div>
+                    <div class="form-group form-control-div select-dropdown select-branch-drop branchdiv">
+                      <select class="form-control" id="branchselection" required name="branch">
+                        <option value="">Select Store</option>
+                      </select>
+                    </div>
+                  </div>
+                </div><!--end of row-->
+                <!--<h4>How to get your order?</h4>-->
+                <div class="row deliveryprefdiv"></div><!--end of row-->
+                <div class="row justify-content-center slider-button">
+                                    <button type="button" class="btn btn-primary btn-lg mr-2 colorcodeclass" id="ordernowbtnadvance">
+                    <span class="icon">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="28.453" height="35.209" viewBox="0 0 28.453 35.209"><defs><style>.a{fill:#fff;}</style></defs><g transform="translate(-0.5 0)"><path class="a" d="M220.141,0a1.176,1.176,0,0,0-1.176,1.176V8.044h-2.721V1.176a1.176,1.176,0,0,0-2.353,0V8.044h-2.721V1.176a1.176,1.176,0,0,0-2.353,0v9.709a6.278,6.278,0,0,0,2.931,5.3V31.889a3.319,3.319,0,0,0,6.639,0V16.18a6.278,6.278,0,0,0,2.93-5.295V1.176A1.176,1.176,0,0,0,220.141,0Zm-1.176,10.885a3.914,3.914,0,0,1-2.252,3.533,1.177,1.177,0,0,0-.678,1.066v16.4a.967.967,0,0,1-1.934,0v-16.4a1.176,1.176,0,0,0-.679-1.066,3.914,3.914,0,0,1-2.252-3.533V10.4h7.795Zm0,0" transform="translate(-192.364)"/><path class="a" d="M6.982,0C3.347,0,.5,4.28.5,9.745c0,3.67,1.284,6.806,3.229,8.47A5.457,5.457,0,0,0,1.52,22.6v9.238a3.333,3.333,0,0,0,3.2,3.368l.122,0a3.32,3.32,0,0,0,3.317-3.32V1.176A1.176,1.176,0,0,0,6.982,0ZM2.852,9.745A10.474,10.474,0,0,1,4.23,4.305,4.768,4.768,0,0,1,5.806,2.678V16.812A4.768,4.768,0,0,1,4.23,15.184a10.473,10.473,0,0,1-1.378-5.44ZM5.806,31.889a.967.967,0,0,1-1,.966,1,1,0,0,1-.93-1.017V22.6A3.115,3.115,0,0,1,5.806,19.72Zm0,0" transform="translate(0 0)"/></g></svg> 
+                    </span>
+                    <span class="text">Order for later</span>
+                  </button>
+                                                        <button type="submit" class="btn btn-primary btn-lg ml-2 mr-4 colorcodeclass" id="ordernowbtn"> 
+                    <span class="icon">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="37.187" height="24.832" viewBox="0 0 37.187 24.832"><defs><style>.a{fill:#fff;}</style></defs><path class="a" d="M11.122,47.047v2.869H48.309V47.047Zm35.224-3.755a16.873,16.873,0,0,0-15.2-16.235V25.084H28.281v1.973a16.873,16.873,0,0,0-15.2,16.235l-.068,1.5h33.4ZM16.1,41.923A13.907,13.907,0,0,1,29.715,29.86a13.907,13.907,0,0,1,13.62,12.062Z" transform="translate(-11.122 -25.084)"/></svg>
+                    </span>
+                    <span class="text"> Order Now</span>
+                  </button>
+                                                      </div>
+                                 <div class="alert-div alert alert-danger groceryslotalert"><span>No slot available right now.</span></div>
+                 
+                 
+            </div><!--end of carousel-caption-->
+                  </form>
+                <div id="carouselExampleIndicators" class="carousel slide home-page-slider" data-ride="carousel">
+            <ol class="carousel-indicators hidden">
+               
+                <li data-target="#carouselExampleIndicators" data-slide-to="0" class="active"></li>
+               
+                <li data-target="#carouselExampleIndicators" data-slide-to="1" class=""></li>
+               
+                <li data-target="#carouselExampleIndicators" data-slide-to="2" class=""></li>
+                          </ol>
+            <div class="carousel-inner" role="listbox">
+                                    <div class="carousel-item active" style="background-image: url(https://d2mhjbbt909gve.cloudfront.net/1706704011_1920x1080_slide1.jpg)"></div>
+                                    <div class="carousel-item " style="background-image: url(https://d2mhjbbt909gve.cloudfront.net/1706704023_1920x1080_slide2.jpg)"></div>
+                                    <div class="carousel-item " style="background-image: url(https://d2mhjbbt909gve.cloudfront.net/1706704029_1920x1080_slide3.jpg)"></div>
+                                
+            </div><!-- Slide One - end -->
+        </div>
+</div>
+<div class="advanceorderpopupload"></div>
+<!-- Full Page Intro -->   
+<style>
+.bgImg {
+    background-image: url('https://d2mhjbbt909gve.cloudfront.net/1706704011_1920x1080_slide1.jpg'); 
+}
+.colorcodeclass{
+    background-color: #000000!important;
+    color: #FEFEFE!important;
+}
+.colorcodeclass::active{
+    background-color: #000000!important;
+}
+.colorfontclass{
+    color: #000000!important;
+}
+.colorcodeclasswithborder{
+    background-color: #000000!important;
+    color: #FEFEFE!important;
+    border-color: #000000!important;
+}
+.colorcodeclasswithborder::active{
+    background-color: #000000!important;
+    border-color: #000000!important;
+} 
+.coloronlyborderclass{
+    color: #000000!important;
+    border-color: #000000!important;
+}
+.custom-checkbox-new.addon_stand_color input:checked + label::before {
+    border: 1px solid #000000;
+}
+.custom-checkbox-new.addon_stand_color input:checked + label::after {
+    background-color: #000000;
+}
+.custom-checkbox-new-addon.addon_stand_color input:checked + label::before {
+    border: 1px solid #000000;
+}
+.custom-checkbox-new-addon.addon_stand_color input:checked + label::after {
+    background-color: #000000;
+}
+.product-add, .ui-rounded .product-add.mobilecolorcodeclass, .mobilecolorcodeclass{
+    color: #000000 !important;
+}
+.custom-control-input.switch-success:checked + .custom-control-label::before {
+    background-color: #000000;
+    border-color: #000000;
+}
+.cart-bottom .cart-total{
+    background: #000000;
+}
+
+.custom-checkbox-left label::after {
+    border: 1px solid #000000;
+    background-color: #000000;
+}
+.category-title span:after{background: #000000; }
+.left_category_nav .nav-item .nav-link.active p:before, .left_category_nav .nav-item .nav-link:hover p:before{background:#000000;}
+.left_category_nav ul.category_scrollspy-ul .nav-item .nav-items-sub a.active{color:#000000;}
+.left_category_nav .nav-item .nav-link.active p{color:#000000;}
+.select-dropdown:before{border: solid #000000; border-width: 0 3px 3px 0;}
+.order-form .white-bg{border: 1px solid #000000;}
+.order-form .white-bg{border: 1px solid #000000;}
+.order-form .custom-control-input:checked~.custom-control-label::before{border-color: #000000;}
+.order-form .custom-control-input:checked~.custom-control-label::after{background-color: #000000;}
+body.bodycolor{background: ;}
+header.darkblue {background-color:#fff;}
+svg.dynamic-color-icon{fill:#FEFEFE;}
+.nav-tabs .nav-link.active{color :  #000000; border-bottom: 1px solid #000000;}
+.discount-offer-ribbon {position: absolute;background: #000000;border-radius: 6px 17px 17px 0;font-size: 11px;top: 0;z-index: 1;padding: 3px 9px;font-weight: 500;margin-bottom: 0;left: 0; color: #FEFEFE!important;}
+.product-add, .ui-rounded .product-add{border: 1px solid #000000;border-radius: 5px;color: var(--clr-dark); font-size: var(--font12);line-height: normal;padding: 6px 12px;min-width: 80px;}
+</style><script type="text/javascript">
+    var is_restaurant_closed = '';
+    var currency_symbol = 'Rs';
+    var selected_restaurant_code = '';
+    var restmainArr = '{"mumbai":{"id":"mumbai","name":"Mumbai","deliveryarea":{"all":{"name":"All","2vg3bmkh":{"id":"72980","name":"Backbenchers Cafeteria","menu_sharing_code":"2vg3bmkh","minimum_order_amount":"500","delivery_pref_all":"1,2"}}}}}'; 
+    var restotherdataJson =  '{"2vg3bmkh":"1"}'; 
+    var outlettypearrJson =  '{"2vg3bmkh":"0"}'; 
+    var booktableconfigJson =  '{"2vg3bmkh":{"table_reservation":0,"table_reservation_code":0}}'; 
+    var ordernowdataJson =  '{"2vg3bmkh":1}'; 
+    
+    // display minimum order amount ------------------
+    if(restmainArr){
+    var mainArr = $.parseJSON(restmainArr);
+    var cityselectedvalmin = $("#cityselection option:selected").val();
+    var locationselectedvalmin = $("#locationselection option:selected").val();
+    var branchselectedvalmin = $("#branchselection option:selected").val(); 
+    $(".minimunorderspantext").empty();
+    if(branchselectedvalmin != '' && branchselectedvalmin != undefined){
+        if( mainArr[cityselectedvalmin]['deliveryarea'][locationselectedvalmin][branchselectedvalmin]['minimum_order_amoun'] > 0 ){
+            $(".minimunorderspantext").append("Minimum order amount : "+mainArr[cityselectedvalmin]['deliveryarea'][locationselectedvalmin]['minimum_order_amoun']);
+        }
+    }
+    }
+    $(document).on('change', 'input[name="delivery_pref"]', function() {
+        if ($("#ordernowbtnadvance").is(":visible")) {
+            if($(this).val() == 'dinein'){
+                $("#ordernowbtnadvance").hide();
+            }else{
+                $("#ordernowbtnadvance").show();
+            }
+        }else{
+            var is_allow_advance_order = '1';
+            if(is_allow_advance_order == 1){
+                $("#ordernowbtnadvance").show();
+            }
+        }
+    });
+
+</script> 
+    <script></script>
+    <script src="https://backbencherscafeteria.in/onlineorder/js/popper.min.js" type="text/javascript"></script>    <script src="https://backbencherscafeteria.in/onlineorder/js/bootstrap.min.js" type="text/javascript"></script>    <script src="https://backbencherscafeteria.in/onlineorder/js/mdb.min.js" type="text/javascript"></script> 
+    <script src="https://backbencherscafeteria.in/onlineorder/js/common.js" type="text/javascript"></script>    <script src="https://backbencherscafeteria.in/onlineorder/js/custom.js" type="text/javascript"></script> 
+        <script src="https://backbencherscafeteria.in/onlineorder/js/jqvldt4.js" type="text/javascript"></script>    <script src="https://backbencherscafeteria.in/onlineorder/js/jquery-loading-overlay.js" type="text/javascript"></script>    <script type="text/javascript">
+            // Animations initialization
+            new WOW().init();
+            $(document).ready(function () {
+                $('.mdb-select').material_select();
+                /*$('.page-footer').waypoint(function() {
+                 alert('The element has appeared on the screen.');
+                });*/
+                
+                $(window).scroll(function(){
+                    $('.footerintiatediv').each(function(){
+                      if(isScrolledIntoView($(this))){
+                        $(".menupagecls ul").addClass('menuulvisible');
+                        $(".home-pickup-wrap").addClass('menuulvisible');
+                      }
+                      else{
+                        $(".menupagecls ul").removeClass('menuulvisible');
+                        $(".home-pickup-wrap").removeClass('menuulvisible');
+                      }
+                    });
+                  });
+
+                  function isScrolledIntoView(elem){
+                      var $elem = $(elem);
+                      var $window = $(window);
+
+                      var docViewTop = $window.scrollTop(); 
+                      var docViewBottom = docViewTop + $window.height();
+
+                      var elemTop = $elem.offset().top;
+                      var elemBottom = elemTop + $elem.height();
+
+                      return ((elemBottom <= docViewBottom) && (elemTop >= docViewTop));
+                  }
+            });
+    </script> 
+</body>
+</html>

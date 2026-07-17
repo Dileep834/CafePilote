@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Button, Typography, Accordion, AccordionSummary, AccordionDetails, Chip, TextField, InputAdornment } from '@mui/material';
-import type { GridColDef } from '@mui/x-data-grid';
-import { DataGrid } from '@mui/x-data-grid';
-import { Save, ExpandMore, Search, Download } from '@mui/icons-material';
+import {
+  Box, Button, Typography, Accordion, AccordionSummary, AccordionDetails,
+  Chip, TextField, InputAdornment, useTheme, ToggleButtonGroup, ToggleButton,
+  Card, CardContent, Tooltip
+} from '@mui/material';
+import { Save, ExpandMore, Search, Download, ViewList, GridView } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
 import type { DailyInventory } from '../../types';
 import { supabase } from '../../lib/supabase';
@@ -17,6 +19,7 @@ interface StockRow extends DailyInventory {
   unit: string;
 }
 
+type ViewMode = 'list' | 'card';
 
 
 const DailyStockUpdate: React.FC = () => {
@@ -28,10 +31,8 @@ const DailyStockUpdate: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const { showFeedback, FeedbackComponent } = useFeedback();
-  // Snackbar is now handled by useFeedback
-  // const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
-  // const handleCloseSnackbar = () => setSnackbar({ ...snackbar, open: false });
 
   useEffect(() => {
     if (user?.role === 'Super Admin' || user?.role === 'Admin') {
@@ -55,7 +56,6 @@ const DailyStockUpdate: React.FC = () => {
       if (error) throw error;
       if (data && data.length > 0) {
         setOutlets(data);
-        // Default to the first outlet if not selected
         if (!selectedOutlet) {
           setSelectedOutlet(data[0].id);
         }
@@ -68,7 +68,6 @@ const DailyStockUpdate: React.FC = () => {
   const fetchDailyData = async (outletId: string) => {
     try {
       setLoading(true);
-      // 1. Fetch Products
       let pQuery = supabase.from('products').select('*, categories(name)').eq('is_active', true).order('name');
       if (user?.role !== 'Super Admin' && user?.companyId) {
         pQuery = pQuery.eq('company_id', user.companyId);
@@ -76,7 +75,6 @@ const DailyStockUpdate: React.FC = () => {
       const { data: productsData, error: pErr } = await pQuery;
       if (pErr) throw pErr;
 
-      // 2. Fetch Live Inventory for Opening Stock
       let invMap: Record<string, number> = {};
       if (outletId) {
         const { data: invData } = await supabase.from('inventory').select('product_id, current_quantity').eq('outlet_id', outletId);
@@ -85,7 +83,6 @@ const DailyStockUpdate: React.FC = () => {
         }
       }
 
-      // 3. Fetch Today's Daily Stock (if already saved)
       const dateStr = new Date().toISOString().split('T')[0];
       let dailyMap: Record<string, any> = {};
       if (outletId) {
@@ -95,7 +92,6 @@ const DailyStockUpdate: React.FC = () => {
         }
       }
 
-      // 4. Merge Data
       if (productsData) {
         const mappedRows = productsData.map(p => {
           const daily = dailyMap[p.id];
@@ -130,25 +126,9 @@ const DailyStockUpdate: React.FC = () => {
     }
   };
 
-  const handleProcessRowUpdate = (newRow: StockRow, _oldRow: StockRow) => {
-    // Formula: Closing = Opening + Purchase - Consumption - Waste
-    const closingStock = Number(newRow.openingStock) + Number(newRow.purchase) - Number(newRow.consumption) - Number(newRow.waste);
-    const updatedRow = { ...newRow, closingStock };
-    setRows(prevRows => prevRows.map((r) => (r.id === newRow.id ? updatedRow : r)));
-    
-    // Mark that we have unsaved changes if any values were actually changed
-    if (newRow.purchase !== _oldRow.purchase || newRow.consumption !== _oldRow.consumption || newRow.waste !== _oldRow.waste) {
-      setHasUnsavedChanges(true);
-    }
-    
-    return updatedRow;
-  };
-
   const exportToExcel = () => {
-    // Format rows for Excel
     const excelData = rows.map(r => ({
       'Category': r.categoryName,
-      'Product Code': r.product_id, // We don't have code in this view, but product_id serves as unique id
       'Product Name': r.productName,
       'Unit': r.unit,
       'Opening Stock': r.openingStock,
@@ -161,7 +141,7 @@ const DailyStockUpdate: React.FC = () => {
     const worksheet = XLSX.utils.json_to_sheet(excelData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Daily Stock');
-    
+
     const dateStr = new Date().toISOString().split('T')[0];
     XLSX.writeFile(workbook, `Daily_Stock_Update_${dateStr}.xlsx`);
   };
@@ -175,8 +155,7 @@ const DailyStockUpdate: React.FC = () => {
     setSubmitting(true);
     try {
       const dateStr = new Date().toISOString().split('T')[0];
-      
-      // Filter rows that actually have data entered
+
       const payloads = rows
         .filter(r => r.purchase > 0 || r.consumption > 0 || r.waste > 0 || r.closingStock > 0)
         .map(r => ({
@@ -197,14 +176,12 @@ const DailyStockUpdate: React.FC = () => {
         return;
       }
 
-      // Upsert into daily_stock
       const { error } = await supabase
         .from('daily_stock')
         .upsert(payloads, { onConflict: 'date, outlet_id, product_id' });
-      
+
       if (error) throw error;
-      
-      // Update live inventory table as well
+
       const inventoryPayloads = payloads.map(p => ({
         outlet_id: p.outlet_id,
         product_id: p.product_id,
@@ -214,7 +191,7 @@ const DailyStockUpdate: React.FC = () => {
       const { error: invErr } = await supabase
         .from('inventory')
         .upsert(inventoryPayloads, { onConflict: 'outlet_id, product_id' });
-          
+
       if (invErr) throw invErr;
 
       setHasUnsavedChanges(false);
@@ -227,41 +204,21 @@ const DailyStockUpdate: React.FC = () => {
     }
   };
 
-  const columns: GridColDef[] = [
-    { field: 'productName', headerName: 'Product', flex: 1, minWidth: 200 },
-    { field: 'unit', headerName: 'Unit', width: 80 },
-    { field: 'openingStock', headerName: 'Opening Stock', width: 130, type: 'number' },
-    { field: 'purchase', headerName: 'Purchase (+)', width: 130, type: 'number', editable: true, 
-      cellClassName: 'editable-cell' },
-    { field: 'consumption', headerName: 'Consumption (-)', width: 140, type: 'number', editable: true,
-      cellClassName: 'editable-cell' },
-    { field: 'waste', headerName: 'Waste (-)', width: 100, type: 'number', editable: true,
-      cellClassName: 'editable-cell' },
-    { field: 'closingStock', headerName: 'Closing Stock', width: 130, type: 'number',
-      renderCell: (params: any) => (
-        <Box sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-          {params.value}
-        </Box>
-      )
-    },
-  ];
-
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ 
-        display: 'flex', 
-        flexDirection: { xs: 'column', sm: 'row' },
-        justifyContent: 'space-between', 
-        alignItems: { xs: 'stretch', sm: 'center' }, 
-        gap: 2,
-        mb: 2 
-      }}>
-        <Typography variant="h5" sx={{ fontWeight: "bold", fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
-          Daily Stock Update - {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+      {/* ── Header ── */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 2 }}>
+        <Typography variant="h5" sx={{ fontWeight: 'bold', fontSize: { xs: '1.1rem', sm: '1.5rem' } }}>
+          Daily Stock Update – {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
         </Typography>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+
+        {/* Controls row */}
+        <Box sx={{ display: 'flex', flexWrap: 'nowrap', gap: 1.5, alignItems: 'center' }}>
           {(user?.role === 'Super Admin' || user?.role === 'Admin') && (
-            <FormControl sx={{ minWidth: 200 }} size="small">
+            <FormControl
+              size="small"
+              sx={{ minWidth: 0, flex: '1 1 auto' }}
+            >
               <InputLabel id="outlet-select-label">Select Outlet</InputLabel>
               <Select
                 labelId="outlet-select-label"
@@ -275,25 +232,48 @@ const DailyStockUpdate: React.FC = () => {
               </Select>
             </FormControl>
           )}
-          <Button variant="outlined" color="primary" startIcon={<Download />} onClick={exportToExcel}>
+
+          <Button
+            variant="outlined"
+            color="primary"
+            startIcon={<Download />}
+            onClick={exportToExcel}
+            sx={{ whiteSpace: 'nowrap', display: { xs: 'none', sm: 'inline-flex' } }}
+          >
             Export to Excel
           </Button>
-          <Button 
-            variant="contained" 
-            color="primary" 
-            startIcon={<Save />} 
+
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<Save />}
             onClick={handleSubmit}
             disabled={submitting || !hasUnsavedChanges}
+            sx={{ whiteSpace: 'nowrap', display: { xs: 'none', sm: 'inline-flex' } }}
           >
-            {submitting ? 'Submitting...' : 'Submit Inventory'}
+            {submitting ? 'Submitting…' : 'Submit Inventory'}
           </Button>
+
+          {/* View toggle — always visible, pinned to right */}
+          <ToggleButtonGroup
+            value={viewMode}
+            exclusive
+            onChange={(_e, val) => { if (val) setViewMode(val); }}
+            size="small"
+            sx={{ ml: { xs: 0, sm: 'auto' }, flexShrink: 0 }}
+          >
+            <ToggleButton value="list"><Tooltip title="List View"><ViewList /></Tooltip></ToggleButton>
+            <ToggleButton value="card"><Tooltip title="Card View"><GridView /></Tooltip></ToggleButton>
+          </ToggleButtonGroup>
         </Box>
       </Box>
-      
-      <Box sx={{ mb: 3 }}>
+
+      {/* ── Search ── */}
+      <Box sx={{ mb: 2 }}>
         <TextField
           fullWidth
           variant="outlined"
+          size="small"
           placeholder="Search products..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -310,7 +290,7 @@ const DailyStockUpdate: React.FC = () => {
         />
       </Box>
 
-      <Box sx={{ flexGrow: 1, overflowY: 'auto' }}>
+      <Box sx={{ flexGrow: 1, overflowY: 'auto', pb: { xs: 9, sm: 0 } }}>
         {loading ? (
           <Typography sx={{ p: 2 }}>Loading products...</Typography>
         ) : (
@@ -326,29 +306,28 @@ const DailyStockUpdate: React.FC = () => {
           ).map(([category, catRows]) => (
             <Accordion key={category} defaultExpanded sx={{ mb: 1 }}>
               <AccordionSummary expandIcon={<ExpandMore />} sx={{ bgcolor: 'background.default' }}>
-                <Typography variant="h6">{category} <Chip label={catRows.length} size="small" sx={{ ml: 1 }} /></Typography>
+                <Typography variant="h6">
+                  {category} <Chip label={catRows.length} size="small" sx={{ ml: 1 }} />
+                </Typography>
               </AccordionSummary>
-              <AccordionDetails sx={{ p: 0 }}>
-                <Box sx={{ width: '100%', overflowX: 'auto' }}>
-                  <DataGrid
-                    rows={catRows}
-                    columns={columns}
-                    processRowUpdate={handleProcessRowUpdate}
-                    autoHeight
-                    hideFooter
-                    disableRowSelectionOnClick
-                    sx={{
-                      border: 'none',
-                      minWidth: 800,
-                      '& .MuiDataGrid-cell.editable-cell': {
-                        backgroundColor: (theme) => theme.palette.mode === 'light' ? '#f0fdf4' : 'rgba(34, 197, 94, 0.1)',
-                        '&:hover': {
-                          cursor: 'pointer'
-                        }
-                      }
+              <AccordionDetails sx={{ p: viewMode === 'card' ? 2 : 0 }}>
+                {viewMode === 'list' ? (
+                  <StockTable
+                    catRows={catRows}
+                    onRowChange={(updatedRow) => {
+                      setRows(prev => prev.map(r => r.id === updatedRow.id ? updatedRow : r));
+                      setHasUnsavedChanges(true);
                     }}
                   />
-                </Box>
+                ) : (
+                  <StockCardGrid
+                    catRows={catRows}
+                    onRowChange={(updatedRow) => {
+                      setRows(prev => prev.map(r => r.id === updatedRow.id ? updatedRow : r));
+                      setHasUnsavedChanges(true);
+                    }}
+                  />
+                )}
               </AccordionDetails>
             </Accordion>
           ))
@@ -356,8 +335,310 @@ const DailyStockUpdate: React.FC = () => {
       </Box>
 
       {FeedbackComponent}
+
+      {/* ── Sticky bottom bar (mobile only) ── */}
+      <Box
+        sx={{
+          display: { xs: 'flex', sm: 'none' },
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 1200,
+          px: 2,
+          py: 1.5,
+          gap: 1.5,
+          bgcolor: 'background.paper',
+          borderTop: '1px solid',
+          borderColor: 'divider',
+          boxShadow: '0 -4px 16px rgba(0,0,0,0.10)',
+        }}
+      >
+        <Button
+          variant="outlined"
+          color="primary"
+          startIcon={<Download />}
+          onClick={exportToExcel}
+          fullWidth
+          sx={{ whiteSpace: 'nowrap' }}
+        >
+          Export
+        </Button>
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<Save />}
+          onClick={handleSubmit}
+          disabled={submitting || !hasUnsavedChanges}
+          fullWidth
+          sx={{ whiteSpace: 'nowrap' }}
+        >
+          {submitting ? 'Submitting…' : 'Submit Inventory'}
+        </Button>
+      </Box>
+    </Box>
+  );
+};
+
+// ────────────────────────────────────────────
+// Sticky-column table sub-component
+// ────────────────────────────────────────────
+interface StockTableProps {
+  catRows: StockRow[];
+  onRowChange: (row: StockRow) => void;
+}
+
+const StockTable: React.FC<StockTableProps> = ({ catRows, onRowChange }) => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  const bg = isDark ? '#1e1e1e' : '#ffffff';
+  const altBg = isDark ? '#242424' : '#fafafa';
+  const editBg = isDark ? 'rgba(34,197,94,0.12)' : '#f0fdf4';
+  const borderColor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)';
+  const headerBg = isDark ? '#2a2a2a' : '#f5f5f5';
+  const textColor = isDark ? '#ffffff' : '#111111';
+
+  const handleChange = (
+    row: StockRow,
+    field: 'purchase' | 'consumption' | 'waste',
+    value: string
+  ) => {
+    const num = parseFloat(value) || 0;
+    const updated = { ...row, [field]: num };
+    updated.closingStock =
+      Number(updated.openingStock) +
+      Number(updated.purchase) -
+      Number(updated.consumption) -
+      Number(updated.waste);
+    onRowChange(updated);
+  };
+
+  const cell: React.CSSProperties = {
+    padding: '10px 14px',
+    borderBottom: `1px solid ${borderColor}`,
+    whiteSpace: 'nowrap',
+    fontSize: '0.85rem',
+    verticalAlign: 'middle',
+    color: textColor,
+  };
+
+  const sticky: React.CSSProperties = {
+    ...cell,
+    position: 'sticky',
+    left: 0,
+    zIndex: 2,
+    fontWeight: 600,
+    minWidth: 150,
+    maxWidth: 220,
+    boxShadow: isDark
+      ? '3px 0 8px rgba(0,0,0,0.6)'
+      : '3px 0 8px rgba(0,0,0,0.08)',
+  };
+
+  const input: React.CSSProperties = {
+    width: 88,
+    padding: '5px 8px',
+    fontSize: '0.85rem',
+    borderRadius: 6,
+    border: `1px solid ${borderColor}`,
+    backgroundColor: editBg,
+    color: textColor,
+    textAlign: 'center',
+    outline: 'none',
+    appearance: 'textfield' as any,
+  };
+
+  return (
+    <Box sx={{ width: '100%', overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
+        <thead>
+          <tr style={{ backgroundColor: headerBg }}>
+            <th style={{ ...sticky, backgroundColor: headerBg, zIndex: 3, fontWeight: 700 }}>Product</th>
+            <th style={{ ...cell, fontWeight: 700, textAlign: 'center', backgroundColor: headerBg }}>Unit</th>
+            <th style={{ ...cell, fontWeight: 700, textAlign: 'right', backgroundColor: headerBg }}>Opening Stock</th>
+            <th style={{ ...cell, fontWeight: 700, textAlign: 'center', color: '#16a34a', backgroundColor: editBg }}>Purchase (+)</th>
+            <th style={{ ...cell, fontWeight: 700, textAlign: 'center', color: '#16a34a', backgroundColor: editBg }}>Consumption (−)</th>
+            <th style={{ ...cell, fontWeight: 700, textAlign: 'center', color: '#16a34a', backgroundColor: editBg }}>Waste (−)</th>
+            <th style={{ ...cell, fontWeight: 700, textAlign: 'right', backgroundColor: headerBg }}>Closing Stock</th>
+          </tr>
+        </thead>
+        <tbody>
+          {catRows.map((row, i) => {
+            const rowBg = i % 2 === 0 ? bg : altBg;
+            return (
+              <tr key={row.id} style={{ backgroundColor: rowBg }}>
+                <td style={{ ...sticky, backgroundColor: rowBg }}>{row.productName}</td>
+                <td style={{ ...cell, textAlign: 'center' }}>{row.unit}</td>
+                <td style={{ ...cell, textAlign: 'right' }}>{row.openingStock}</td>
+                <td style={{ ...cell, textAlign: 'center', backgroundColor: editBg }}>
+                  <input
+                    type="number"
+                    style={input}
+                    value={row.purchase}
+                    onChange={(e) => handleChange(row, 'purchase', e.target.value)}
+                  />
+                </td>
+                <td style={{ ...cell, textAlign: 'center', backgroundColor: editBg }}>
+                  <input
+                    type="number"
+                    style={input}
+                    value={row.consumption}
+                    onChange={(e) => handleChange(row, 'consumption', e.target.value)}
+                  />
+                </td>
+                <td style={{ ...cell, textAlign: 'center', backgroundColor: editBg }}>
+                  <input
+                    type="number"
+                    style={input}
+                    value={row.waste}
+                    onChange={(e) => handleChange(row, 'waste', e.target.value)}
+                  />
+                </td>
+                <td style={{ ...cell, textAlign: 'right', fontWeight: 'bold', color: '#FF7A00' }}>
+                  {row.closingStock}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </Box>
   );
 };
 
 export default DailyStockUpdate;
+
+// ────────────────────────────────────────────────────────────
+// Card Grid view for Daily Stock Update
+// ────────────────────────────────────────────────────────────
+interface StockCardGridProps {
+  catRows: StockRow[];
+  onRowChange: (row: StockRow) => void;
+}
+
+const StockCardGrid: React.FC<StockCardGridProps> = ({ catRows, onRowChange }) => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  const editBg = isDark ? 'rgba(34,197,94,0.12)' : '#f0fdf4';
+  const borderColor = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)';
+  const textColor = isDark ? '#fff' : '#111';
+
+  const handleChange = (
+    row: StockRow,
+    field: 'purchase' | 'consumption' | 'waste',
+    value: string
+  ) => {
+    const num = parseFloat(value) || 0;
+    const updated = { ...row, [field]: num };
+    updated.closingStock =
+      Number(updated.openingStock) +
+      Number(updated.purchase) -
+      Number(updated.consumption) -
+      Number(updated.waste);
+    onRowChange(updated);
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '6px 8px',
+    fontSize: '0.9rem',
+    borderRadius: 6,
+    border: `1px solid ${borderColor}`,
+    backgroundColor: editBg,
+    color: textColor,
+    textAlign: 'center',
+    outline: 'none',
+    boxSizing: 'border-box',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: '0.68rem',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)',
+    marginBottom: 3,
+  };
+
+  return (
+    <Box sx={{
+      display: 'grid',
+      gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)', lg: 'repeat(5, 1fr)' },
+      gap: 2,
+    }}>
+      {catRows.map((row) => (
+        <Card
+          key={row.id}
+          elevation={0}
+          sx={{
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: 2,
+            transition: 'box-shadow 0.2s',
+            '&:hover': { boxShadow: theme.shadows[3] },
+          }}
+        >
+          <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+            {/* Product Name */}
+            <Typography
+              variant="body2"
+              sx={{ fontWeight: 700, mb: 1, lineHeight: 1.3, minHeight: 32, fontSize: '0.8rem' }}
+            >
+              {row.productName}
+            </Typography>
+
+            {/* Opening stock badge */}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+              <Typography variant="caption" color="text.secondary">Opening</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                {row.openingStock} <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>{row.unit}</span>
+              </Typography>
+            </Box>
+
+            {/* Editable fields */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+              <div>
+                <div style={labelStyle}>Purchase (+)</div>
+                <input
+                  type="number"
+                  style={inputStyle}
+                  value={row.purchase}
+                  onChange={(e) => handleChange(row, 'purchase', e.target.value)}
+                />
+              </div>
+              <div>
+                <div style={labelStyle}>Consumed (−)</div>
+                <input
+                  type="number"
+                  style={inputStyle}
+                  value={row.consumption}
+                  onChange={(e) => handleChange(row, 'consumption', e.target.value)}
+                />
+              </div>
+              <div>
+                <div style={labelStyle}>Waste (−)</div>
+                <input
+                  type="number"
+                  style={inputStyle}
+                  value={row.waste}
+                  onChange={(e) => handleChange(row, 'waste', e.target.value)}
+                />
+              </div>
+            </Box>
+
+            {/* Closing stock */}
+            <Box sx={{
+              mt: 1.5, pt: 1, borderTop: `1px solid ${borderColor}`,
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Closing</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 800, color: '#FF7A00', fontSize: '1.1rem' }}>
+                {row.closingStock}
+              </Typography>
+            </Box>
+          </CardContent>
+        </Card>
+      ))}
+    </Box>
+  );
+};

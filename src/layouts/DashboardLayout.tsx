@@ -257,25 +257,27 @@ const DashboardLayout: React.FC = () => {
             transformOrigin={{ vertical: 'top', horizontal: 'right' }}
             open={Boolean(anchorEl)}
             onClose={handleClose}
-            PaperProps={{
-              elevation: 4,
-              sx: {
-                width: 280,
-                mt: 1.5,
-                overflow: 'visible',
-                '&:before': {
-                  content: '""',
-                  display: 'block',
-                  position: 'absolute',
-                  top: 0,
-                  right: 14,
-                  width: 10,
-                  height: 10,
-                  bgcolor: 'background.paper',
-                  transform: 'translateY(-50%) rotate(45deg)',
-                  zIndex: 0,
+            slotProps={{
+              paper: {
+                elevation: 4,
+                sx: {
+                  width: 280,
+                  mt: 1.5,
+                  overflow: 'visible',
+                  '&:before': {
+                    content: '""',
+                    display: 'block',
+                    position: 'absolute',
+                    top: 0,
+                    right: 14,
+                    width: 10,
+                    height: 10,
+                    bgcolor: 'background.paper',
+                    transform: 'translateY(-50%) rotate(45deg)',
+                    zIndex: 0,
+                  },
                 },
-              },
+              }
             }}
           >
             <Box sx={{ px: 2, py: 1.5 }}>
