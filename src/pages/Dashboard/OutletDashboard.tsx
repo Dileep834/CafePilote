@@ -31,7 +31,7 @@ const fetchOutletStats = async (outletId: string | undefined) => {
   // Fetch inventory with product cost price
   const { data: inventoryData, error: invError } = await supabase
     .from('inventory')
-    .select('current_quantity, products(cost_price, min_stock)')
+    .select('current_quantity, products(purchase_price, min_stock)')
     .eq('outlet_id', outletId);
     
   if (invError) throw invError;
@@ -42,7 +42,7 @@ const fetchOutletStats = async (outletId: string | undefined) => {
 
   inventoryData?.forEach((item: any) => {
     const qty = Number(item.current_quantity) || 0;
-    const cost = Number(item.products?.cost_price) || 0;
+    const cost = Number(item.products?.purchase_price) || 0;
     const minStock = Number(item.products?.min_stock) || 10;
     
     totalValue += qty * cost;
@@ -57,7 +57,7 @@ const fetchOutletStats = async (outletId: string | undefined) => {
     .from('purchase_orders')
     .select('total_amount')
     .eq('outlet_id', outletId)
-    .eq('date', today);
+    .eq('expected_date', today);
     
   if (poError) throw poError;
   const todaysPurchases = purchaseData?.reduce((sum, po) => sum + Number(po.total_amount), 0) || 0;
