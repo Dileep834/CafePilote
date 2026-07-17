@@ -17,7 +17,13 @@ import {
   Menu,
   MenuItem,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button
 } from '@mui/material';
 import { 
   Menu as MenuIcon, 
@@ -33,8 +39,10 @@ import {
   Brightness7,
   Logout,
   ShoppingCart,
-  PrecisionManufacturing
+  PrecisionManufacturing,
+  LockReset
 } from '@mui/icons-material';
+import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useThemeContext } from '../contexts/ThemeContext';
 import { APP_NAME, APP_LOGO } from '../constants';
@@ -62,6 +70,9 @@ const menuItems = [
 const DashboardLayout: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
   const { user, logout } = useAuthStore();
   const { mode, toggleTheme } = useThemeContext();
   const navigate = useNavigate();
@@ -84,6 +95,30 @@ const DashboardLayout: React.FC = () => {
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handlePasswordChange = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      alert("Password must be at least 6 characters.");
+      return;
+    }
+    setPasswordLoading(true);
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ password: newPassword })
+        .eq('id', user?.id);
+
+      if (error) throw error;
+      
+      alert("Password updated successfully!");
+      setPasswordDialogOpen(false);
+      setNewPassword('');
+    } catch (err: any) {
+      alert("Error updating password: " + err.message);
+    } finally {
+      setPasswordLoading(false);
+    }
   };
 
   const drawer = (
@@ -110,7 +145,7 @@ const DashboardLayout: React.FC = () => {
           }
 
           // Outlet Managers can see Sales and Suppliers but NOT Recipes/Products
-          if (role === 'Outlet Manager' || role === 'Outlet Owner') {
+          if (role === 'Store Manager' || role === 'Outlet Owner') {
             const outletAllowed = ['Dashboard', 'Point of Sale (POS)', 'Live Inventory', 'Daily Update', 'Adjustments', 'Purchase Orders', 'Wastage Log', 'Suppliers', 'Settings'];
             if (!outletAllowed.includes(item.text)) return null;
           }
@@ -245,6 +280,12 @@ const DashboardLayout: React.FC = () => {
               </ListItemIcon>
               Settings
             </MenuItem>
+            <MenuItem onClick={() => { handleClose(); setPasswordDialogOpen(true); }}>
+              <ListItemIcon>
+                <LockReset fontSize="small" />
+              </ListItemIcon>
+              Change Password
+            </MenuItem>
             <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
               <ListItemIcon>
                 <Logout fontSize="small" color="error" />
@@ -292,6 +333,29 @@ const DashboardLayout: React.FC = () => {
       >
         <Outlet />
       </Box>
+
+      {/* Change Password Dialog */}
+      <Dialog open={passwordDialogOpen} onClose={() => setPasswordDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Change Password</DialogTitle>
+        <DialogContent dividers>
+          <TextField
+            fullWidth
+            label="New Password"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            margin="normal"
+            autoFocus
+            helperText="Minimum 6 characters"
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setPasswordDialogOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handlePasswordChange} disabled={passwordLoading}>
+            {passwordLoading ? 'Updating...' : 'Update Password'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

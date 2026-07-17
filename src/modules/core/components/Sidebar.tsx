@@ -9,19 +9,25 @@ import {
   Users, 
   BarChart3, 
   Store,
-  Settings
+  Settings,
+  Shield,
+  Ticket
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navigation = [
   { name: 'Dashboard', href: '/erp', icon: LayoutDashboard },
   { name: 'POS (Billing)', href: '/erp/pos', icon: ShoppingCart },
+  { name: 'Table Management', href: '/erp/tables', icon: LayoutDashboard },
+  { name: 'Master Data', href: '/masters/products', icon: Package },
   { name: 'Inventory', href: '/erp/inventory', icon: Package },
   { name: 'Purchase', href: '/erp/purchase', icon: Truck },
   { name: 'Kitchen', href: '/erp/kitchen', icon: ChefHat },
   { name: 'CRM', href: '/erp/crm', icon: Users },
   { name: 'Reports', href: '/erp/reports', icon: BarChart3 },
   { name: 'Franchise', href: '/erp/franchise', icon: Store },
+  { name: 'Offers & Vouchers', href: '/erp/vouchers', icon: Ticket },
+  { name: 'Staff & Users', href: '/erp/users', icon: Shield },
   { name: 'Settings', href: '/erp/settings', icon: Settings },
 ];
 

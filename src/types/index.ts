@@ -64,3 +64,41 @@ export interface DailyInventory {
   closingStock: number;
   status: InventoryStatusType;
 }
+
+export type TableStatus = 'available' | 'occupied' | 'reserved' | 'cleaning';
+export type TableType = 'square' | 'round' | 'sofa';
+
+export interface Table {
+  id: string;
+  outletId: string;
+  tableNumber: string;
+  capacity: number;
+  status: TableStatus;
+  type: TableType;
+  qrCodeToken?: string;
+  currentOrderId?: string;
+}
+
+export type OrderStatus = 'pending_approval' | 'in_kitchen' | 'ready' | 'served' | 'completed' | 'cancelled';
+
+export interface OrderItem {
+  id: string;
+  productId: string;
+  name: string;
+  quantity: number;
+  price: number;
+  notes?: string;
+}
+
+export interface Order {
+  id: string;
+  outletId: string;
+  tableId?: string; // If placed from a table
+  status: OrderStatus;
+  items: OrderItem[];
+  totalAmount: number;
+  customerName?: string;
+  customerPhone?: string;
+  createdAt: string;
+  source: 'pos' | 'qr'; // Whether placed by staff or customer self-order
+}

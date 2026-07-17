@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Chip, FormControl, InputLabel, Select, MenuItem, Accordion, AccordionSummary, AccordionDetails, Typography, Button } from '@mui/material';
+import { Box, Chip, FormControl, InputLabel, Select, MenuItem, Accordion, AccordionSummary, AccordionDetails, Typography, Button, TextField, InputAdornment } from '@mui/material';
 import type { GridColDef } from '@mui/x-data-grid';
-import { ExpandMore, Download } from '@mui/icons-material';
+import { ExpandMore, Download, Search } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
 import DataTable from '../../components/DataTable';
 import { supabase } from '../../lib/supabase';
@@ -12,6 +12,7 @@ const CurrentInventory: React.FC = () => {
   const { user } = useAuthStore();
   const { showFeedback, FeedbackComponent } = useFeedback();
   const [inventory, setInventory] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [outlets, setOutlets] = useState<any[]>([]);
   const [selectedOutlet, setSelectedOutlet] = useState<string>('all');
   const [loading, setLoading] = useState(true);
@@ -26,7 +27,7 @@ const CurrentInventory: React.FC = () => {
 
   useEffect(() => {
     fetchInventory();
-  }, [selectedOutlet]);
+  }, [selectedOutlet, fetchInventory]);
 
   const fetchOutlets = async () => {
     try {
@@ -160,7 +161,21 @@ const CurrentInventory: React.FC = () => {
         <Typography variant="h5" sx={{ fontWeight: "bold", fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
           Live Inventory Status
         </Typography>
-        <Box sx={{ display: 'flex', gap: 2 }}>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <TextField
+            placeholder="Search products..."
+            size="small"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            sx={{ minWidth: 250, bgcolor: 'background.paper', borderRadius: 1 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search fontSize="small" />
+                </InputAdornment>
+              ),
+            }}
+          />
           <Button variant="outlined" color="primary" startIcon={<Download />} onClick={exportToExcel}>
             Export to Excel
           </Button>
@@ -187,7 +202,12 @@ const CurrentInventory: React.FC = () => {
           <Typography sx={{ p: 2 }}>Loading inventory...</Typography>
         ) : (
           Object.entries(
-            inventory.reduce((acc, item) => {
+            inventory
+              .filter(item => 
+                (item.productName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (item.productCode || '').toLowerCase().includes(searchTerm.toLowerCase())
+              )
+              .reduce((acc, item) => {
               const category = item.category || 'Uncategorized';
               if (!acc[category]) acc[category] = [];
               acc[category].push(item);

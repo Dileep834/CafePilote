@@ -4,26 +4,37 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Sidebar } from './Sidebar';
 
-export function Header() {
+interface HeaderProps {
+  onToggleSidebar?: () => void;
+}
+
+export function Header({ onToggleSidebar }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b bg-white px-4 shadow-sm sm:px-6">
       <div className="flex items-center gap-4">
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-          <SheetTrigger asChild>
+          <SheetTrigger render={
             <Button variant="ghost" size="icon" className="lg:hidden">
               <Menu className="h-5 w-5" />
               <span className="sr-only">Toggle navigation menu</span>
             </Button>
-          </SheetTrigger>
+          } />
           <SheetContent side="left" className="w-72 p-0">
             <Sidebar onNavigate={() => setMobileMenuOpen(false)} />
           </SheetContent>
         </Sheet>
-        <div className="hidden lg:block lg:invisible">
-          {/* Placeholder to keep flex spacing balanced if needed */}
-        </div>
+        
+        {/* Desktop Toggle */}
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="hidden lg:flex text-slate-500 hover:bg-slate-100"
+          onClick={onToggleSidebar}
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
       </div>
 
       <div className="flex items-center gap-4">

@@ -4,9 +4,23 @@ import { useAuthStore } from '../store/useAuthStore';
 import DashboardLayout from '../layouts/DashboardLayout';
 import AuthLayout from '../layouts/AuthLayout';
 
-// Mock pages for now
 import { ERPMasterLayout } from '../modules/core/layouts/ERPMasterLayout';
+import { ERPHome } from '../modules/core/pages/ERPHome';
 import { POSDashboard } from '../modules/pos/pages/POSDashboard';
+import { CheckoutPage } from '../modules/pos/pages/CheckoutPage';
+import { CurrentInventory as ERPCurrentInventory } from '../modules/inventory/pages/CurrentInventory';
+import { KitchenDisplay } from '../modules/kitchen/pages/KitchenDisplay';
+import { OrderHistory } from '../modules/reports/pages/OrderHistory';
+import { PurchaseOrders as ERPPurchaseOrders } from '../modules/purchase/pages/PurchaseOrders';
+import { SuppliersList } from '../modules/purchase/pages/SuppliersList';
+import { FranchiseManagement } from '../modules/franchise/pages/FranchiseManagement';
+import { CustomerManagement } from '../modules/crm/pages/CustomerManagement';
+import { SystemSettings as ERPSystemSettings } from '../modules/settings/pages/SystemSettings';
+import { UserManagement } from '../modules/users/pages/UserManagement';
+import { VoucherManagement } from '../modules/marketing/pages/VoucherManagement';
+import { TablesDashboard } from '../modules/tables/pages/TablesDashboard';
+import { CustomerMenuLayout } from '../modules/customer/layouts/CustomerMenuLayout';
+import { CustomerMenu } from '../modules/customer/pages/CustomerMenu';
 
 const Login = React.lazy(() => import('../pages/Login'));
 const AdminDashboard = React.lazy(() => import('../pages/Dashboard/AdminDashboard'));
@@ -67,15 +81,20 @@ const AppRoutes = () => {
             <ERPMasterLayout />
           </ProtectedRoute>
         }>
-          <Route index element={<div className="p-8"><h1>ERP Dashboard (Coming Soon)</h1></div>} />
+          <Route index element={<ERPHome />} />
           <Route path="pos" element={<POSDashboard />} />
-          <Route path="inventory" element={<div className="p-8"><h1>Inventory Module</h1></div>} />
-          <Route path="purchase" element={<div className="p-8"><h1>Purchase Module</h1></div>} />
-          <Route path="kitchen" element={<div className="p-8"><h1>Kitchen Module</h1></div>} />
-          <Route path="crm" element={<div className="p-8"><h1>CRM Module</h1></div>} />
-          <Route path="reports" element={<div className="p-8"><h1>Reports Module</h1></div>} />
-          <Route path="franchise" element={<div className="p-8"><h1>Franchise Module</h1></div>} />
-          <Route path="settings" element={<div className="p-8"><h1>Settings Module</h1></div>} />
+          <Route path="pos/checkout" element={<CheckoutPage />} />
+          <Route path="inventory" element={<ERPCurrentInventory />} />
+          <Route path="purchase" element={<ERPPurchaseOrders />} />
+          <Route path="purchase/suppliers" element={<SuppliersList />} />
+          <Route path="kitchen" element={<KitchenDisplay />} />
+          <Route path="crm" element={<CustomerManagement />} />
+          <Route path="reports" element={<OrderHistory />} />
+          <Route path="franchise" element={<FranchiseManagement />} />
+          <Route path="vouchers" element={<VoucherManagement />} />
+          <Route path="users" element={<UserManagement />} />
+          <Route path="tables" element={<TablesDashboard />} />
+          <Route path="settings" element={<ERPSystemSettings />} />
         </Route>
 
         {/* Legacy MVP Routes */}
@@ -119,6 +138,11 @@ const AppRoutes = () => {
           <Route path="*" element={<NotFound />} />
         </Route>
         
+        {/* Customer Public Routes */}
+        <Route path="/menu" element={<CustomerMenuLayout />}>
+          <Route path=":outletId/:qrToken" element={<CustomerMenu />} />
+        </Route>
+
         {/* Top-level catch-all route for URLs outside of the dashboard path */}
         <Route path="*" element={<NotFound />} />
       </Routes>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Button, IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Grid, MenuItem } from '@mui/material';
+import { Box, Button, IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem } from '@mui/material';
 import type { GridColDef } from '@mui/x-data-grid';
 import { Add, Edit, Delete } from '@mui/icons-material';
 import { v4 as uuidv4 } from 'uuid';
@@ -22,7 +22,7 @@ const Users: React.FC = () => {
   useEffect(() => {
     fetchUsers();
     fetchOutlets();
-  }, [user]);
+  }, [user, fetchUsers, fetchOutlets]);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -88,7 +88,11 @@ const Users: React.FC = () => {
       const dataToSave = { ...formData };
       delete dataToSave.outlet;
       delete dataToSave.outletName;
-      delete dataToSave.password; // Don't send the mock password to the DB
+      
+      // Only include password if it was typed (don't overwrite with empty string on edit)
+      if (!dataToSave.password) {
+        delete dataToSave.password;
+      }
       
       if (dataToSave.id) {
         const { error } = await supabase.from('users').update(dataToSave).eq('id', dataToSave.id);

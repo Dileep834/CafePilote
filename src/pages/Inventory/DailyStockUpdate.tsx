@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Box, Button, Typography, Paper, Accordion, AccordionSummary, AccordionDetails, Chip, TextField, InputAdornment, Snackbar, Alert } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, Button, Typography, Accordion, AccordionSummary, AccordionDetails, Chip, TextField, InputAdornment } from '@mui/material';
 import type { GridColDef } from '@mui/x-data-grid';
 import { DataGrid } from '@mui/x-data-grid';
 import { Save, ExpandMore, Search, Download } from '@mui/icons-material';
@@ -38,7 +38,7 @@ const DailyStockUpdate: React.FC = () => {
     } else if (user?.outletId) {
       setSelectedOutlet(user.outletId);
     }
-  }, [user]);
+  }, [user, fetchOutlets]);
 
   useEffect(() => {
     if (selectedOutlet) {
@@ -46,7 +46,7 @@ const DailyStockUpdate: React.FC = () => {
     } else {
       setLoading(false);
     }
-  }, [selectedOutlet]);
+  }, [selectedOutlet, fetchDailyData]);
 
   const fetchOutlets = async () => {
     try {

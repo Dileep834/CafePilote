@@ -12,8 +12,9 @@ import {
   IconButton,
   Alert
 } from '@mui/material';
-import { Visibility, VisibilityOff, RestaurantMenu } from '@mui/icons-material';
+import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useAuthStore } from '../store/useAuthStore';
+import { supabase } from '../lib/supabase';
 import { Role, APP_NAME, APP_LOGO } from '../constants';
 
 const loginSchema = z.object({
@@ -40,55 +41,38 @@ const Login: React.FC = () => {
   const onSubmit = async (data: LoginFormValues) => {
     try {
       setError(null);
-      // Mock login logic
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      if (data.email === 'admin@cafepilot.com' && data.password === 'admin123') {
-        login({
-          id: 's0000000-0000-0000-0000-000000000000',
-          name: 'Platform Super Admin',
-          email: 'admin@cafepilot.com',
-          role: Role.SUPER_ADMIN,
-          companyId: 'SYSTEM',
-          isActive: true
-        }, 'mock-jwt-token');
-        navigate('/dashboard');
-      } else if (data.email === 'admin@backbenchers.com' && data.password === 'admin123') {
-        login({
-          id: 'd1000000-0000-0000-0000-000000000001',
-          name: 'Backbenchers Head Office',
-          email: 'admin@backbenchers.com',
-          role: Role.ADMIN,
-          companyId: 'c1000000-0000-0000-0000-000000000001',
-          isActive: true
-        }, 'mock-jwt-token');
-        navigate('/dashboard');
-      } else if (data.email === 'ghatkopar@backbenchers.com' && data.password === 'admin123') {
-        login({
-          id: 'd2000000-0000-0000-0000-000000000002',
-          name: 'Ghatkopar Manager',
-          email: 'ghatkopar@backbenchers.com',
-          role: Role.OUTLET_OWNER,
-          outletId: 'f1000000-0000-0000-0000-000000000001',
-          companyId: 'c1000000-0000-0000-0000-000000000001',
-          isActive: true
-        }, 'mock-jwt-token');
-        navigate('/dashboard');
-      } else if (data.email === 'staff@backbenchers.com' && data.password === 'admin123') {
-        login({
-          id: 'd3000000-0000-0000-0000-000000000003',
-          name: 'Ghatkopar Staff',
-          email: 'staff@backbenchers.com',
-          role: Role.STAFF,
-          outletId: 'f1000000-0000-0000-0000-000000000001',
-          companyId: 'c1000000-0000-0000-0000-000000000001',
-          isActive: true
-        }, 'mock-jwt-token');
-        navigate('/dashboard');
-      } else {
-        setError('Invalid login. Try admin@cafepilot.com, admin@backbenchers.com, ghatkopar@backbenchers.com, or staff@backbenchers.com');
+      // Live database login check
+      const { data: dbUser, error: dbError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', data.email)
+        .eq('is_active', true)
+        .single();
+        
+      if (dbError || !dbUser) {
+        setError('Invalid login. User not found or inactive.');
+        return;
       }
-    } catch (err) {
+      
+      // Verify Password
+      if (dbUser.password && dbUser.password !== data.password) {
+        setError('Invalid password. Please try again.');
+        return;
+      }
+      
+      // Log the user in
+      login({
+        id: dbUser.id,
+        name: dbUser.name,
+        email: dbUser.email,
+        role: dbUser.role,
+        outletId: dbUser.outlet_id,
+        companyId: dbUser.company_id,
+        isActive: dbUser.is_active
+      }, 'live-jwt-token');
+      navigate('/dashboard');
+      
+    } catch (_err) {
       setError('An error occurred during login');
     }
   };

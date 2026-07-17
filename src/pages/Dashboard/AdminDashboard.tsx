@@ -1,18 +1,9 @@
-import { formatCurrency } from '../../utils/format';
 import React from 'react';
-import { Box, Typography, Grid, Card, CardContent, Alert } from '@mui/material';
+import { Box, Typography, Card, CardContent, CircularProgress } from '@mui/material';
 import { Inventory, Assessment, Warning, CheckCircle } from '@mui/icons-material';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-
-const data = [
-  { name: 'Jan', value: 4000, purchase: 2400 },
-  { name: 'Feb', value: 3000, purchase: 1398 },
-  { name: 'Mar', value: 2000, purchase: 9800 },
-  { name: 'Apr', value: 2780, purchase: 3908 },
-  { name: 'May', value: 1890, purchase: 4800 },
-  { name: 'Jun', value: 2390, purchase: 3800 },
-  { name: 'Jul', value: 3490, purchase: 4300 },
-];
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '../../lib/supabase';
+import { formatCurrency } from '../../utils/format';
 
 const Widget = ({ title, value, icon, color }: any) => (
   <Card sx={{ height: '100%' }}>
@@ -32,16 +23,78 @@ const Widget = ({ title, value, icon, color }: any) => (
   </Card>
 );
 
+const fetchDashboardStats = async () => {
+  // Fetch inventory with product cost price
+  const { data: inventoryData, error: invError } = await supabase
+    .from('inventory')
+    .select('current_quantity, product_id, products(cost_price, min_stock)');
+    
+  if (invError) throw invError;
+
+  // Calculate Total Value and Low Stock Items
+  let totalValue = 0;
+  let lowStockCount = 0;
+
+  inventoryData?.forEach((item: any) => {
+    const qty = Number(item.current_quantity) || 0;
+    const cost = Number(item.products?.cost_price) || 0;
+    const minStock = Number(item.products?.min_stock) || 10;
+    
+    totalValue += qty * cost;
+    
+    if (qty < minStock) {
+      lowStockCount++;
+    }
+  });
+
+  // Fetch today's purchases (dummy zero for now if purchase_orders doesn't exist, we fallback safely)
+  let todaysPurchases = 0;
+  let pendingUpdates = 0;
+
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const { data: poData } = await supabase
+      .from('purchase_orders')
+      .select('total_amount, status, created_at')
+      .gte('created_at', `${today}T00:00:00.000Z`);
+      
+    poData?.forEach((po: any) => {
+      todaysPurchases += Number(po.total_amount) || 0;
+      if (po.status === 'pending') {
+        pendingUpdates++;
+      }
+    });
+  } catch (e) {
+    console.warn("Purchase orders table might not exist yet", e);
+  }
+
+  return {
+    totalValue,
+    lowStockCount,
+    todaysPurchases,
+    pendingUpdates
+  };
+};
+
 const AdminDashboard: React.FC = () => {
+  const { data: stats, isLoading } = useQuery({
+    queryKey: ['admin-dashboard-stats'],
+    queryFn: fetchDashboardStats
+  });
+
+  if (isLoading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
     <Box>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold' }}>
+      <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', mb: 4 }}>
         Overview
       </Typography>
-      
-      <Alert severity="warning" sx={{ mb: 4 }}>
-        <strong>Notice:</strong> This dashboard is currently displaying mockup/dummy data. It is not yet connected to the live database metrics.
-      </Alert>
 
       <Box sx={{ 
         display: 'grid', 
@@ -49,46 +102,30 @@ const AdminDashboard: React.FC = () => {
         gap: 3, 
         mb: 4 
       }}>
-        <Widget title="Total Inventory Value" value={formatCurrency(124500)} icon={<Inventory />} color="#3b82f6" />
-        <Widget title="Today's Purchases" value={formatCurrency(3200)} icon={<Assessment />} color="#10b981" />
-        <Widget title="Low Stock Items" value="12" icon={<Warning />} color="#f59e0b" />
-        <Widget title="Pending Updates" value="3" icon={<CheckCircle />} color="#ef4444" />
-      </Box>
-      
-      {/* Charts will go here */}
-      <Box sx={{ 
-        display: 'grid', 
-        gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, 
-        gap: 3 
-      }}>
-        <Card sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
-          <Typography variant="h6" gutterBottom>Inventory Trend</Typography>
-          <Box sx={{ height: 300, width: '100%' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e0e0e0" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                <YAxis axisLine={false} tickLine={false} width={40} />
-                <Tooltip />
-                <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 8 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </Box>
-        </Card>
-        <Card sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
-          <Typography variant="h6" gutterBottom>Monthly Purchases</Typography>
-          <Box sx={{ height: 300, width: '100%' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e0e0e0" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                <YAxis axisLine={false} tickLine={false} width={40} />
-                <Tooltip cursor={{ fill: 'transparent' }} />
-                <Bar dataKey="purchase" fill="#10b981" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </Box>
-        </Card>
+        <Widget 
+          title="Total Inventory Value" 
+          value={formatCurrency(stats?.totalValue || 0)} 
+          icon={<Inventory />} 
+          color="#3b82f6" 
+        />
+        <Widget 
+          title="Today's Purchases" 
+          value={formatCurrency(stats?.todaysPurchases || 0)} 
+          icon={<Assessment />} 
+          color="#10b981" 
+        />
+        <Widget 
+          title="Low Stock Items" 
+          value={stats?.lowStockCount || 0} 
+          icon={<Warning />} 
+          color="#f59e0b" 
+        />
+        <Widget 
+          title="Pending Updates" 
+          value={stats?.pendingUpdates || 0} 
+          icon={<CheckCircle />} 
+          color="#ef4444" 
+        />
       </Box>
     </Box>
   );
