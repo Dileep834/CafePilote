@@ -13,7 +13,7 @@ import {
   Alert
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
-import { Coffee } from 'lucide-react';
+import { CafePilotsLogo } from '../components/CafePilotsLogo';
 import { useAuthStore } from '../store/useAuthStore';
 import { supabase } from '../lib/supabase';
 import { Role, APP_NAME, APP_LOGO } from '../constants';
@@ -97,23 +97,8 @@ const Login: React.FC = () => {
   return (
     <Box>
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 4 }}>
-        <Box 
-          sx={{ 
-            width: 80, 
-            height: 80, 
-            bgcolor: 'secondary.main', // Navy background
-            borderRadius: '50%', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            mb: 2,
-            boxShadow: '0 8px 16px rgba(0,0,0,0.2)',
-            border: '3px solid',
-            borderColor: 'primary.main', // Orange border
-            position: 'relative'
-          }}
-        >
-          <Coffee size={40} color="#FF7A00" />
+        <Box sx={{ mb: 1 }}>
+          <CafePilotsLogo size={90} />
         </Box>
         <Typography 
           variant="h4" 
