@@ -118,6 +118,7 @@ const Login: React.FC = () => {
           gutterBottom 
           sx={{ 
             fontWeight: 'bold', 
+            letterSpacing: '1px',
             color: (theme) => theme.palette.mode === 'light' ? 'text.primary' : 'common.white',
             textShadow: (theme) => theme.palette.mode === 'light' ? 'none' : '0 2px 4px rgba(0,0,0,0.5)'
           }}
