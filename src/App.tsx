@@ -3,6 +3,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CustomThemeProvider } from './contexts/ThemeContext';
 import AppRoutes from './routes';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -16,11 +17,13 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <CustomThemeProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </CustomThemeProvider>
+      <ErrorBoundary>
+        <CustomThemeProvider>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </CustomThemeProvider>
+      </ErrorBoundary>
     </QueryClientProvider>
   );
 }
