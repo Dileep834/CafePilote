@@ -1,4 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { ConfigErrorScreen } from './ConfigErrorScreen';
 
 interface Props {
   children?: ReactNode;
@@ -6,46 +7,71 @@ interface Props {
 
 interface State {
   hasError: boolean;
+  error: Error | null;
+  isChunkLoadError: boolean;
+}
+
+const CHUNK_RELOAD_KEY = 'cafepilots_chunk_reload';
+
+function isChunkLoadError(error: Error | null): boolean {
+  if (!error) return false;
+  return (
+    /Failed to fetch dynamically imported module/i.test(error.message) ||
+    error.name === 'ChunkLoadError' ||
+    error.message.includes('dynamically imported module') ||
+    /Loading chunk [\d]+ failed/i.test(error.message)
+  );
 }
 
 class ErrorBoundary extends Component<Props, State> {
   public state: State = {
-    hasError: false
+    hasError: false,
+    error: null,
+    isChunkLoadError: false,
   };
 
-  public static getDerivedStateFromError(_: Error): State {
-    return { hasError: true };
+  public static getDerivedStateFromError(error: Error): State {
+    return {
+      hasError: true,
+      error,
+      isChunkLoadError: isChunkLoadError(error),
+    };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error:', error, errorInfo);
-    
-    // Check if the error is a Vite dynamic import failure (chunk load error)
-    const isChunkLoadError = error?.message?.match(/Failed to fetch dynamically imported module/i) ||
-                             error?.name === 'ChunkLoadError' ||
-                             error?.message?.includes('dynamically imported module');
-                             
-    if (isChunkLoadError) {
-      // The app was updated in the background. Reload the page to get the new assets.
-      console.log("Chunk load error detected. Reloading page to fetch new assets...");
-      window.location.reload();
+
+    if (isChunkLoadError(error)) {
+      // Avoid infinite reload loops when assets are permanently broken
+      const alreadyReloaded = sessionStorage.getItem(CHUNK_RELOAD_KEY) === '1';
+      if (!alreadyReloaded) {
+        sessionStorage.setItem(CHUNK_RELOAD_KEY, '1');
+        console.log('Chunk load error detected. Reloading page to fetch new assets...');
+        window.location.reload();
+        return;
+      }
+      sessionStorage.removeItem(CHUNK_RELOAD_KEY);
     }
   }
 
   public render() {
     if (this.state.hasError) {
-      // If it's not a chunk load error, show a generic fallback UI
+      if (this.state.isChunkLoadError) {
+        return (
+          <ConfigErrorScreen
+            title="Failed to load application assets"
+            message="A newer deploy may have replaced cached files, or a network error interrupted loading. Reload once to fetch the latest build."
+            details={this.state.error?.message}
+          />
+        );
+      }
+
       return (
-        <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'sans-serif' }}>
-          <h2>Application Error</h2>
-          <p>Something went wrong. Please refresh the page.</p>
-          <button 
-            onClick={() => window.location.reload()}
-            style={{ padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-          >
-            Refresh Page
-          </button>
-        </div>
+        <ConfigErrorScreen
+          title="Application error"
+          message="Something went wrong while rendering CafePilots. You can reload the page, or check the details below."
+          details={this.state.error?.stack || this.state.error?.message}
+        />
       );
     }
 
