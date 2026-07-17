@@ -4,7 +4,7 @@ import type {} from '@mui/x-data-grid/themeAugmentation';
 
 const baseOptions: ThemeOptions = {
   typography: {
-    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+    fontFamily: '"Poppins", "Inter", "Roboto", "Helvetica", "Arial", sans-serif',
     h1: { fontWeight: 700, fontSize: '2rem' },
     h2: { fontWeight: 600, fontSize: '1.75rem' },
     h3: { fontWeight: 600, fontSize: '1.5rem' },
@@ -70,15 +70,15 @@ export const lightTheme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#2563eb', // Blue
-      light: '#60a5fa',
-      dark: '#1d4ed8',
+      main: '#FF7A00', // Primary Orange
+      light: '#FF8347',
+      dark: '#cc6200',
       contrastText: '#ffffff',
     },
     secondary: {
-      main: '#10b981', // Emerald
-      light: '#34d399',
-      dark: '#059669',
+      main: '#001B2A', // Navy Dark
+      light: '#1B263B',
+      dark: '#000b14',
       contrastText: '#ffffff',
     },
     error: { main: '#ef4444' },
@@ -86,7 +86,7 @@ export const lightTheme = createTheme({
     info: { main: '#3b82f6' },
     success: { main: '#22c55e' },
     background: {
-      default: '#f4f6f8',
+      default: '#F5F6F8', // From brand board
       paper: '#ffffff',
     },
     text: {
@@ -101,12 +101,12 @@ export const darkTheme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      main: '#3b82f6',
-      light: '#60a5fa',
-      dark: '#2563eb',
+      main: '#FF7A00',
+      light: '#FF8347',
+      dark: '#cc6200',
     },
     secondary: {
-      main: '#10b981',
+      main: '#001B2A',
     },
     error: { main: '#ef4444' },
     warning: { main: '#f59e0b' },

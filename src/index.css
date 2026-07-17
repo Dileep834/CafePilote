@@ -1,4 +1,5 @@
 @import "tw-animate-css";
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 @import "@fontsource-variable/geist";
 @tailwind base;
 @tailwind components;
@@ -10,15 +11,15 @@
   --bg: #fff;
   --border: #e5e4e7;
   --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
+  --accent: #FF7A00;
+  --accent-bg: rgba(255, 122, 0, 0.1);
+  --accent-border: rgba(255, 122, 0, 0.5);
   --social-bg: rgba(244, 243, 236, 0.5);
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --sans: 'Poppins', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --heading: 'Poppins', system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
   font: 18px/145% var(--sans);
@@ -107,7 +108,7 @@ code {
 @layer base {
   .theme {
     --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    --font-sans: 'Poppins', sans-serif;
   }
   :root {
     --background: oklch(1 0 0);

@@ -42,6 +42,9 @@ export default {
           foreground: "oklch(var(--card-foreground) / <alpha-value>)",
         },
       },
+      fontFamily: {
+        sans: ['Poppins', 'system-ui', 'sans-serif'],
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",

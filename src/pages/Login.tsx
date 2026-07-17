@@ -101,29 +101,32 @@ const Login: React.FC = () => {
           sx={{ 
             width: 80, 
             height: 80, 
-            bgcolor: 'primary.main', 
+            bgcolor: 'secondary.main', // Navy background
             borderRadius: '50%', 
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'center',
             mb: 2,
-            boxShadow: '0 8px 16px rgba(0,0,0,0.2)'
+            boxShadow: '0 8px 16px rgba(0,0,0,0.2)',
+            border: '3px solid',
+            borderColor: 'primary.main', // Orange border
+            position: 'relative'
           }}
         >
-          <Coffee size={40} color="white" />
+          <Coffee size={40} color="#FF7A00" />
         </Box>
         <Typography 
-          variant="h5" 
+          variant="h4" 
           component="h1" 
           gutterBottom 
           sx={{ 
-            fontWeight: 'bold', 
-            letterSpacing: '1px',
-            color: (theme) => theme.palette.mode === 'light' ? 'text.primary' : 'common.white',
+            fontWeight: 800, 
+            letterSpacing: '0.5px',
             textShadow: (theme) => theme.palette.mode === 'light' ? 'none' : '0 2px 4px rgba(0,0,0,0.5)'
           }}
         >
-          {APP_NAME}
+          <span style={{ color: 'inherit' }}>Cafe</span>
+          <span style={{ color: '#FF7A00' }}>Pilot</span>
         </Typography>
         <Typography 
           variant="body2" 
