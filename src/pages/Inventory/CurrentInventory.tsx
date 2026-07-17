@@ -17,18 +17,6 @@ const CurrentInventory: React.FC = () => {
   const [selectedOutlet, setSelectedOutlet] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (user?.role === 'Super Admin' || user?.role === 'Admin') {
-      fetchOutlets();
-    } else if (user?.outletId) {
-      setSelectedOutlet(user.outletId);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    fetchInventory();
-  }, [selectedOutlet, fetchInventory]);
-
   const fetchOutlets = async () => {
     try {
       const { data, error } = await supabase.from('outlets').select('id, name');
@@ -100,6 +88,18 @@ const CurrentInventory: React.FC = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (user?.role === 'Super Admin' || user?.role === 'Admin') {
+      fetchOutlets();
+    } else if (user?.outletId) {
+      setSelectedOutlet(user.outletId);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchInventory();
+  }, [selectedOutlet, fetchInventory]);
 
   const exportToExcel = () => {
     const excelData = inventory.map(item => ({
