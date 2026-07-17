@@ -29,7 +29,7 @@ const Users: React.FC = () => {
     try {
       let query = supabase.from('users').select(`*, outlet:outlets(name)`).order('name');
       if (user?.role !== 'Super Admin' && user?.companyId) {
-        query = query.eq('company_id', user.companyId);
+        query = query.eq('company_id', user.companyId).neq('role', 'Super Admin');
       }
       const { data, error } = await query;
       if (error) throw error;
@@ -124,11 +124,8 @@ const Users: React.FC = () => {
     { field: 'name', headerName: 'Name', flex: 1, minWidth: 150 },
     { field: 'email', headerName: 'Email', flex: 1, minWidth: 200 },
     { field: 'role', headerName: 'Role', width: 150 },
-    { field: 'outletName', headerName: 'Outlet', width: 180 },
-    { 
-      field: 'is_active', 
-      headerName: 'Status', 
-      width: 120,
+    { field: 'outletName', headerName: 'Outlet', width: 200 },
+    { field: 'is_active', headerName: 'Status', width: 120,
       renderCell: (params: any) => (
         <Chip label={params.value ? 'Active' : 'Inactive'} color={params.value ? 'success' : 'default'} size="small" />
       )
