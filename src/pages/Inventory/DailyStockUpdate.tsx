@@ -9,6 +9,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useFeedback } from '../../hooks/useFeedback';
 import { FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import { InventoryStatus } from '../../constants';
 
 interface StockRow extends DailyInventory {
   productName: string;
