@@ -27,7 +27,7 @@ const fetchDashboardStats = async () => {
   // Fetch inventory with product cost price
   const { data: inventoryData, error: invError } = await supabase
     .from('inventory')
-    .select('current_quantity, product_id, products(cost_price, min_stock)');
+    .select('current_quantity, product_id, products(purchase_price, min_stock)');
     
   if (invError) throw invError;
 
@@ -37,7 +37,7 @@ const fetchDashboardStats = async () => {
 
   inventoryData?.forEach((item: any) => {
     const qty = Number(item.current_quantity) || 0;
-    const cost = Number(item.products?.cost_price) || 0;
+    const cost = Number(item.products?.purchase_price) || 0;
     const minStock = Number(item.products?.min_stock) || 10;
     
     totalValue += qty * cost;
