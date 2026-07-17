@@ -23,7 +23,7 @@ const StockAdjustments: React.FC = () => {
   useEffect(() => {
     fetchProducts();
     fetchAdjustments();
-  }, [user, fetchProducts, fetchAdjustments]);
+  }, [user]);
 
   const fetchProducts = async () => {
     let query = supabase.from('products').select('id, name, unit').eq('is_active', true).order('name');

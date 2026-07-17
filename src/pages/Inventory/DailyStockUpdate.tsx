@@ -38,7 +38,7 @@ const DailyStockUpdate: React.FC = () => {
     } else if (user?.outletId) {
       setSelectedOutlet(user.outletId);
     }
-  }, [user, fetchOutlets]);
+  }, [user]);
 
   useEffect(() => {
     if (selectedOutlet) {
@@ -46,7 +46,7 @@ const DailyStockUpdate: React.FC = () => {
     } else {
       setLoading(false);
     }
-  }, [selectedOutlet, fetchDailyData]);
+  }, [selectedOutlet]);
 
   const fetchOutlets = async () => {
     try {
