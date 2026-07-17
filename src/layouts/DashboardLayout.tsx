@@ -92,7 +92,15 @@ const DashboardLayout: React.FC = () => {
     setAnchorEl(null);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const sessionId = useAuthStore.getState().sessionId;
+    if (sessionId) {
+      try {
+        await supabase.from('user_sessions').update({ logout_time: new Date().toISOString() }).eq('id', sessionId);
+      } catch (e) {
+        console.error('Failed to log logout time', e);
+      }
+    }
     logout();
     navigate('/login');
   };

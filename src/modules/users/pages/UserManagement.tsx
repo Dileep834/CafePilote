@@ -74,13 +74,21 @@ export function UserManagement() {
           </h1>
           <p className="text-slate-500 text-sm">Create and manage accounts for your cafe network</p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-purple-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-purple-700 transition-colors flex items-center gap-2 shadow-sm"
-        >
-          <Plus className="w-5 h-5" />
-          Add Staff
-        </button>
+        <div className="flex items-center gap-3">
+          <a 
+            href="/erp/users/logs"
+            className="bg-white text-slate-700 border border-slate-200 px-4 py-2 rounded-lg font-medium hover:bg-slate-50 transition-colors flex items-center gap-2 shadow-sm"
+          >
+            View Login Logs
+          </a>
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-purple-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-purple-700 transition-colors flex items-center gap-2 shadow-sm"
+          >
+            <Plus className="w-5 h-5" />
+            Add Staff
+          </button>
+        </div>
       </div>
 
       {/* Grid */}

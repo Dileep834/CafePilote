@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Sidebar } from './Sidebar';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
 
 interface HeaderProps {
   onToggleSidebar?: () => void;
@@ -15,7 +16,15 @@ export function Header({ onToggleSidebar }: HeaderProps) {
   const { logout } = useAuthStore();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const sessionId = useAuthStore.getState().sessionId;
+    if (sessionId) {
+      try {
+        await supabase.from('user_sessions').update({ logout_time: new Date().toISOString() }).eq('id', sessionId);
+      } catch (e) {
+        console.error('Failed to log logout time', e);
+      }
+    }
     logout();
     navigate('/login');
   };

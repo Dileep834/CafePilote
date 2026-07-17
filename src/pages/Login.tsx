@@ -60,6 +60,22 @@ const Login: React.FC = () => {
         return;
       }
       
+      // Create a user login log session
+      let sessionId = null;
+      try {
+        const { data: sessionData, error: sessionError } = await supabase
+          .from('user_sessions')
+          .insert([{ user_id: dbUser.id, company_id: dbUser.company_id }])
+          .select('id')
+          .single();
+          
+        if (!sessionError && sessionData) {
+          sessionId = sessionData.id;
+        }
+      } catch (err) {
+        console.warn('Failed to create session log', err);
+      }
+      
       // Log the user in
       login({
         id: dbUser.id,
@@ -69,7 +85,7 @@ const Login: React.FC = () => {
         outletId: dbUser.outlet_id,
         companyId: dbUser.company_id,
         isActive: dbUser.is_active
-      }, 'live-jwt-token');
+      }, 'live-jwt-token', sessionId || undefined);
       navigate('/dashboard');
       
     } catch (_err) {

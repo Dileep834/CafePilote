@@ -17,6 +17,7 @@ import { FranchiseManagement } from '../modules/franchise/pages/FranchiseManagem
 import { CustomerManagement } from '../modules/crm/pages/CustomerManagement';
 import { SystemSettings as ERPSystemSettings } from '../modules/settings/pages/SystemSettings';
 import { UserManagement } from '../modules/users/pages/UserManagement';
+import { UserLogs } from '../modules/users/pages/UserLogs';
 import { VoucherManagement } from '../modules/marketing/pages/VoucherManagement';
 import { TablesDashboard } from '../modules/tables/pages/TablesDashboard';
 import { CustomerMenuLayout } from '../modules/customer/layouts/CustomerMenuLayout';
@@ -93,6 +94,7 @@ const AppRoutes = () => {
           <Route path="franchise" element={<FranchiseManagement />} />
           <Route path="vouchers" element={<VoucherManagement />} />
           <Route path="users" element={<UserManagement />} />
+          <Route path="users/logs" element={<UserLogs />} />
           <Route path="tables" element={<TablesDashboard />} />
           <Route path="settings" element={<ERPSystemSettings />} />
         </Route>
