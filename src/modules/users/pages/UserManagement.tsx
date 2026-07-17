@@ -7,7 +7,7 @@ import dayjs from 'dayjs';
 
 export function UserManagement() {
   const { user } = useAuthStore();
-  const { users, outlets, isLoading, error, addUser, toggleUserStatus, deleteUser } = useUserStore();
+  const { users, outlets, isLoading, error, fetchUsers, fetchOutlets, addUser, toggleUserStatus, deleteUser } = useUserStore();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ 

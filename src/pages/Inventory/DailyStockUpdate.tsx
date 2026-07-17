@@ -28,6 +28,25 @@ const DailyStockUpdate: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const { showFeedback, FeedbackComponent } = useFeedback();
+  // Snackbar is now handled by useFeedback
+  // const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+  // const handleCloseSnackbar = () => setSnackbar({ ...snackbar, open: false });
+
+  useEffect(() => {
+    if (user?.role === 'Super Admin' || user?.role === 'Admin') {
+      fetchOutlets();
+    } else if (user?.outletId) {
+      setSelectedOutlet(user.outletId);
+    }
+  }, [user, fetchOutlets]);
+
+  useEffect(() => {
+    if (selectedOutlet) {
+      fetchDailyData(selectedOutlet);
+    } else {
+      setLoading(false);
+    }
+  }, [selectedOutlet, fetchDailyData]);
 
   const fetchOutlets = async () => {
     try {
@@ -35,6 +54,7 @@ const DailyStockUpdate: React.FC = () => {
       if (error) throw error;
       if (data && data.length > 0) {
         setOutlets(data);
+        // Default to the first outlet if not selected
         if (!selectedOutlet) {
           setSelectedOutlet(data[0].id);
         }
@@ -47,6 +67,7 @@ const DailyStockUpdate: React.FC = () => {
   const fetchDailyData = async (outletId: string) => {
     try {
       setLoading(true);
+      // 1. Fetch Products
       let pQuery = supabase.from('products').select('*, categories(name)').eq('is_active', true).order('name');
       if (user?.role !== 'Super Admin' && user?.companyId) {
         pQuery = pQuery.eq('company_id', user.companyId);
@@ -54,6 +75,7 @@ const DailyStockUpdate: React.FC = () => {
       const { data: productsData, error: pErr } = await pQuery;
       if (pErr) throw pErr;
 
+      // 2. Fetch Live Inventory for Opening Stock
       let invMap: Record<string, number> = {};
       if (outletId) {
         const { data: invData } = await supabase.from('inventory').select('product_id, current_quantity').eq('outlet_id', outletId);
@@ -62,6 +84,7 @@ const DailyStockUpdate: React.FC = () => {
         }
       }
 
+      // 3. Fetch Today's Daily Stock (if already saved)
       const dateStr = new Date().toISOString().split('T')[0];
       let dailyMap: Record<string, any> = {};
       if (outletId) {
@@ -71,6 +94,7 @@ const DailyStockUpdate: React.FC = () => {
         }
       }
 
+      // 4. Merge Data
       if (productsData) {
         const mappedRows = productsData.map(p => {
           const daily = dailyMap[p.id];
@@ -104,22 +128,6 @@ const DailyStockUpdate: React.FC = () => {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (user?.role === 'Super Admin' || user?.role === 'Admin') {
-      fetchOutlets();
-    } else if (user?.outletId) {
-      setSelectedOutlet(user.outletId);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (selectedOutlet) {
-      fetchDailyData(selectedOutlet);
-    } else {
-      setLoading(false);
-    }
-  }, [selectedOutlet]);
 
   const handleProcessRowUpdate = (newRow: StockRow, _oldRow: StockRow) => {
     // Formula: Closing = Opening + Purchase - Consumption - Waste

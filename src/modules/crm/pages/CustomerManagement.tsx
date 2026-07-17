@@ -5,7 +5,7 @@ import { formatCurrency } from '@/utils/format';
 import dayjs from 'dayjs';
 
 export function CustomerManagement() {
-  const { customers, isLoading, error, addCustomer, toggleCustomerStatus } = useCrmStore();
+  const { customers, isLoading, error, fetchCustomers, addCustomer, toggleCustomerStatus } = useCrmStore();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');

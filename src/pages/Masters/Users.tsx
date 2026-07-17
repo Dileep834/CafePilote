@@ -22,7 +22,7 @@ const Users: React.FC = () => {
   useEffect(() => {
     fetchUsers();
     fetchOutlets();
-  }, [user]);
+  }, [user, fetchUsers, fetchOutlets]);
 
   const fetchUsers = async () => {
     setLoading(true);

@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 export function Cart() {
   const { 
     cart, removeItem, updateQuantity, clearCart, discountType, discountValue,
-    heldOrders, holdCurrentOrder, resumeOrder, discardHeldOrder
+    heldOrders, holdCurrentOrder, resumeOrder, fetchHeldOrders, discardHeldOrder
   } = usePOSStore();
   const navigate = useNavigate();
 
@@ -19,7 +19,7 @@ export function Cart() {
 
   useEffect(() => {
     fetchHeldOrders();
-  }, []);
+  }, [fetchHeldOrders]);
 
 
 
