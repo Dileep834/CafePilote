@@ -16,7 +16,7 @@ import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { CafePilotsLogo } from '../components/CafePilotsLogo';
 import { useAuthStore } from '../store/useAuthStore';
 import { supabase } from '../lib/supabase';
-import { Role, APP_NAME, APP_LOGO } from '../constants';
+import { Role, APP_NAME } from '../constants';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
