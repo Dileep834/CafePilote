@@ -98,11 +98,23 @@ const Login: React.FC = () => {
     <Box>
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 4 }}>
         <Box 
-          component="img"
-          src={APP_LOGO}
-          alt={APP_NAME}
-          sx={{ maxHeight: 90, maxWidth: '80%', objectFit: 'contain', mb: 1, filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.2))' }}
-        />
+          sx={{ 
+            width: 80, 
+            height: 80, 
+            bgcolor: 'secondary.main', // Navy background
+            borderRadius: '50%', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            mb: 2,
+            boxShadow: '0 8px 16px rgba(0,0,0,0.2)',
+            border: '3px solid',
+            borderColor: 'primary.main', // Orange border
+            position: 'relative'
+          }}
+        >
+          <Coffee size={40} color="#FF7A00" />
+        </Box>
         <Typography 
           variant="h4" 
           component="h1" 
@@ -182,7 +194,7 @@ const Login: React.FC = () => {
       
       <Box sx={{ mt: 4, textAlign: 'center' }}>
         <Typography variant="caption" color="text.secondary">
-          Powered by <strong>CafePilot</strong> SaaS
+          Powered by <strong>{APP_NAME}</strong> SaaS
         </Typography>
       </Box>
     </Box>
