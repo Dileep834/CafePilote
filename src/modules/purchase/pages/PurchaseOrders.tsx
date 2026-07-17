@@ -8,7 +8,7 @@ import dayjs from 'dayjs';
 import { cn } from '@/lib/utils';
 
 export function PurchaseOrders() {
-  const { purchaseOrders, suppliers, isLoading, fetchPurchaseOrders, fetchSuppliers, createPurchaseOrder, updatePOStatus } = usePurchaseStore();
+  const { purchaseOrders, suppliers, isLoading, createPurchaseOrder, updatePOStatus } = usePurchaseStore();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [products, setProducts] = useState<any[]>([]);
@@ -28,7 +28,7 @@ export function PurchaseOrders() {
     fetchPurchaseOrders();
     fetchSuppliers();
     fetchProducts();
-  }, [fetchPurchaseOrders, fetchSuppliers, fetchProducts]);
+  }, []);
 
   const toggleRow = (id: string) => {
     setExpandedRows(prev => {

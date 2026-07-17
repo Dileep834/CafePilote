@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import dayjs from 'dayjs';
 
 export function KitchenDisplay() {
-  const { orders, fetchOrders, subscribeToOrders, unsubscribeFromOrders, updateOrderStatus, isLoading } = useKitchenStore();
+  const { orders, subscribeToOrders, unsubscribeFromOrders, updateOrderStatus, isLoading } = useKitchenStore();
 
   useEffect(() => {
     fetchOrders();

@@ -6,14 +6,14 @@ import dayjs from 'dayjs';
 
 export function FranchiseManagement() {
   const { user } = useAuthStore();
-  const { outlets, isLoading, error, fetchOutlets, addOutlet, toggleOutletStatus } = useFranchiseStore();
+  const { outlets, isLoading, error, addOutlet, toggleOutletStatus } = useFranchiseStore();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ name: '', location: '' });
 
   useEffect(() => {
     fetchOutlets();
-  }, [fetchOutlets]);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

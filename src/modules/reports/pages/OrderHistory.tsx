@@ -12,7 +12,7 @@ export function OrderHistory() {
   const { 
     orders, outlets, isLoading, error, 
     selectedOutletId, dateRange, 
-    setOutletFilter, setDateRange, fetchData 
+    setOutletFilter, setDateRange 
   } = useReportStore();
 
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());

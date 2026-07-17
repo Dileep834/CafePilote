@@ -20,11 +20,6 @@ const StockAdjustments: React.FC = () => {
 
   const handleCloseSnackbar = () => setSnackbar({ ...snackbar, open: false });
 
-  useEffect(() => {
-    fetchProducts();
-    fetchAdjustments();
-  }, [user, fetchProducts, fetchAdjustments]);
-
   const fetchProducts = async () => {
     let query = supabase.from('products').select('id, name, unit').eq('is_active', true).order('name');
     if (user?.role !== 'Super Admin' && user?.companyId) {
@@ -57,6 +52,11 @@ const StockAdjustments: React.FC = () => {
       })));
     }
   };
+
+  useEffect(() => {
+    fetchProducts();
+    fetchAdjustments();
+  }, [user]);
 
   const handleSubmit = async () => {
     if (!productId || !adjustment || !reason || !user?.outletId) {

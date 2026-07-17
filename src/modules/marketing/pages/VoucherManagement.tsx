@@ -5,7 +5,7 @@ import { Ticket, Plus, Search, Tag, Percent, Trash2, Edit2, CheckCircle2, XCircl
 import { format } from 'date-fns';
 
 export function VoucherManagement() {
-  const { vouchers, isLoading, fetchVouchers, createVoucher, updateVoucher, deleteVoucher } = useVoucherStore();
+  const { vouchers, isLoading, createVoucher, updateVoucher, deleteVoucher } = useVoucherStore();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -25,7 +25,7 @@ export function VoucherManagement() {
 
   useEffect(() => {
     fetchVouchers();
-  }, [fetchVouchers]);
+  }, []);
 
   const handleOpenModal = (voucher?: Voucher) => {
     if (voucher) {

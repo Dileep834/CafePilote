@@ -3,7 +3,7 @@ import { usePurchaseStore } from '../store/usePurchaseStore';
 import { Plus, Users, Building2, Phone, MapPin, Tag } from 'lucide-react';
 
 export function SuppliersList() {
-  const { suppliers, isLoading, error, fetchSuppliers, addSupplier } = usePurchaseStore();
+  const { suppliers, isLoading, error, addSupplier } = usePurchaseStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: '',

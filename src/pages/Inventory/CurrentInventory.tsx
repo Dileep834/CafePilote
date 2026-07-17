@@ -99,7 +99,7 @@ const CurrentInventory: React.FC = () => {
 
   useEffect(() => {
     fetchInventory();
-  }, [selectedOutlet, fetchInventory]);
+  }, [selectedOutlet]);
 
   const exportToExcel = () => {
     const excelData = inventory.map(item => ({
