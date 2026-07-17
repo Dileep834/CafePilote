@@ -145,7 +145,7 @@ const DashboardLayout: React.FC = () => {
           }
 
           // Outlet Managers can see Sales and Suppliers but NOT Recipes/Products
-          if (role === 'Store Manager' || role === 'Outlet Owner') {
+          if (role === 'Franchise Owner') {
             const outletAllowed = ['Dashboard', 'Point of Sale (POS)', 'Live Inventory', 'Daily Update', 'Adjustments', 'Purchase Orders', 'Wastage Log', 'Suppliers', 'Settings'];
             if (!outletAllowed.includes(item.text)) return null;
           }

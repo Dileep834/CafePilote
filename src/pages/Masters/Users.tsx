@@ -64,7 +64,7 @@ const Users: React.FC = () => {
         role: Role.STAFF,
         is_active: true,
         company_id: user?.companyId === 'SYSTEM' ? null : user?.companyId,
-        outlet_id: (user?.role === Role.OUTLET_OWNER || user?.role === Role.STORE_MANAGER) ? user?.outletId : ''
+        outlet_id: (user?.role === Role.FRANCHISE_OWNER) ? user?.outletId : ''
       });
     }
     setOpen(true);
@@ -72,8 +72,8 @@ const Users: React.FC = () => {
 
   const getAvailableRoles = () => {
     if (user?.role === Role.SUPER_ADMIN) return Object.values(Role);
-    if (user?.role === Role.ADMIN) return [Role.ADMIN, Role.OUTLET_OWNER, Role.STORE_MANAGER, Role.STAFF];
-    if (user?.role === Role.OUTLET_OWNER || user?.role === Role.STORE_MANAGER) return [Role.STORE_MANAGER, Role.STAFF];
+    if (user?.role === Role.ADMIN) return [Role.ADMIN, Role.FRANCHISE_OWNER, Role.STAFF];
+    if (user?.role === Role.FRANCHISE_OWNER) return [Role.FRANCHISE_OWNER, Role.STAFF];
     return [];
   };
 
