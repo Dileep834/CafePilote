@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useSettingsStore } from '../store/useSettingsStore';
-import type { PrinterSize } from '../store/useSettingsStore';
+import type { PrinterSize, TableViewMode } from '../store/useSettingsStore';
 import { useAuthStore } from '@/store/useAuthStore';
-import { Settings, Printer, Store, Save, FileText, CheckCircle2, Shield } from 'lucide-react';
+import { Settings, Printer, Store, Save, FileText, CheckCircle2, Shield, LayoutGrid, Map } from 'lucide-react';
 import { ThermalReceipt } from '../../pos/components/ThermalReceipt';
 import { RolesPermissions } from '../components/RolesPermissions';
+import { BRAND } from '@/constants';
+import { cn } from '@/lib/utils';
 
 export function SystemSettings() {
   const { user } = useAuthStore();
@@ -16,6 +18,7 @@ export function SystemSettings() {
     cafePhone: settings.cafePhone,
     taxNumber: settings.taxNumber,
     receiptFooterMessage: settings.receiptFooterMessage,
+    tableViewMode: settings.tableViewMode,
   });
   const [isSaved, setIsSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<'general' | 'permissions'>('general');
@@ -213,6 +216,59 @@ export function SystemSettings() {
                 value={formData.receiptFooterMessage}
                 onChange={e => setFormData({ ...formData, receiptFooterMessage: e.target.value })}
               />
+            </div>
+          </div>
+        </div>
+
+        {/* Table view preference */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+            <LayoutGrid className="w-5 h-5" style={{ color: BRAND.orange }} />
+            <h2 className="text-lg font-bold text-slate-800">Table Management view</h2>
+          </div>
+          <div className="p-6 space-y-3">
+            <p className="text-sm text-slate-500">
+              Choose how staff see tables under Table Management. You can also switch this on the Tables page.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(
+                [
+                  {
+                    id: 'normal' as TableViewMode,
+                    title: 'Normal table view',
+                    desc: 'Classic card board — status filters, merge, QR, and bills.',
+                    Icon: LayoutGrid,
+                  },
+                  {
+                    id: 'floor' as TableViewMode,
+                    title: 'Floor plan view',
+                    desc: 'Live cafe layout with status colors. Edit layout in Floor Designer.',
+                    Icon: Map,
+                  },
+                ] as const
+              ).map(({ id, title, desc, Icon }) => {
+                const on = formData.tableViewMode === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, tableViewMode: id })}
+                    className={cn(
+                      'text-left border-2 rounded-xl p-4 transition-all',
+                      on ? 'border-[#FF6A00] bg-orange-50/40' : 'border-slate-200 hover:border-slate-300'
+                    )}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex items-center gap-2 font-bold text-slate-800">
+                        <Icon className="w-4 h-4" style={{ color: on ? BRAND.orange : BRAND.navy }} />
+                        {title}
+                      </div>
+                      {on && <CheckCircle2 className="w-5 h-5" style={{ color: BRAND.orange }} />}
+                    </div>
+                    <p className="text-xs text-slate-500">{desc}</p>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

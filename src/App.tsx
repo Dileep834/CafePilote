@@ -32,10 +32,12 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ErrorBoundary>
+      <ErrorBoundary area="app">
         <CustomThemeProvider>
           <BrowserRouter>
-            <AppRoutes />
+            <ErrorBoundary area="routes">
+              <AppRoutes />
+            </ErrorBoundary>
           </BrowserRouter>
         </CustomThemeProvider>
       </ErrorBoundary>

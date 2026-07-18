@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import DashboardLayout from '../layouts/DashboardLayout';
 import AuthLayout from '../layouts/AuthLayout';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 import { ERPMasterLayout } from '../modules/core/layouts/ERPMasterLayout';
 import { ERPHome } from '../modules/core/pages/ERPHome';
@@ -22,6 +23,12 @@ import { VoucherManagement } from '../modules/marketing/pages/VoucherManagement'
 import { TablesDashboard } from '../modules/tables/pages/TablesDashboard';
 import { CustomerMenuLayout } from '../modules/customer/layouts/CustomerMenuLayout';
 import { CustomerMenu } from '../modules/customer/pages/CustomerMenu';
+
+const FloorDesignerPage = React.lazy(() =>
+  import('../modules/floordesigner/pages/FloorDesignerPage').then((m) => ({
+    default: m.FloorDesignerPage,
+  }))
+);
 
 const Login = React.lazy(() => import('../pages/Login'));
 const AdminDashboard = React.lazy(() => import('../pages/Dashboard/AdminDashboard'));
@@ -96,6 +103,22 @@ const AppRoutes = () => {
           <Route path="users" element={<UserManagement />} />
           <Route path="users/logs" element={<UserLogs />} />
           <Route path="tables" element={<TablesDashboard />} />
+          <Route
+            path="floor"
+            element={
+              <ErrorBoundary area="floor designer">
+                <FloorDesignerPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="floor/:floorId"
+            element={
+              <ErrorBoundary area="floor designer">
+                <FloorDesignerPage />
+              </ErrorBoundary>
+            }
+          />
           <Route path="settings" element={<ERPSystemSettings />} />
         </Route>
 

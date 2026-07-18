@@ -11,7 +11,8 @@ import {
   Store,
   Settings,
   Shield,
-  Ticket
+  Ticket,
+  Map
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CafePilotsLogo } from '@/components/CafePilotsLogo';
@@ -21,6 +22,7 @@ const navigation = [
   { name: 'Dashboard', href: '/erp', icon: LayoutDashboard },
   { name: 'POS (Billing)', href: '/erp/pos', icon: ShoppingCart },
   { name: 'Table Management', href: '/erp/tables', icon: LayoutDashboard },
+  { name: 'Floor Designer', href: '/erp/floor', icon: Map },
   { name: 'Master Data', href: '/masters/products', icon: Package },
   { name: 'Inventory', href: '/erp/inventory', icon: Package },
   { name: 'Purchase', href: '/erp/purchase', icon: Truck },

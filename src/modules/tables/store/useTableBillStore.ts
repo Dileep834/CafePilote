@@ -73,6 +73,12 @@ interface TableBillState {
   ) => Promise<boolean>;
   settleBill: (tableId: string, paidOrderId?: string) => Promise<void>;
   discardBill: (tableId: string) => Promise<void>;
+  /** Move open check + party from one table to an available table */
+  movePartyToTable: (
+    fromTable: Table,
+    toTableId: string,
+    allTables: Table[]
+  ) => Promise<boolean>;
 }
 
 function nowIso() {
@@ -580,6 +586,99 @@ export const useTableBillStore = create<TableBillState>()(
           }
         }
         void useTableStore.getState().updateTable(tableId, { currentOrderId: undefined });
+      },
+
+      movePartyToTable: async (fromTable, toTableId, allTables) => {
+        const { tables, updateTableStatus, unmergeTables, assignOrder, updateTable } =
+          useTableStore.getState();
+        const live = tables.length ? tables : allTables;
+        const target = live.find((t) => t.id === toTableId);
+        if (!target) {
+          set({ lastError: 'Target table not found' });
+          return false;
+        }
+        if (target.id === fromTable.id) {
+          set({ lastError: 'Pick a different table' });
+          return false;
+        }
+        if (target.status !== 'available') {
+          set({ lastError: 'Target table must be available' });
+          return false;
+        }
+        if (target.mergeGroupId) {
+          set({ lastError: 'Unmerge the target table first' });
+          return false;
+        }
+        if (get().getOpenBill(target.id)) {
+          set({ lastError: 'Target table already has an open bill' });
+          return false;
+        }
+
+        const sourceBillId = get().resolveBillTableId(fromTable, live);
+        let bill = get().getOpenBill(sourceBillId) || get().getOpenBillForTable(fromTable, live);
+        const groupBefore = getMergeGroup(live, fromTable);
+        const toClean = groupBefore.map((t) => t.id);
+
+        if (fromTable.mergeGroupId) {
+          await unmergeTables(fromTable.id);
+        }
+
+        if (bill) {
+          const moved: TableBill = {
+            ...bill,
+            tableId: target.id,
+            tableLabel: target.tableNumber,
+            mergeGroupId: undefined,
+            updatedAt: nowIso(),
+          };
+          set((s) => ({
+            bills: s.bills.map((b) => (b.id === bill!.id ? moved : b)),
+            lastError: null,
+          }));
+          bill = moved;
+
+          const cloudId = await upsertCloudOpenOrder(moved);
+          if (cloudId && cloudId !== moved.cloudOrderId) {
+            set((s) => ({
+              bills: s.bills.map((b) =>
+                b.id === moved.id ? { ...b, cloudOrderId: cloudId } : b
+              ),
+            }));
+          }
+
+          await assignOrder(target.id, moved.id);
+        } else {
+          await updateTableStatus(
+            target.id,
+            fromTable.status === 'reserved' ? 'reserved' : 'occupied'
+          );
+          set({ lastError: null });
+        }
+
+        for (const id of toClean) {
+          if (id === target.id) continue;
+          await updateTableStatus(id, 'cleaning');
+          await updateTable(id, { currentOrderId: undefined });
+        }
+
+        try {
+          const { usePOSStore } = await import('@/modules/pos/store/usePOSStore');
+          const pos = usePOSStore.getState();
+          if (
+            pos.activeTableId &&
+            (pos.activeTableId === sourceBillId || pos.activeTableId === fromTable.id)
+          ) {
+            usePOSStore.setState({
+              activeTableId: target.id,
+              activeTableLabel: target.tableNumber,
+              customerName: `Table ${target.tableNumber}`,
+            });
+          }
+        } catch {
+          /* POS optional */
+        }
+
+        return true;
       },
     }),
     {

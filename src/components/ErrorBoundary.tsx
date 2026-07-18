@@ -1,8 +1,10 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { ConfigErrorScreen } from './ConfigErrorScreen';
+import { ErrorDialog } from './ErrorDialog';
 
 interface Props {
   children?: ReactNode;
+  /** Optional label for which area crashed */
+  area?: string;
 }
 
 interface State {
@@ -19,7 +21,8 @@ function isChunkLoadError(error: Error | null): boolean {
     /Failed to fetch dynamically imported module/i.test(error.message) ||
     error.name === 'ChunkLoadError' ||
     error.message.includes('dynamically imported module') ||
-    /Loading chunk [\d]+ failed/i.test(error.message)
+    /Loading chunk [\d]+ failed/i.test(error.message) ||
+    /does not provide an export named/i.test(error.message)
   );
 }
 
@@ -42,11 +45,9 @@ class ErrorBoundary extends Component<Props, State> {
     console.error('Uncaught error:', error, errorInfo);
 
     if (isChunkLoadError(error)) {
-      // Avoid infinite reload loops when assets are permanently broken
       const alreadyReloaded = sessionStorage.getItem(CHUNK_RELOAD_KEY) === '1';
       if (!alreadyReloaded) {
         sessionStorage.setItem(CHUNK_RELOAD_KEY, '1');
-        console.log('Chunk load error detected. Reloading page to fetch new assets...');
         window.location.reload();
         return;
       }
@@ -54,24 +55,38 @@ class ErrorBoundary extends Component<Props, State> {
     }
   }
 
+  private clearError = () => {
+    this.setState({ hasError: false, error: null, isChunkLoadError: false });
+  };
+
   public render() {
     if (this.state.hasError) {
-      if (this.state.isChunkLoadError) {
-        return (
-          <ConfigErrorScreen
-            title="Failed to load application assets"
-            message="A newer deploy may have replaced cached files, or a network error interrupted loading. Reload once to fetch the latest build."
-            details={this.state.error?.message}
-          />
-        );
-      }
+      const area = this.props.area ? ` (${this.props.area})` : '';
+      const title = this.state.isChunkLoadError
+        ? 'Failed to load application assets'
+        : `Application error${area}`;
+      const message = this.state.isChunkLoadError
+        ? 'A module failed to load (often after a hot reload or deploy). Reload to fetch a clean build.'
+        : 'Something went wrong while rendering CafePilots. The blank screen is blocked — reload to continue, or check details below.';
 
       return (
-        <ConfigErrorScreen
-          title="Application error"
-          message="Something went wrong while rendering CafePilots. You can reload the page, or check the details below."
-          details={this.state.error?.stack || this.state.error?.message}
-        />
+        <div
+          style={{
+            minHeight: '100vh',
+            background: '#F3F3F8',
+            position: 'relative',
+          }}
+        >
+          <ErrorDialog
+            open
+            title={title}
+            message={message}
+            details={this.state.error?.stack || this.state.error?.message}
+            onReload={() => window.location.reload()}
+            onDismiss={this.clearError}
+            dismissLabel="Try again"
+          />
+        </div>
       );
     }
 

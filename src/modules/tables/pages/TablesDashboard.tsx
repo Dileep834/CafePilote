@@ -12,6 +12,11 @@ import { useTableBillStore } from '../store/useTableBillStore';
 import { syncTableForQr } from '../lib/resolveTableByQr';
 import { TableFormModal } from '../components/TableFormModal';
 import { MergeTablesModal } from '../components/MergeTablesModal';
+import { MoveTableModal } from '../components/MoveTableModal';
+import { TableQrPrintModal } from '../components/TableQrPrintModal';
+import { TableQrPreview } from '../components/TableQrPreview';
+import { TableViewModeToggle } from '../components/TableViewModeToggle';
+import { useSettingsStore } from '@/modules/settings/store/useSettingsStore';
 import { openTableOnPOS } from '@/modules/pos/store/usePOSStore';
 import { Button } from '@/components/ui/button';
 import {
@@ -44,7 +49,15 @@ import {
   Unlink,
   Receipt,
   UtensilsCrossed,
+  ArrowRightLeft,
+  Printer,
 } from 'lucide-react';
+
+const FloorOpsView = React.lazy(() =>
+  import('@/modules/floordesigner/pages/FloorDesignerPage').then((m) => ({
+    default: m.FloorDesignerPage,
+  }))
+);
 
 const STATUS_META: Record<
   TableStatus,
@@ -91,6 +104,8 @@ export function TablesDashboard() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const outletId = user?.outletId || 'current-outlet';
+  const tableViewMode = useSettingsStore((s) => s.tableViewMode);
+  const setTableViewMode = useSettingsStore((s) => s.setTableViewMode);
 
   const {
     tables,
@@ -112,12 +127,16 @@ export function TablesDashboard() {
   const getOpenBillForTable = useTableBillStore((s) => s.getOpenBillForTable);
   const getBillTotal = useTableBillStore((s) => s.getBillTotal);
   const hydrateOpenBills = useTableBillStore((s) => s.hydrateOpenBills);
+  const movePartyToTable = useTableBillStore((s) => s.movePartyToTable);
+  const billError = useTableBillStore((s) => s.lastError);
 
   const [filter, setFilter] = useState<TableStatus | 'all'>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<'add' | 'edit'>('add');
   const [mergeOpen, setMergeOpen] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [qrPrintOpen, setQrPrintOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [qrSyncMsg, setQrSyncMsg] = useState<string | null>(null);
@@ -255,6 +274,46 @@ export function TablesDashboard() {
     }
   };
 
+  if (tableViewMode === 'floor') {
+    return (
+      <div className="flex flex-col h-full min-h-0 -m-4 md:-m-6">
+        <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-b border-slate-200 bg-white">
+          <div>
+            <h1 className="text-lg font-bold text-[#0D1B2A] flex items-center gap-2">
+              <LayoutGrid className="w-5 h-5" style={{ color: BRAND.orange }} />
+              Table Management
+            </h1>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Floor plan view · change anytime in Settings or here
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <TableViewModeToggle value={tableViewMode} onChange={setTableViewMode} size="sm" />
+            <Button
+              type="button"
+              variant="outline"
+              className="h-8 rounded-xl text-xs font-bold"
+              onClick={() => navigate('/erp/floor')}
+            >
+              Edit layout
+            </Button>
+          </div>
+        </div>
+        <div className="flex-1 min-h-0">
+          <React.Suspense
+            fallback={
+              <div className="h-full flex items-center justify-center text-slate-400 text-sm">
+                Loading floor plan…
+              </div>
+            }
+          >
+            <FloorOpsView variant="ops" />
+          </React.Suspense>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className="flex flex-col h-full min-h-0 p-4 sm:p-6 space-y-5 overflow-auto"
@@ -277,14 +336,17 @@ export function TablesDashboard() {
             {isLoading ? ' · Loading…' : ''}
           </p>
         </div>
-        <Button
-          onClick={openAdd}
-          className="h-11 px-5 rounded-xl text-white font-bold shadow-md"
-          style={{ backgroundColor: BRAND.orange }}
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Add table
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <TableViewModeToggle value={tableViewMode} onChange={setTableViewMode} />
+          <Button
+            onClick={openAdd}
+            className="h-11 px-5 rounded-xl text-white font-bold shadow-md"
+            style={{ backgroundColor: BRAND.orange }}
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            Add table
+          </Button>
+        </div>
       </div>
 
       {/* Lifecycle ribbon */}
@@ -541,6 +603,31 @@ export function TablesDashboard() {
                   </div>
                 </div>
 
+                {/* Move party */}
+                {(selected.status === 'occupied' || selected.status === 'reserved') && (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-bold text-[#0D1B2A]">
+                      <ArrowRightLeft className="w-4 h-4" style={{ color: BRAND.orange }} />
+                      Move table
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Guests need a different table? Transfer the party
+                      {selectedBill ? ' and open bill' : ''} to an available table. This table goes to
+                      cleaning.
+                    </p>
+                    <Button
+                      type="button"
+                      className="w-full h-11 rounded-xl font-bold text-white"
+                      style={{ backgroundColor: BRAND.navy }}
+                      disabled={busy}
+                      onClick={() => setMoveOpen(true)}
+                    >
+                      <ArrowRightLeft className="w-4 h-4 mr-2" />
+                      Move to another table
+                    </Button>
+                  </div>
+                )}
+
                 {/* Merge controls */}
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
                   <div className="flex items-center gap-2 text-sm font-bold text-[#0D1B2A]">
@@ -660,12 +747,34 @@ export function TablesDashboard() {
                   </div>
                   {selected.qrCodeToken ? (
                     <>
+                      <div className="flex justify-center rounded-xl bg-white border border-slate-200 p-3">
+                        <TableQrPreview
+                          url={menuUrl(selected)}
+                          size={148}
+                          className="rounded-lg"
+                        />
+                      </div>
                       <p className="text-[11px] text-slate-500 break-all font-mono bg-white border border-slate-200 rounded-lg px-2.5 py-2">
                         {menuUrl(selected)}
                       </p>
                       {qrSyncMsg && (
                         <p className="text-[11px] font-medium text-slate-500">{qrSyncMsg}</p>
                       )}
+                      <Button
+                        type="button"
+                        className="w-full h-11 rounded-xl font-bold text-white"
+                        style={{ backgroundColor: BRAND.orange }}
+                        disabled={busy}
+                        onClick={async () => {
+                          setBusy(true);
+                          await ensureQrReady(selected);
+                          setBusy(false);
+                          setQrPrintOpen(true);
+                        }}
+                      >
+                        <Printer className="w-4 h-4 mr-2" />
+                        Print / export QR
+                      </Button>
                       <div className="flex gap-2">
                         <Button
                           type="button"
@@ -780,6 +889,32 @@ export function TablesDashboard() {
           if (!selected) return false;
           return mergeTables(selected.id, partnerIds);
         }}
+      />
+
+      <MoveTableModal
+        open={moveOpen}
+        source={selected}
+        outletTables={outletTables}
+        error={billError || lastError}
+        onClose={() => setMoveOpen(false)}
+        onMove={async (targetId) => {
+          if (!selected) return false;
+          setBusy(true);
+          const ok = await movePartyToTable(selected, targetId, outletTables);
+          setBusy(false);
+          if (ok) {
+            setSelectedId(targetId);
+            setMoveOpen(false);
+          }
+          return ok;
+        }}
+      />
+
+      <TableQrPrintModal
+        open={qrPrintOpen}
+        table={selected}
+        menuUrl={selected?.qrCodeToken ? menuUrl(selected) : ''}
+        onClose={() => setQrPrintOpen(false)}
       />
     </div>
   );
