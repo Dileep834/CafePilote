@@ -1,6 +1,9 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
+import { Role, type RoleType } from '../constants';
+import { PERMISSIONS, type PermissionId } from '@/constants/permissions';
+import { usePermissionsStore } from '../store/usePermissionsStore';
 import AuthLayout from '../layouts/AuthLayout';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { isAppHost, loginPath } from '../lib/appHost';
@@ -45,22 +48,44 @@ const NotFound = React.lazy(() => import('../pages/NotFound'));
 const ProtectedRoute = ({
   children,
   allowedRoles,
+  requiredPermission,
+  requiredPermissions,
+  requireAll = false,
 }: {
   children: React.ReactNode;
-  allowedRoles?: string[];
+  allowedRoles?: RoleType[];
+  requiredPermission?: PermissionId;
+  requiredPermissions?: PermissionId[];
+  requireAll?: boolean;
 }) => {
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, user, isSessionExpired } = useAuthStore();
+  const { hasPermission } = usePermissionsStore();
 
   if (!isAuthenticated || !user) {
     return <Navigate to={loginPath()} replace />;
   }
 
-  if (user.role === 'Super Admin') {
+  if (isSessionExpired()) {
+    return <Navigate to={loginPath()} replace />;
+  }
+
+  if (user.role === Role.SUPER_ADMIN) {
     return <>{children}</>;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to="/erp" replace />;
+  }
+
+  const permissions = requiredPermissions || (requiredPermission ? [requiredPermission] : []);
+  if (permissions.length > 0) {
+    const allowedByPermission = requireAll
+      ? permissions.every((permission) => hasPermission(user.role, permission))
+      : permissions.some((permission) => hasPermission(user.role, permission));
+
+    if (!allowedByPermission) {
+      return <Navigate to="/erp" replace />;
+    }
   }
 
   return <>{children}</>;
@@ -110,57 +135,194 @@ const AppRoutes = () => {
           }
         >
           <Route index element={<ERPHome />} />
-          <Route path="pos" element={<POSDashboard />} />
-          <Route path="pos/checkout" element={<CheckoutPage />} />
+          <Route
+            path="pos"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.POS_ACCESS}>
+                <POSDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="pos/checkout"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.POS_CHECKOUT}>
+                <CheckoutPage />
+              </ProtectedRoute>
+            }
+          />
 
-          <Route path="menu/products" element={<Products />} />
-          <Route path="menu/categories" element={<Categories />} />
+          <Route
+            path="menu/products"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.MENU_PRODUCTS_MANAGE}>
+                <Products />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="menu/categories"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.MENU_CATEGORIES_MANAGE}>
+                <Categories />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="menu/recipes"
             element={
-              <ProtectedRoute allowedRoles={['Super Admin', 'Admin']}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.RECIPES_MANAGE}>
                 <Recipes />
               </ProtectedRoute>
             }
           />
           <Route path="menu" element={<Navigate to="/erp/menu/products" replace />} />
 
-          <Route path="inventory" element={<ERPCurrentInventory />} />
-          <Route path="inventory/daily" element={<DailyStockUpdate />} />
-          <Route path="inventory/adjustments" element={<StockAdjustments />} />
-          <Route path="inventory/waste" element={<WasteEntry />} />
-          <Route path="purchase" element={<ERPPurchaseOrders />} />
-          <Route path="purchase/suppliers" element={<SuppliersList />} />
+          <Route
+            path="inventory"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.INVENTORY_VIEW}>
+                <ERPCurrentInventory />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="inventory/daily"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.INVENTORY_DAILY}>
+                <DailyStockUpdate />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="inventory/adjustments"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.INVENTORY_ADJUST}>
+                <StockAdjustments />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="inventory/waste"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.INVENTORY_WASTE}>
+                <WasteEntry />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="purchase"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.PURCHASE_MANAGE}>
+                <ERPPurchaseOrders />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="purchase/suppliers"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.SUPPLIERS_MANAGE}>
+                <SuppliersList />
+              </ProtectedRoute>
+            }
+          />
 
-          <Route path="kitchen" element={<KitchenDisplay />} />
-          <Route path="crm" element={<CustomerManagement />} />
-          <Route path="reports" element={<OrderHistory />} />
-          <Route path="franchise" element={<FranchiseManagement />} />
-          <Route path="vouchers" element={<VoucherManagement />} />
-          <Route path="users" element={<UserManagement />} />
-          <Route path="users/logs" element={<UserLogs />} />
-          <Route path="tables" element={<TablesDashboard />} />
+          <Route
+            path="kitchen"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.KITCHEN_ACCESS}>
+                <KitchenDisplay />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="crm"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.CRM_MANAGE}>
+                <CustomerManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="reports"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.REPORTS_VIEW}>
+                <OrderHistory />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="franchise"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.FRANCHISE_MANAGE}>
+                <FranchiseManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="vouchers"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.MARKETING_MANAGE}>
+                <VoucherManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="users"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.USERS_MANAGE}>
+                <UserManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="users/logs"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.USERS_LOGS}>
+                <UserLogs />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="tables"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.TABLES_MANAGE}>
+                <TablesDashboard />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="floor"
             element={
-              <ErrorBoundary area="floor designer">
-                <FloorDesignerPage />
-              </ErrorBoundary>
+              <ProtectedRoute requiredPermission={PERMISSIONS.FLOOR_MANAGE}>
+                <ErrorBoundary area="floor designer">
+                  <FloorDesignerPage />
+                </ErrorBoundary>
+              </ProtectedRoute>
             }
           />
           <Route
             path="floor/:floorId"
             element={
-              <ErrorBoundary area="floor designer">
-                <FloorDesignerPage />
-              </ErrorBoundary>
+              <ProtectedRoute requiredPermission={PERMISSIONS.FLOOR_MANAGE}>
+                <ErrorBoundary area="floor designer">
+                  <FloorDesignerPage />
+                </ErrorBoundary>
+              </ProtectedRoute>
             }
           />
-          <Route path="settings" element={<ERPSystemSettings />} />
+          <Route
+            path="settings"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.SETTINGS_MANAGE}>
+                <ERPSystemSettings />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="companies"
             element={
-              <ProtectedRoute allowedRoles={['Super Admin']}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.COMPANIES_MANAGE}>
                 <Companies />
               </ProtectedRoute>
             }

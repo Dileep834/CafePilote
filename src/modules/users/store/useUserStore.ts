@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
-import type { RoleType } from '@/constants';
+import { Role, type RoleType } from '@/constants';
 import type { Outlet } from '@/types';
 import { useAuthStore } from '@/store/useAuthStore';
 import { getScopedCompanyId } from '@/lib/tenantScope';
@@ -12,6 +12,7 @@ export interface UserProfile {
   email: string;
   role: RoleType;
   outlet_id?: string;
+  password?: string;
   is_active: boolean;
   created_at?: string;
 
@@ -54,7 +55,7 @@ export const useUserStore = create<UserState>((set) => ({
         .order('created_at', { ascending: false });
       if (companyId) {
         query = query.eq('company_id', companyId);
-        if (!isSuperAdmin(user)) query = query.neq('role', 'Super Admin');
+        if (!isSuperAdmin(user)) query = query.neq('role', Role.SUPER_ADMIN);
       }
 
       const { data, error } = await query;
@@ -82,8 +83,13 @@ export const useUserStore = create<UserState>((set) => ({
     }
   },
 
-  addUser: async (userData) => {
+  addUser: async (userData, password) => {
     try {
+      const cleanedPassword = password?.trim();
+      if (!cleanedPassword || cleanedPassword.length < 6) {
+        throw new Error('Temporary password must be at least 6 characters.');
+      }
+
       const authUser = useAuthStore.getState().user;
       const companyId = getScopedCompanyId(authUser);
       const { data, error } = await supabase
@@ -94,6 +100,7 @@ export const useUserStore = create<UserState>((set) => ({
             email: userData.email,
             role: userData.role,
             outlet_id: userData.outlet_id || null,
+            password: cleanedPassword,
             is_active: true,
             company_id: companyId,
           },

@@ -26,7 +26,9 @@ import {
 import { cn } from '@/lib/utils';
 import { CafePilotsLogo } from '@/components/CafePilotsLogo';
 import { APP_NAME, BRAND } from '@/constants';
+import { PERMISSIONS, type PermissionId } from '@/constants/permissions';
 import { useAuthStore } from '@/store/useAuthStore';
+import { usePermissionsStore } from '@/store/usePermissionsStore';
 import { isSuperAdmin } from '@/lib/access';
 
 type NavLeaf = {
@@ -34,6 +36,7 @@ type NavLeaf = {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   end?: boolean;
+  requiredPermission?: PermissionId;
   /** Only visible to Super Admin (platform owner) */
   superAdminOnly?: boolean;
 };
@@ -49,58 +52,58 @@ const NAV_GROUPS: NavGroup[] = [
     id: 'service',
     label: 'Front of house',
     items: [
-      { name: 'Dashboard', href: '/erp', icon: LayoutDashboard, end: true },
-      { name: 'POS (Billing)', href: '/erp/pos', icon: ShoppingCart },
-      { name: 'Tables', href: '/erp/tables', icon: LayoutGrid, end: true },
-      { name: 'Floor Designer', href: '/erp/floor', icon: Map },
-      { name: 'Kitchen (KDS)', href: '/erp/kitchen', icon: ChefHat, end: true },
+      { name: 'Dashboard', href: '/erp', icon: LayoutDashboard, end: true, requiredPermission: PERMISSIONS.DASHBOARD_ACCESS },
+      { name: 'POS (Billing)', href: '/erp/pos', icon: ShoppingCart, requiredPermission: PERMISSIONS.POS_ACCESS },
+      { name: 'Tables', href: '/erp/tables', icon: LayoutGrid, end: true, requiredPermission: PERMISSIONS.TABLES_MANAGE },
+      { name: 'Floor Designer', href: '/erp/floor', icon: Map, requiredPermission: PERMISSIONS.FLOOR_MANAGE },
+      { name: 'Kitchen (KDS)', href: '/erp/kitchen', icon: ChefHat, end: true, requiredPermission: PERMISSIONS.KITCHEN_ACCESS },
     ],
   },
   {
     id: 'menu',
     label: 'Menu & catalog',
     items: [
-      { name: 'Products', href: '/erp/menu/products', icon: UtensilsCrossed },
-      { name: 'Categories', href: '/erp/menu/categories', icon: Tags },
-      { name: 'Recipes', href: '/erp/menu/recipes', icon: BookOpen },
+      { name: 'Products', href: '/erp/menu/products', icon: UtensilsCrossed, requiredPermission: PERMISSIONS.MENU_PRODUCTS_MANAGE },
+      { name: 'Categories', href: '/erp/menu/categories', icon: Tags, requiredPermission: PERMISSIONS.MENU_CATEGORIES_MANAGE },
+      { name: 'Recipes', href: '/erp/menu/recipes', icon: BookOpen, requiredPermission: PERMISSIONS.RECIPES_MANAGE },
     ],
   },
   {
     id: 'stock',
     label: 'Inventory & purchase',
     items: [
-      { name: 'Stock on hand', href: '/erp/inventory', icon: Boxes, end: true },
-      { name: 'Daily stock update', href: '/erp/inventory/daily', icon: ClipboardList },
-      { name: 'Adjustments', href: '/erp/inventory/adjustments', icon: Package },
-      { name: 'Waste log', href: '/erp/inventory/waste', icon: Trash2 },
-      { name: 'Purchase orders', href: '/erp/purchase', icon: Truck, end: true },
-      { name: 'Suppliers', href: '/erp/purchase/suppliers', icon: Store },
+      { name: 'Stock on hand', href: '/erp/inventory', icon: Boxes, end: true, requiredPermission: PERMISSIONS.INVENTORY_VIEW },
+      { name: 'Daily stock update', href: '/erp/inventory/daily', icon: ClipboardList, requiredPermission: PERMISSIONS.INVENTORY_DAILY },
+      { name: 'Adjustments', href: '/erp/inventory/adjustments', icon: Package, requiredPermission: PERMISSIONS.INVENTORY_ADJUST },
+      { name: 'Waste log', href: '/erp/inventory/waste', icon: Trash2, requiredPermission: PERMISSIONS.INVENTORY_WASTE },
+      { name: 'Purchase orders', href: '/erp/purchase', icon: Truck, end: true, requiredPermission: PERMISSIONS.PURCHASE_MANAGE },
+      { name: 'Suppliers', href: '/erp/purchase/suppliers', icon: Store, requiredPermission: PERMISSIONS.SUPPLIERS_MANAGE },
     ],
   },
   {
     id: 'growth',
     label: 'Customers & offers',
     items: [
-      { name: 'CRM / Guests', href: '/erp/crm', icon: Users },
-      { name: 'Offers & vouchers', href: '/erp/vouchers', icon: Ticket },
+      { name: 'CRM / Guests', href: '/erp/crm', icon: Users, requiredPermission: PERMISSIONS.CRM_MANAGE },
+      { name: 'Offers & vouchers', href: '/erp/vouchers', icon: Ticket, requiredPermission: PERMISSIONS.MARKETING_MANAGE },
     ],
   },
   {
     id: 'business',
     label: 'Business',
     items: [
-      { name: 'Reports', href: '/erp/reports', icon: BarChart3 },
-      { name: 'Outlets / Branches', href: '/erp/franchise', icon: Building2 },
+      { name: 'Reports', href: '/erp/reports', icon: BarChart3, requiredPermission: PERMISSIONS.REPORTS_VIEW },
+      { name: 'Outlets / Branches', href: '/erp/franchise', icon: Building2, requiredPermission: PERMISSIONS.FRANCHISE_MANAGE },
     ],
   },
   {
     id: 'admin',
     label: 'Admin',
     items: [
-      { name: 'Staff & users', href: '/erp/users', icon: Shield },
-      { name: 'Login logs', href: '/erp/users/logs', icon: ClipboardList },
-      { name: 'Companies', href: '/erp/companies', icon: Building2, superAdminOnly: true },
-      { name: 'Settings', href: '/erp/settings', icon: Settings },
+      { name: 'Staff & users', href: '/erp/users', icon: Shield, requiredPermission: PERMISSIONS.USERS_MANAGE },
+      { name: 'Login logs', href: '/erp/users/logs', icon: ClipboardList, requiredPermission: PERMISSIONS.USERS_LOGS },
+      { name: 'Companies', href: '/erp/companies', icon: Building2, requiredPermission: PERMISSIONS.COMPANIES_MANAGE, superAdminOnly: true },
+      { name: 'Settings', href: '/erp/settings', icon: Settings, requiredPermission: PERMISSIONS.SETTINGS_MANAGE },
     ],
   },
 ];
@@ -118,14 +121,21 @@ interface SidebarProps {
 export function Sidebar({ className, onNavigate }: SidebarProps) {
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
+  const hasPermission = usePermissionsStore((s) => s.hasPermission);
   const sa = isSuperAdmin(user);
+  const role = user?.role;
 
   const visibleGroups = useMemo(() => {
     return NAV_GROUPS.map((g) => ({
       ...g,
-      items: g.items.filter((item) => !item.superAdminOnly || sa),
+      items: g.items.filter((item) => {
+        if (item.superAdminOnly && !sa) return false;
+        if (!item.requiredPermission) return true;
+        if (!role) return false;
+        return hasPermission(role, item.requiredPermission);
+      }),
     })).filter((g) => g.items.length > 0);
-  }, [sa]);
+  }, [hasPermission, role, sa]);
 
   const activeGroupIds = useMemo(() => {
     return visibleGroups

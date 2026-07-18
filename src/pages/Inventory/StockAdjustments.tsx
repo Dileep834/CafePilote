@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Button, TextField, Typography, Paper, Grid, MenuItem, Snackbar, Alert } from '@mui/material';
+import { Box, Button, TextField, Typography, Paper, MenuItem, Snackbar, Alert } from '@mui/material';
 import type { GridColDef } from '@mui/x-data-grid';
 import { DataGrid } from '@mui/x-data-grid';
 import { Add } from '@mui/icons-material';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
+import { getTenantOutletId } from '../../store/useTenantStore';
 import { getScopedCompanyId } from '../../lib/tenantScope';
+import { Role } from '../../constants';
 
 const StockAdjustments: React.FC = () => {
   const { user } = useAuthStore();
@@ -35,13 +37,14 @@ const StockAdjustments: React.FC = () => {
   };
 
   const fetchAdjustments = async () => {
+    const outletId = getTenantOutletId(user);
     let query = supabase.from('stock_adjustments').select(`
       id, date, adjustment, reason, approved_by,
       product:products(name, unit)
     `).order('date', { ascending: false }).limit(50);
     
-    if (user?.role !== 'Super Admin' && user?.outletId) {
-      query = query.eq('outlet_id', user.outletId);
+    if (user?.role !== Role.SUPER_ADMIN && outletId && outletId !== 'current-outlet') {
+      query = query.eq('outlet_id', outletId);
     }
     
     const { data } = await query;
@@ -59,8 +62,9 @@ const StockAdjustments: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    if (!productId || !adjustment || !reason || !user?.outletId) {
-      setSnackbar({ open: true, message: "Please fill all fields. Ensure you are logged in as an Outlet Manager.", severity: 'warning' });
+    const outletId = getTenantOutletId(user);
+    if (!user || !productId || !adjustment || !reason || !outletId || outletId === 'current-outlet') {
+      setSnackbar({ open: true, message: "Please fill all fields and select an active branch.", severity: 'warning' });
       return;
     }
 
@@ -70,7 +74,7 @@ const StockAdjustments: React.FC = () => {
     try {
       // 1. Insert into stock_adjustments
       const { error: insertErr } = await supabase.from('stock_adjustments').insert([{
-        outlet_id: user.outletId,
+        outlet_id: outletId,
         company_id: user.companyId,
         product_id: productId,
         adjustment: adjValue,
@@ -85,7 +89,7 @@ const StockAdjustments: React.FC = () => {
       const { data: invData } = await supabase
         .from('inventory')
         .select('current_quantity')
-        .eq('outlet_id', user.outletId)
+        .eq('outlet_id', outletId)
         .eq('product_id', productId)
         .single();
         
@@ -93,7 +97,7 @@ const StockAdjustments: React.FC = () => {
       const newQty = currentQty + adjValue; // Positive adds, negative subtracts
       
       const { error: invErr } = await supabase.from('inventory').upsert({
-        outlet_id: user.outletId,
+        outlet_id: outletId,
         product_id: productId,
         current_quantity: newQty
       }, { onConflict: 'outlet_id, product_id' });

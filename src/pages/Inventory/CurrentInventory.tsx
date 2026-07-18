@@ -11,11 +11,14 @@ import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useFeedback } from '../../hooks/useFeedback';
 import { getScopedCompanyId, getOutletIdsForCompany } from '../../lib/tenantScope';
+import { PERMISSIONS } from '../../constants/permissions';
+import { useHasPermission } from '../../hooks/useHasPermission';
 
 type ViewMode = 'list' | 'card';
 
 const CurrentInventory: React.FC = () => {
   const { user } = useAuthStore();
+  const canSwitchBranches = useHasPermission(PERMISSIONS.BRANCH_SWITCH);
   const { showFeedback, FeedbackComponent } = useFeedback();
   const [inventory, setInventory] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -58,7 +61,6 @@ const CurrentInventory: React.FC = () => {
         } else if (companyOutletIds.length > 0) {
           invQuery = invQuery.in('outlet_id', companyOutletIds);
         }
-        }
 
         const { data: invData, error: invErr } = await invQuery;
         if (invErr) throw invErr;
@@ -97,12 +99,12 @@ const CurrentInventory: React.FC = () => {
   }, [selectedOutlet]);
 
   useEffect(() => {
-    if (user?.role === 'Super Admin' || user?.role === 'Admin') {
+    if (canSwitchBranches) {
       fetchOutlets();
     } else if (user?.outletId) {
       setSelectedOutlet(user.outletId);
     }
-  }, [user]);
+  }, [canSwitchBranches, user]);
 
   useEffect(() => { fetchInventory(); }, [fetchInventory]);
 
@@ -167,7 +169,7 @@ const CurrentInventory: React.FC = () => {
             Export to Excel
           </Button>
 
-          {(user?.role === 'Super Admin' || user?.role === 'Admin') && (
+          {canSwitchBranches && (
             <FormControl size="small" sx={{ minWidth: 0, flex: '1 1 auto' }}>
               <InputLabel id="outlet-select-label">Select Outlet</InputLabel>
               <Select
@@ -210,7 +212,7 @@ const CurrentInventory: React.FC = () => {
                   {category} <Chip label={catItems.length} size="small" sx={{ ml: 1 }} />
                 </Typography>
               </AccordionSummary>
-              <AccordionDetails sx={{ p: viewMode === 'card' ? 2 : 0 }}>
+              <AccordionDetails sx={{ p: viewMode === 'card' ? 2 : 0, overflow: 'visible' }}>
                 {viewMode === 'list' ? (
                   <InventoryTable items={catItems} />
                 ) : (
@@ -348,15 +350,17 @@ const InventoryTable: React.FC<{ items: any[] }> = ({ items }) => {
     left: 0,
     zIndex: 2,
     fontWeight: 600,
-    minWidth: 160,
-    maxWidth: 240,
+    minWidth: 130,
+    maxWidth: 210,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
     boxShadow: isDark
       ? '3px 0 8px rgba(0,0,0,0.6)'
       : '3px 0 8px rgba(0,0,0,0.08)',
   };
 
   return (
-    <Box sx={{ width: '100%', overflowX: 'auto' }}>
+    <Box sx={{ width: '100%', overflowX: 'auto', overflowY: 'visible' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
         <thead>
           <tr style={{ backgroundColor: headerBg }}>

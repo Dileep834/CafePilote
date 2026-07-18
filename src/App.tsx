@@ -4,6 +4,7 @@ import { CustomThemeProvider } from './contexts/ThemeContext';
 import AppRoutes from './routes';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ConfigErrorScreen } from './components/ConfigErrorScreen';
+import { StaffSessionManager } from './components/StaffSessionManager';
 import { missingSupabaseConfig, supabaseConfigError } from './lib/supabase';
 import { APP_DOMAIN } from './constants';
 
@@ -36,6 +37,7 @@ function App() {
         <CustomThemeProvider>
           <BrowserRouter>
             <ErrorBoundary area="routes">
+              <StaffSessionManager />
               <AppRoutes />
             </ErrorBoundary>
           </BrowserRouter>

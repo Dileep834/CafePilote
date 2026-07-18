@@ -17,9 +17,11 @@ import { MoveTableModal } from '../components/MoveTableModal';
 import { TableQrPrintModal } from '../components/TableQrPrintModal';
 import { TableQrPreview } from '../components/TableQrPreview';
 import { TableViewModeToggle } from '../components/TableViewModeToggle';
+import { TableBoardLayoutToggle } from '../components/TableBoardLayoutToggle';
 import { useSettingsStore } from '@/modules/settings/store/useSettingsStore';
 import { openTableOnPOS } from '@/modules/pos/store/usePOSStore';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Sheet,
   SheetContent,
@@ -46,7 +48,6 @@ import {
   Trash2,
   Copy,
   Check,
-  Sparkles,
   CircleDot,
   Combine,
   Unlink,
@@ -54,6 +55,9 @@ import {
   UtensilsCrossed,
   ArrowRightLeft,
   Printer,
+  Search,
+  X,
+  ChevronRight,
 } from 'lucide-react';
 
 const FloorOpsView = React.lazy(() =>
@@ -96,13 +100,6 @@ const STATUS_META: Record<
   },
 };
 
-const FLOW_STEPS: { status: TableStatus; label: string }[] = [
-  { status: 'available', label: 'Open' },
-  { status: 'occupied', label: 'Seated' },
-  { status: 'cleaning', label: 'Clear' },
-  { status: 'available', label: 'Ready' },
-];
-
 export function TablesDashboard() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
@@ -113,6 +110,8 @@ export function TablesDashboard() {
     activeOutletId || user?.outletId || useTenantStore.getState().resolvedOutletId(user);
   const tableViewMode = useSettingsStore((s) => s.tableViewMode);
   const setTableViewMode = useSettingsStore((s) => s.setTableViewMode);
+  const tableBoardLayout = useSettingsStore((s) => s.tableBoardLayout) ?? 'grid';
+  const setTableBoardLayout = useSettingsStore((s) => s.setTableBoardLayout);
 
   useEffect(() => {
     void hydrateTenant(user);
@@ -142,6 +141,7 @@ export function TablesDashboard() {
   const billError = useTableBillStore((s) => s.lastError);
 
   const [filter, setFilter] = useState<TableStatus | 'all'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<'add' | 'edit'>('add');
@@ -187,8 +187,30 @@ export function TablesDashboard() {
     return base;
   }, [outletTables]);
 
-  const filteredTables =
-    filter === 'all' ? outletTables : outletTables.filter((t) => t.status === filter);
+  const filteredTables = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return outletTables
+      .filter((t) => (filter === 'all' ? true : t.status === filter))
+      .filter((t) => {
+        if (!q) return true;
+        const group = getMergeGroup(outletTables, t);
+        const mergeLabel = group.length > 1 ? getMergeLabel(group) : '';
+        const hay = [
+          t.tableNumber,
+          t.type,
+          t.status,
+          STATUS_META[t.status].label,
+          mergeLabel,
+          String(t.capacity),
+        ]
+          .join(' ')
+          .toLowerCase();
+        return hay.includes(q);
+      })
+      .sort((a, b) =>
+        a.tableNumber.localeCompare(b.tableNumber, undefined, { numeric: true, sensitivity: 'base' })
+      );
+  }, [outletTables, filter, searchQuery]);
 
   const nextAction = selected ? getNextStatusAction(selected.status) : null;
   const selectedGroup = selected ? getMergeGroup(outletTables, selected) : [];
@@ -357,7 +379,7 @@ export function TablesDashboard() {
             Floor board
           </h1>
           <p className="text-slate-500 text-sm mt-1">
-            Seat → serve → clear → ready. Tap a table to solve the next step.
+            Seat → serve → clear → ready. Search or tap a table to act.
           </p>
           <p className="text-[11px] text-slate-400 mt-1">
             {cloudEnabled ? 'Synced with cloud' : 'Saved on this device'}
@@ -379,31 +401,33 @@ export function TablesDashboard() {
         </div>
       </div>
 
-      {/* Lifecycle ribbon */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white/80 backdrop-blur-sm px-4 py-3 shadow-sm">
-        <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-          <Sparkles className="w-3.5 h-3.5" style={{ color: BRAND.orange }} />
-          Service flow
+      {/* Search + layout */}
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+        <div className="relative flex-1 min-w-0 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search table #, type, status…"
+            className="h-11 pl-9 pr-9 rounded-xl border-slate-200 bg-white text-sm font-medium shadow-sm"
+            aria-label="Search tables"
+          />
+          {searchQuery ? (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              aria-label="Clear search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          ) : null}
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-[#0D1B2A]">
-          {FLOW_STEPS.map((step, i) => (
-            <React.Fragment key={`${step.label}-${i}`}>
-              {i > 0 && <ArrowRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />}
-              <span
-                className={cn(
-                  'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs',
-                  STATUS_META[step.status].chip
-                )}
-              >
-                <span className={cn('w-1.5 h-1.5 rounded-full', STATUS_META[step.status].dot)} />
-                {step.label}
-              </span>
-            </React.Fragment>
-          ))}
-          <span className="text-slate-300 mx-1">·</span>
-          <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs', STATUS_META.reserved.chip)}>
-            <span className={cn('w-1.5 h-1.5 rounded-full', STATUS_META.reserved.dot)} />
-            Reserve anytime
+        <div className="flex items-center gap-2">
+          <TableBoardLayoutToggle value={tableBoardLayout} onChange={setTableBoardLayout} />
+          <span className="hidden sm:inline text-[11px] text-slate-400 font-medium">
+            {filteredTables.length}
+            {searchQuery.trim() || filter !== 'all' ? ` of ${outletTables.length}` : ''} shown
           </span>
         </div>
       </div>
@@ -439,17 +463,21 @@ export function TablesDashboard() {
         ))}
       </div>
 
-      {/* Grid */}
+      {/* Board */}
       {filteredTables.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white/50 py-16 px-6 text-center">
           <CircleDot className="w-10 h-10 text-slate-300 mb-3" />
-          <p className="font-bold text-[#0D1B2A]">No tables in this view</p>
+          <p className="font-bold text-[#0D1B2A]">
+            {outletTables.length === 0 ? 'No tables yet' : 'No matching tables'}
+          </p>
           <p className="text-sm text-slate-500 mt-1 max-w-sm">
             {outletTables.length === 0
               ? 'Add your first table to start the floor board.'
-              : 'Try another status filter, or clear the filter.'}
+              : searchQuery.trim()
+                ? `Nothing matches “${searchQuery.trim()}”. Try another search or clear filters.`
+                : 'Try another status filter, or clear the filter.'}
           </p>
-          {outletTables.length === 0 && (
+          {outletTables.length === 0 ? (
             <Button
               onClick={openAdd}
               className="mt-4 rounded-xl text-white font-bold"
@@ -458,10 +486,134 @@ export function TablesDashboard() {
               <Plus className="w-4 h-4 mr-2" />
               Add table
             </Button>
-          )}
+          ) : searchQuery || filter !== 'all' ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-4 rounded-xl font-bold"
+              onClick={() => {
+                setSearchQuery('');
+                setFilter('all');
+              }}
+            >
+              Clear search & filters
+            </Button>
+          ) : null}
+        </div>
+      ) : tableBoardLayout === 'list' ? (
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden pb-2">
+          <div className="hidden md:grid grid-cols-[minmax(0,1.1fr)_100px_110px_100px_minmax(0,1fr)_28px] gap-3 px-4 py-2.5 border-b border-slate-100 bg-slate-50/80 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            <span>Table</span>
+            <span>Seats</span>
+            <span>Status</span>
+            <span>Bill</span>
+            <span>Next</span>
+            <span />
+          </div>
+          <ul className="divide-y divide-slate-100">
+            {filteredTables.map((table) => {
+              const meta = STATUS_META[table.status];
+              const action = getNextStatusAction(table.status);
+              const active = selectedId === table.id;
+              const group = getMergeGroup(outletTables, table);
+              const merged = group.length > 1;
+              const seats = merged ? getCombinedCapacity(group) : table.capacity;
+              const primary = isMergePrimary(table);
+              const bill = getOpenBillForTable(table, outletTables);
+              const billTotal = bill ? getBillTotal(bill) : 0;
+              const hasBill = !!(bill && bill.items.length > 0);
+
+              return (
+                <li key={table.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(table.id)}
+                    className={cn(
+                      'w-full text-left px-4 py-3.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF6A00]/40',
+                      active ? 'bg-orange-50/70' : 'hover:bg-slate-50/80',
+                      merged && !primary && 'opacity-90'
+                    )}
+                  >
+                    <div className="md:grid md:grid-cols-[minmax(0,1.1fr)_100px_110px_100px_minmax(0,1fr)_28px] md:gap-3 md:items-center flex flex-col gap-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span
+                          className={cn(
+                            'shrink-0 flex items-center justify-center border-2 bg-white font-black text-[#0D1B2A] text-sm',
+                            table.type === 'round'
+                              ? 'w-10 h-10 rounded-full'
+                              : table.type === 'sofa'
+                                ? 'w-12 h-8 rounded-lg'
+                                : 'w-10 h-10 rounded-lg',
+                            meta.ring
+                          )}
+                        >
+                          {table.tableNumber}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-[#0D1B2A] truncate">
+                              Table {table.tableNumber}
+                            </span>
+                            {merged && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wide bg-[#0D1B2A] text-white">
+                                <Combine className="w-2.5 h-2.5" />
+                                {primary ? 'Merge' : 'Linked'}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-500 font-medium capitalize truncate">
+                            {merged ? getMergeLabel(group) : table.type}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-600">
+                        <Users className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="tabular-nums">{seats}</span>
+                      </div>
+
+                      <div>
+                        <span
+                          className={cn(
+                            'inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border',
+                            meta.chip
+                          )}
+                        >
+                          {meta.label}
+                        </span>
+                      </div>
+
+                      <div className="text-sm font-bold tabular-nums">
+                        {hasBill ? (
+                          <span style={{ color: BRAND.orange }}>{formatCurrency(billTotal)}</span>
+                        ) : (
+                          <span className="text-slate-300 font-medium">—</span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 min-w-0">
+                        <p className="text-[12px] text-slate-500 font-medium truncate">
+                          {merged && !primary
+                            ? `With ${group.find((g) => g.id === table.mergePrimaryId)?.tableNumber || 'group'}`
+                            : hasBill
+                              ? `${bill!.items.length} open line${bill!.items.length === 1 ? '' : 's'}`
+                              : `Next: ${action.label}`}
+                        </p>
+                        <ChevronRight className="w-4 h-4 text-slate-300 shrink-0 md:hidden" />
+                      </div>
+
+                      <div className="hidden md:flex justify-end">
+                        <ChevronRight className="w-4 h-4 text-slate-300" />
+                      </div>
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 pb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 pb-8">
           {filteredTables.map((table) => {
             const meta = STATUS_META[table.status];
             const action = getNextStatusAction(table.status);
@@ -478,7 +630,7 @@ export function TablesDashboard() {
                 type="button"
                 onClick={() => setSelectedId(table.id)}
                 className={cn(
-                  'relative text-left rounded-2xl border-2 p-4 transition-all duration-200',
+                  'relative text-left rounded-2xl border-2 p-4 transition-all duration-200 bg-white/70',
                   'hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6A00]/50',
                   meta.soft,
                   active && 'ring-2 ring-[#FF6A00] shadow-md -translate-y-0.5',
@@ -487,7 +639,7 @@ export function TablesDashboard() {
               >
                 <div className="absolute top-3 right-3 flex items-center gap-1 text-slate-600/80">
                   <Users className="w-3.5 h-3.5" />
-                  <span className="text-[11px] font-bold">{seats}</span>
+                  <span className="text-[11px] font-bold tabular-nums">{seats}</span>
                 </div>
 
                 {merged && (
@@ -501,7 +653,7 @@ export function TablesDashboard() {
 
                 <div
                   className={cn(
-                    'mx-auto mt-1 mb-3 flex flex-col items-center justify-center bg-white/80 border-[3px] shadow-inner',
+                    'mx-auto mt-1 mb-3 flex flex-col items-center justify-center bg-white border-[3px] shadow-inner',
                     table.type === 'round'
                       ? 'w-[4.5rem] h-[4.5rem] rounded-full'
                       : table.type === 'sofa'
@@ -545,10 +697,10 @@ export function TablesDashboard() {
 
       {/* Action sheet — modern problem-solving panel */}
       <Sheet open={!!selected} onOpenChange={(open) => !open && setSelectedId(null)}>
-        <SheetContent side="right" className="w-full sm:max-w-md bg-white p-0 gap-0">
+        <SheetContent side="right" className="w-full sm:max-w-md bg-white p-0 gap-0 flex flex-col overflow-hidden">
           {selected && nextAction && (
             <>
-              <SheetHeader className="p-5 border-b border-slate-100 bg-[#F3F3F8]">
+              <SheetHeader className="p-5 border-b border-slate-100 bg-[#F3F3F8] shrink-0">
                 <SheetTitle className="text-xl font-bold text-[#0D1B2A] flex items-center gap-2 flex-wrap">
                   {selectedMerged ? getMergeLabel(selectedGroup) : selected.tableNumber}
                   <span
@@ -567,7 +719,7 @@ export function TablesDashboard() {
                 </SheetDescription>
               </SheetHeader>
 
-              <div className="p-5 space-y-5 overflow-y-auto flex-1">
+              <div className="p-5 space-y-5 overflow-y-auto flex-1 min-h-0">
                 {/* Primary CTA */}
                 <div
                   className="rounded-2xl p-4 border"
@@ -887,7 +1039,7 @@ export function TablesDashboard() {
                 </div>
               </div>
 
-              <SheetFooter className="p-4 border-t border-slate-100 flex-row gap-2 sm:flex-row">
+              <SheetFooter className="p-4 border-t border-slate-100 flex-row gap-2 sm:flex-row shrink-0">
                 <Button
                   type="button"
                   variant="outline"

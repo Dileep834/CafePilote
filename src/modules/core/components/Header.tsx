@@ -2,10 +2,17 @@ import React from 'react';
 import { Menu, Bell, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Sidebar } from './Sidebar';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
 import { CafePilotsLogo } from '@/components/CafePilotsLogo';
 import { BRAND } from '@/constants';
 import { cn } from '@/lib/utils';
@@ -18,36 +25,41 @@ interface HeaderProps {
   isSidebarOpen?: boolean;
 }
 
+function initialsFromName(name?: string | null, email?: string | null) {
+  const raw = (name || email || 'U').trim();
+  const parts = raw.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
+  }
+  return raw.slice(0, 2).toUpperCase();
+}
+
 export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
-  const { logout } = useAuthStore();
+  const { logout, user } = useAuthStore();
   const clearTenant = useTenantStore((s) => s.clear);
   const navigate = useNavigate();
+  const initials = initialsFromName(user?.name, user?.email);
 
   const handleLogout = async () => {
-    const sessionId = useAuthStore.getState().sessionId;
-    if (sessionId) {
-      try {
-        await supabase.from('user_sessions').update({ logout_time: new Date().toISOString() }).eq('id', sessionId);
-      } catch (e) {
-        console.error('Failed to log logout time', e);
-      }
-    }
     clearTenant();
-    logout();
-    navigate(loginPath());
+    await logout('manual');
+    navigate(loginPath(), { replace: true });
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b bg-white px-4 shadow-sm sm:px-6 gap-3">
-      <div className="flex items-center gap-3 min-w-0">
+    <header className="sticky top-0 z-30 flex h-16 w-full items-center gap-2 border-b bg-white px-3 shadow-sm sm:gap-3 sm:px-6 overflow-hidden">
+      {/* Left: nav + logo */}
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-          <SheetTrigger render={
-            <Button variant="ghost" size="icon" className="lg:hidden shrink-0">
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Toggle navigation menu</span>
-            </Button>
-          } />
+          <SheetTrigger
+            render={
+              <Button variant="ghost" size="icon" className="lg:hidden shrink-0">
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Toggle navigation menu</span>
+              </Button>
+            }
+          />
           <SheetContent side="left" className="w-72 p-0">
             <Sidebar onNavigate={() => setMobileMenuOpen(false)} />
           </SheetContent>
@@ -56,7 +68,7 @@ export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
         <Button
           variant="ghost"
           size="icon"
-          className="hidden lg:flex shrink-0 text-slate-500 hover:bg-slate-100"
+          className="hidden shrink-0 text-slate-500 hover:bg-slate-100 lg:flex"
           onClick={onToggleSidebar}
         >
           <Menu className="h-5 w-5" />
@@ -64,29 +76,62 @@ export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
         </Button>
 
         <div className={cn('min-w-0', isSidebarOpen ? 'lg:hidden' : 'lg:flex')}>
-          <CafePilotsLogo size={32} withWordmark withDivider />
+          {/* Icon-only on very narrow; wordmark from sm up */}
+          <CafePilotsLogo
+            size={32}
+            withWordmark
+            withDivider
+            className="hidden sm:inline-flex"
+          />
+          <CafePilotsLogo size={32} withWordmark={false} className="sm:hidden" />
         </div>
       </div>
 
-      <div className="flex-1 flex justify-center min-w-0 px-2">
-        <BranchSwitcher />
+      {/* Center: branch — flex-1 but capped so it never bleeds into right actions */}
+      <div className="flex min-w-0 flex-1 items-center justify-center overflow-hidden px-1">
+        <BranchSwitcher className="min-w-0 max-w-full" />
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-        <Button variant="ghost" size="icon" className="text-slate-500">
+      {/* Right: actions — always shrink-0, never overflow */}
+      <div className="relative z-10 flex shrink-0 items-center gap-0.5 bg-white sm:gap-1.5">
+        <Button variant="ghost" size="icon" className="hidden text-slate-500 sm:inline-flex">
           <Bell className="h-5 w-5" />
           <span className="sr-only">View notifications</span>
         </Button>
-        <Button variant="ghost" size="icon" className="text-slate-500" onClick={handleLogout} title="Logout">
-          <LogOut className="w-5 h-5" />
-          <span className="sr-only">Logout</span>
-        </Button>
-        <div
-          className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold text-white lg:hidden"
-          style={{ backgroundColor: BRAND.orange }}
-        >
-          AD
-        </div>
+        {/* Avatar with Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label="Open user menu"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: BRAND.orange }}
+            >
+              {initials}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col space-y-1.5">
+                <p className="text-sm font-medium leading-none text-slate-900">{user?.name || 'User'}</p>
+                <p className="text-xs leading-none text-slate-500 truncate">
+                  {user?.email || 'admin@cafepilots.com'}
+                </p>
+                <p className="text-[10px] uppercase tracking-wider font-bold mt-1 text-orange-600">
+                  {user?.role || 'Staff'}
+                </p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={handleLogout}
+              className="text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Log out</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );

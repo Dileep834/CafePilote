@@ -1,18 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { useReportStore } from '../store/useReportStore';
-import type { POSOrder } from '../store/useReportStore';
-import { useAuthStore } from '@/store/useAuthStore';
 import dayjs from 'dayjs';
 import { formatCurrency } from '@/utils/format';
 import { FileText, Search, Store, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PERMISSIONS } from '@/constants/permissions';
+import { useHasPermission } from '@/hooks/useHasPermission';
 
 export function OrderHistory() {
-  const { user } = useAuthStore();
-  const { 
-    orders, outlets, isLoading, error, 
-    selectedOutletId, dateRange, 
-    setOutletFilter, setDateRange, fetchData 
+  const canFilterBranches = useHasPermission(PERMISSIONS.BRANCH_SWITCH);
+  const {
+    orders, outlets, isLoading, error,
+    selectedOutletId, dateRange,
+    setOutletFilter, setDateRange, fetchData
   } = useReportStore();
 
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -31,18 +31,16 @@ export function OrderHistory() {
     });
   };
 
-  const isSuperAdmin = user?.role === 'Super Admin' || user?.role === 'Admin';
-
   const totalSalesAmount = orders.reduce((sum, order) => sum + order.total_amount, 0);
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-            <FileText className="w-6 h-6 text-purple-600" />
+            <FileText className="w-6 h-6 text-orange-600" />
             Order History & Reports
           </h1>
           <p className="text-slate-500 text-sm">View past transactions across your business</p>
@@ -50,14 +48,14 @@ export function OrderHistory() {
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3">
-          
+
           {/* Branch Filter (Only for Admins) */}
-          {isSuperAdmin && (
+          {canFilterBranches && (
             <div className="flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
               <div className="pl-3 py-2 bg-slate-50 border-r border-slate-200">
                 <Store className="w-4 h-4 text-slate-500" />
               </div>
-              <select 
+              <select
                 className="bg-transparent border-none text-sm font-medium focus:ring-0 py-2 pl-3 pr-8 cursor-pointer"
                 value={selectedOutletId}
                 onChange={(e) => setOutletFilter(e.target.value)}
@@ -75,7 +73,7 @@ export function OrderHistory() {
             <div className="pl-3 py-2 bg-slate-50 border-r border-slate-200">
               <Calendar className="w-4 h-4 text-slate-500" />
             </div>
-            <select 
+            <select
               className="bg-transparent border-none text-sm font-medium focus:ring-0 py-2 pl-3 pr-8 cursor-pointer"
               value={dateRange}
               onChange={(e: any) => setDateRange(e.target.value)}
@@ -86,7 +84,7 @@ export function OrderHistory() {
               <option value="all">All Time</option>
             </select>
           </div>
-          
+
         </div>
       </div>
 
@@ -125,44 +123,124 @@ export function OrderHistory() {
             <p className="text-slate-500">There are no transactions for the selected filters.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
-                  <th className="px-6 py-4 font-semibold">Order ID</th>
-                  <th className="px-6 py-4 font-semibold">Date & Time</th>
-                  {isSuperAdmin && <th className="px-6 py-4 font-semibold">Branch</th>}
-                  <th className="px-6 py-4 font-semibold">Customer</th>
-                  <th className="px-6 py-4 font-semibold text-right">Total Amount</th>
-                  <th className="px-6 py-4 font-semibold text-center">Payment</th>
-                  <th className="px-6 py-4 font-semibold text-center">Status</th>
-                  <th className="px-6 py-4"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {orders.map((order) => {
-                  const isExpanded = expandedRows.has(order.id);
-                  return (
-                    <React.Fragment key={order.id}>
-                      <tr 
-                        onClick={() => toggleRow(order.id)}
-                        className="hover:bg-slate-50 cursor-pointer transition-colors group"
-                      >
-                        <td className="px-6 py-4">
-                          <span className="font-mono text-sm font-bold text-purple-600 bg-purple-50 px-2 py-1 rounded-md">
-                            #{order.id.substring(0, 8).toUpperCase()}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm font-medium text-slate-700">
-                          {dayjs(order.created_at).format('MMM D, YYYY')}
-                          <span className="block text-slate-400 text-xs">{dayjs(order.created_at).format('hh:mm A')}</span>
-                        </td>
-                        {isSuperAdmin && (
-                          <td className="px-6 py-4 text-sm font-medium text-slate-700">
-                            {order.outlets?.name || <span className="text-slate-400 italic">Unknown</span>}
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
+                    <th className="px-6 py-4 font-semibold">Order ID</th>
+                    <th className="px-6 py-4 font-semibold">Date & Time</th>
+                    {canFilterBranches && <th className="px-6 py-4 font-semibold">Branch</th>}
+                    <th className="px-6 py-4 font-semibold">Customer</th>
+                    <th className="px-6 py-4 font-semibold text-right">Total Amount</th>
+                    <th className="px-6 py-4 font-semibold text-center">Payment</th>
+                    <th className="px-6 py-4 font-semibold text-center">Status</th>
+                    <th className="px-6 py-4"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {orders.map((order) => {
+                    const isExpanded = expandedRows.has(order.id);
+                    return (
+                      <React.Fragment key={order.id}>
+                        <tr
+                          onClick={() => toggleRow(order.id)}
+                          className="hover:bg-slate-50 cursor-pointer transition-colors group"
+                        >
+                          <td className="px-6 py-4">
+                            <span className="font-mono text-sm font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded-md">
+                              #{order.id.substring(0, 8).toUpperCase()}
+                            </span>
                           </td>
+                          <td className="px-6 py-4 text-sm font-medium text-slate-700">
+                            {dayjs(order.created_at).format('MMM D, YYYY')}
+                            <span className="block text-slate-400 text-xs">{dayjs(order.created_at).format('hh:mm A')}</span>
+                          </td>
+                          {canFilterBranches && (
+                            <td className="px-6 py-4 text-sm font-medium text-slate-700">
+                              {order.outlets?.name || <span className="text-slate-400 italic">Unknown</span>}
+                            </td>
+                          )}
+                          <td className="px-6 py-4 text-sm font-medium text-slate-700">
+                            {order.table_number ? (
+                              <span className="font-bold text-brand-navy">Table {order.table_number}</span>
+                            ) : order.customer_name ? (
+                              order.customer_name
+                            ) : (
+                              <span className="text-slate-400 italic">Walk-in</span>
+                            )}
+                            {order.order_source === 'qr' && (
+                              <span className="ml-2 text-[10px] font-bold uppercase text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded">QR</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-sm font-black text-slate-900 text-right">
+                            {formatCurrency(order.total_amount)}
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
+                              {order.payment_method}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <span className={cn(
+                              "text-xs font-bold uppercase tracking-wider px-2 py-1 rounded-full",
+                              order.kitchen_status === 'delivered' ? "bg-green-100 text-green-700" :
+                              order.kitchen_status === 'ready' ? "bg-blue-100 text-blue-700" :
+                              "bg-amber-100 text-amber-700"
+                            )}>
+                              {order.kitchen_status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button className="text-slate-400 group-hover:text-orange-600 transition-colors">
+                              {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                            </button>
+                          </td>
+                        </tr>
+
+                        {/* Expanded Row Content */}
+                        {isExpanded && (
+                          <tr className="bg-slate-50/50">
+                            <td colSpan={canFilterBranches ? 8 : 7} className="px-6 py-4 border-l-4 border-l-orange-500">
+                              <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+                                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Itemized Receipt</h4>
+                                <div className="space-y-2">
+                                  {order.items?.map(item => (
+                                    <div key={item.id} className="flex justify-between items-center text-sm">
+                                      <div className="flex items-center gap-3">
+                                        <span className="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">{item.quantity}x</span>
+                                        <span className="font-medium text-slate-700">{item.product_name}</span>
+                                      </div>
+                                      <div className="font-medium text-slate-900">
+                                        {formatCurrency(item.total_price)}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                        <td className="px-6 py-4 text-sm font-medium text-slate-700">
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card List View */}
+            <div className="md:hidden flex flex-col divide-y divide-slate-100">
+              {orders.map((order) => {
+                const isExpanded = expandedRows.has(order.id);
+                return (
+                  <div key={order.id} className="p-4 bg-white hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => toggleRow(order.id)}>
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex flex-col gap-1.5">
+                        <span className="font-mono text-xs font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-md inline-block w-fit">
+                          #{order.id.substring(0, 8).toUpperCase()}
+                        </span>
+                        <span className="text-sm font-medium text-slate-700">
                           {order.table_number ? (
                             <span className="font-bold text-brand-navy">Table {order.table_number}</span>
                           ) : order.customer_name ? (
@@ -171,63 +249,63 @@ export function OrderHistory() {
                             <span className="text-slate-400 italic">Walk-in</span>
                           )}
                           {order.order_source === 'qr' && (
-                            <span className="ml-2 text-[10px] font-bold uppercase text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded">QR</span>
+                            <span className="ml-1 text-[10px] font-bold uppercase text-sky-600 bg-sky-50 px-1 py-0.5 rounded">QR</span>
                           )}
-                        </td>
-                        <td className="px-6 py-4 text-sm font-black text-slate-900 text-right">
+                        </span>
+                      </div>
+                      <div className="text-right flex flex-col gap-1 items-end">
+                        <span className="text-base font-black text-slate-900">
                           {formatCurrency(order.total_amount)}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-                            {order.payment_method}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <span className={cn(
-                            "text-xs font-bold uppercase tracking-wider px-2 py-1 rounded-full",
-                            order.kitchen_status === 'delivered' ? "bg-green-100 text-green-700" :
-                            order.kitchen_status === 'ready' ? "bg-blue-100 text-blue-700" :
-                            "bg-amber-100 text-amber-700"
-                          )}>
-                            {order.kitchen_status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <button className="text-slate-400 group-hover:text-purple-600 transition-colors">
-                            {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                          </button>
-                        </td>
-                      </tr>
-                      
-                      {/* Expanded Row Content */}
-                      {isExpanded && (
-                        <tr className="bg-slate-50/50">
-                          <td colSpan={isSuperAdmin ? 8 : 7} className="px-6 py-4 border-l-4 border-l-purple-500">
-                            <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-                              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Itemized Receipt</h4>
-                              <div className="space-y-2">
-                                {order.items?.map(item => (
-                                  <div key={item.id} className="flex justify-between items-center text-sm">
-                                    <div className="flex items-center gap-3">
-                                      <span className="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">{item.quantity}x</span>
-                                      <span className="font-medium text-slate-700">{item.product_name}</span>
-                                    </div>
-                                    <div className="font-medium text-slate-900">
-                                      {formatCurrency(item.total_price)}
-                                    </div>
-                                  </div>
-                                ))}
+                        </span>
+                        <span className={cn(
+                          "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full mt-0.5",
+                          order.kitchen_status === 'delivered' ? "bg-green-100 text-green-700" :
+                          order.kitchen_status === 'ready' ? "bg-blue-100 text-blue-700" :
+                          "bg-amber-100 text-amber-700"
+                        )}>
+                          {order.kitchen_status}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center text-xs text-slate-500 mt-3 pt-2 border-t border-slate-50">
+                      <span>{dayjs(order.created_at).format('MMM D, h:mm A')}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold uppercase text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{order.payment_method}</span>
+                        <button className="text-slate-400">
+                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Expanded Mobile View */}
+                    {isExpanded && (
+                      <div className="mt-3 pt-3 border-t border-slate-100">
+                        {canFilterBranches && (
+                          <div className="mb-3 text-xs text-slate-500">
+                            Branch: <span className="font-medium text-slate-700">{order.outlets?.name || <span className="italic">Unknown</span>}</span>
+                          </div>
+                        )}
+                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Itemized Receipt</h4>
+                        <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                          {order.items?.map(item => (
+                            <div key={item.id} className="flex justify-between items-center text-xs">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-600 bg-white shadow-sm px-1.5 py-0.5 rounded">{item.quantity}x</span>
+                                <span className="font-medium text-slate-700">{item.product_name}</span>
+                              </div>
+                              <div className="font-medium text-slate-900">
+                                {formatCurrency(item.total_price)}
                               </div>
                             </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
     </div>

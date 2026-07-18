@@ -147,7 +147,7 @@ export function OutletFloorPlanMapper({ outlets, companyId, onApplied }: Props) 
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider border-b border-slate-200">
@@ -232,6 +232,85 @@ export function OutletFloorPlanMapper({ outlets, companyId, onApplied }: Props) 
             })}
           </tbody>
         </table>
+      </div>
+
+      <div className="md:hidden flex flex-col divide-y divide-slate-100">
+        {outlets.map((outlet) => {
+          const map = maps[outlet.id];
+          const selected = draft[outlet.id] || '';
+          const tpl = templateById.get(selected);
+          const applied =
+            map?.templateId === selected && !!map.appliedAt && map.templateId === selected;
+          const busy = busyId === outlet.id;
+
+          return (
+            <div key={outlet.id} className="p-4 bg-white hover:bg-slate-50/80 transition-colors">
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <p className="font-bold text-slate-800 text-sm">{outlet.name}</p>
+                  {outlet.code && (
+                    <p className="text-[11px] font-mono text-slate-400 mt-0.5">{outlet.code}</p>
+                  )}
+                </div>
+                <div>
+                  {applied ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md">
+                      <Check className="w-3 h-3" />
+                      Applied
+                    </span>
+                  ) : map?.templateId ? (
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md">
+                      Saved
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-semibold text-slate-400">Not mapped</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <select
+                  className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#FF6A00]/25"
+                  value={selected}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, [outlet.id]: e.target.value }))
+                  }
+                  disabled={busy}
+                >
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} · {t.previewHint}
+                    </option>
+                  ))}
+                </select>
+                {tpl && (
+                  <p className="text-[11px] text-slate-500 mt-1.5 line-clamp-2">
+                    {tpl.description}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-end pt-3 border-t border-slate-50">
+                <button
+                  type="button"
+                  disabled={busy || !selected}
+                  onClick={() => void saveAndApply(outlet.id)}
+                  className="inline-flex justify-center items-center gap-1.5 h-10 w-full rounded-xl text-sm font-bold text-white disabled:opacity-50"
+                  style={{ backgroundColor: BRAND.orange }}
+                >
+                  {busy ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Applying…
+                    </>
+                  ) : (
+                    'Save & apply'
+                  )}
+                </button>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/80">

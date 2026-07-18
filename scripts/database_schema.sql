@@ -1,7 +1,17 @@
 -- CafePilot PostgreSQL Schema for Supabase
 
 -- 1. Create Enums
-CREATE TYPE user_role AS ENUM ('Super Admin', 'Admin', 'Franchise Owner', 'Staff');
+CREATE TYPE user_role AS ENUM (
+    'Super Admin',
+    'Admin',
+    'Outlet Owner',
+    'Outlet Manager',
+    'Cashier',
+    'Kitchen Staff',
+    'Inventory Staff',
+    'Accountant',
+    'Staff'
+);
 CREATE TYPE inventory_status AS ENUM ('Pending', 'In Progress', 'Submitted', 'Approved', 'Locked');
 CREATE TYPE purchase_status AS ENUM ('Pending', 'Received', 'Cancelled');
 

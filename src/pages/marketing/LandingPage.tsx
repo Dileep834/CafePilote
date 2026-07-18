@@ -1,336 +1,517 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { APP_NAME, APP_TAGLINE, APP_DOMAIN, BRAND } from '@/constants';
+import { APP_DOMAIN, APP_NAME, APP_TAGLINE } from '@/constants';
 import { CafePilotsLogo } from '@/components/CafePilotsLogo';
 import { loginPath } from '@/lib/appHost';
 import { cn } from '@/lib/utils';
 import {
-  MonitorSmartphone,
-  ChefHat,
-  LayoutGrid,
-  QrCode,
-  Package,
-  Users,
-  TicketPercent,
-  BarChart3,
-  ShieldCheck,
-  Building2,
   ArrowRight,
-  ChevronDown,
+  BarChart3,
+  ChefHat,
+  CheckCircle2,
+  Clock3,
+  Mail,
+  MonitorSmartphone,
+  Package,
+  QrCode,
+  ShieldCheck,
+  Sparkles,
+  Users,
 } from 'lucide-react';
 
+const CONTACT_EMAIL = 'singhdileep834@gmail.com';
 const HERO_IMAGE =
   'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=2400';
 
-const CAPABILITIES = [
+const PRODUCT_AREAS = [
   {
     icon: MonitorSmartphone,
-    title: 'Point of sale',
-    body: 'Fast counter & table orders, held bills, favorites, and checkout built for busy café service.',
-  },
-  {
-    icon: ChefHat,
-    title: 'Kitchen display',
-    body: 'Live tickets by status so the bar and kitchen stay in sync without paper tickets.',
-  },
-  {
-    icon: LayoutGrid,
-    title: 'Tables & floor',
-    body: 'Map floors, link tables, and run open bills from the floor board to settlement.',
+    label: 'POS',
+    title: 'Fast counter and table billing',
+    body: 'Favorites, held bills, checkout, and order flow designed for busy service hours.',
   },
   {
     icon: QrCode,
-    title: 'QR guest menu',
-    body: 'Guests scan, browse, and order from their phone — presence shows up in your CRM.',
+    label: 'QR',
+    title: 'Guest ordering from the table',
+    body: 'Customers scan, sign in, browse the menu, and send orders without waiting for staff.',
+  },
+  {
+    icon: ChefHat,
+    label: 'KDS',
+    title: 'Kitchen tickets stay organized',
+    body: 'Live kitchen status helps the counter, floor, and kitchen move as one team.',
   },
   {
     icon: Package,
-    title: 'Inventory & purchase',
-    body: 'Stock levels, daily updates, waste, suppliers, and purchase orders per outlet.',
+    label: 'Stock',
+    title: 'Inventory without daily guesswork',
+    body: 'Daily stock updates, adjustments, waste, suppliers, and purchase orders per branch.',
   },
   {
     icon: Users,
-    title: 'CRM & live guests',
-    body: 'Customer directory and who’s signed in at the table right now.',
-  },
-  {
-    icon: TicketPercent,
-    title: 'Vouchers & promos',
-    body: 'Create and validate promo codes scoped to your company.',
+    label: 'CRM',
+    title: 'Guest and customer memory',
+    body: 'Track customers, live table guests, and repeat visits across the business.',
   },
   {
     icon: BarChart3,
-    title: 'Reports',
-    body: 'Completed-order history and outlet filters so owners see what each branch sells.',
+    label: 'Reports',
+    title: 'Owner-ready business views',
+    body: 'Branch filters and order history show what is selling and where attention is needed.',
+  },
+] as const;
+
+const PRODUCT_SCREENSHOTS = [
+  {
+    title: 'Operations dashboard',
+    body: 'Owners get service health, open checks, branch status, and role-aware work areas in one command view.',
+    src: '/landing/screenshots/dashboard.png',
+    alt: 'CafePilots operations dashboard with sales, table load, kitchen queue, and branch modules',
   },
   {
-    icon: ShieldCheck,
-    title: 'Roles & access',
-    body: 'Super Admin, Admin, Outlet Owner, and Staff — each with the right branch scope.',
+    title: 'Fast POS billing',
+    body: 'Counter teams can search products, filter categories, attach tables, and build orders quickly.',
+    src: '/landing/screenshots/pos.png',
+    alt: 'CafePilots POS screen with menu items, product photos, filters, and current order panel',
+  },
+  {
+    title: 'Simple checkout',
+    body: 'Cash, card, UPI, promo code, tendered amount, and change due stay clear for the cashier.',
+    src: '/landing/screenshots/checkout.png',
+    alt: 'CafePilots checkout screen with payment method, tendered amount, keypad, and complete order button',
+  },
+  {
+    title: 'Kitchen display',
+    body: 'Kitchen staff see pending, preparing, and ready tickets without navigating through admin tools.',
+    src: '/landing/screenshots/kitchen.png',
+    alt: 'CafePilots kitchen display system with pending, preparing, and ready for pickup columns',
+  },
+  {
+    title: 'Floor designer',
+    body: 'Managers can map tables, seating, counters, walls, and branch floor plans visually.',
+    src: '/landing/screenshots/floor-designer.png',
+    alt: 'CafePilots floor designer with tables, component library, grid, and floor settings',
+  },
+  {
+    title: 'Multi-branch setup',
+    body: 'Branch owners can create outlets and apply ready-made floor templates per active branch.',
+    src: '/landing/screenshots/branches.png',
+    alt: 'CafePilots outlets and branches screen with branch list and floor plan mapping',
   },
 ] as const;
 
-const STEPS = [
-  { n: '01', title: 'Set up outlets', body: 'Add branches, menus, and staff under your company.' },
-  { n: '02', title: 'Take orders', body: 'POS, tables, or QR — every order flows to the kitchen.' },
-  { n: '03', title: 'Settle & learn', body: 'Close bills, track stock, and read branch reports.' },
+const OPERATING_FLOW = [
+  'Create company, outlets, roles, and branch access.',
+  'Build menu, recipes, stock items, tables, and QR codes.',
+  'Take POS or QR orders and move tickets through the kitchen.',
+  'Review sales, stock movement, waste, customers, and branch performance.',
 ] as const;
 
-const AUDIENCES = [
-  { title: 'Café owners', body: 'One platform for every outlet — sales, stock, and guests.' },
-  { title: 'Outlet managers', body: 'Run the floor, kitchen, and inventory for your branch.' },
-  { title: 'Counter & kitchen staff', body: 'Simple POS and KDS screens built for speed.' },
-  { title: 'Multi-branch brands', body: 'Company isolation so each tenant only sees their data.' },
+const TRUST_POINTS = [
+  'Company-wise data isolation',
+  'Role-based staff access',
+  'Branch switching for owners',
+  'Google-ready public landing page',
 ] as const;
 
 function scrollToId(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+function MetricStrip() {
+  const metrics = [
+    ['6+', 'core modules'],
+    ['24/7', 'cloud-ready workflow'],
+    ['100%', 'branch scoped'],
+  ];
+
+  return (
+    <div className="grid grid-cols-3 divide-x divide-slate-200 rounded-lg border border-slate-200 bg-white shadow-sm">
+      {metrics.map(([value, label]) => (
+        <div key={label} className="px-3 py-4 text-center sm:px-5">
+          <div className="text-xl font-extrabold text-slate-950 sm:text-2xl">{value}</div>
+          <div className="mt-1 text-[11px] font-semibold uppercase tracking-normal text-slate-500">
+            {label}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const appHref = loginPath();
   const [heroReady, setHeroReady] = useState(false);
+  const mailHref = useMemo(() => {
+    const subject = encodeURIComponent('CafePilots enquiry');
+    return `mailto:${CONTACT_EMAIL}?subject=${subject}`;
+  }, []);
 
   useEffect(() => {
-    const t = window.setTimeout(() => setHeroReady(true), 40);
-    return () => window.clearTimeout(t);
+    document.title = `${APP_NAME} - Cafe POS, QR Ordering, Inventory and CRM`;
+    const description =
+      'CafePilots is a smart cafe management platform for POS billing, QR ordering, kitchen display, inventory, CRM, reports, and multi-branch operations.';
+    const meta = document.querySelector('meta[name="description"]');
+    if (meta) meta.setAttribute('content', description);
+
+    const timer = window.setTimeout(() => setHeroReady(true), 60);
+    return () => window.clearTimeout(timer);
   }, []);
 
   return (
-    <div className="min-h-screen bg-brand-navy text-white font-sans antialiased">
-      {/* —— Hero (first viewport only: brand, headline, support, CTAs, full-bleed image) —— */}
-      <header className="relative isolate min-h-[100svh] overflow-hidden">
+    <div className="min-h-screen bg-white text-slate-950 font-sans antialiased">
+      <header className="relative isolate overflow-hidden bg-brand-navy text-white">
         <div
           className={cn(
-            'absolute inset-0 scale-105 bg-cover bg-center transition-transform duration-[12s] ease-out',
-            heroReady && 'scale-100'
+            'absolute inset-0 bg-cover bg-center transition-transform duration-1000 ease-out',
+            heroReady ? 'scale-100' : 'scale-[1.03]'
           )}
           style={{ backgroundImage: `url('${HERO_IMAGE}')` }}
           aria-hidden
         />
-        <div
-          className="absolute inset-0"
-          style={{
-            background: `linear-gradient(115deg, ${BRAND.navy}f2 0%, ${BRAND.navy}cc 42%, ${BRAND.steel}99 70%, transparent 100%)`,
-          }}
-          aria-hidden
-        />
-        <div
-          className="absolute inset-0 opacity-40"
-          style={{
-            background: `radial-gradient(ellipse 80% 50% at 70% 40%, ${BRAND.orange}33, transparent 55%)`,
-          }}
-          aria-hidden
-        />
+        <div className="absolute inset-0 bg-[linear-gradient(105deg,rgba(13,27,42,0.96)_0%,rgba(13,27,42,0.88)_45%,rgba(13,27,42,0.38)_100%)]" />
 
-        <nav className="relative z-10 flex items-center justify-between px-5 py-5 sm:px-8 lg:px-12">
+        <nav className="relative z-10 flex items-center justify-between px-5 py-4 sm:px-8 lg:px-12">
           <CafePilotsLogo size={40} withWordmark withDivider onDark />
-          <Link
-            to={appHref}
-            className="rounded-md bg-brand-orange px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-black/20 transition hover:bg-brand-orange-light hover:text-brand-navy"
-          >
-            Open app
-          </Link>
+          <div className="flex items-center gap-2">
+            <a
+              href={mailHref}
+              className="hidden rounded-md border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/45 hover:bg-white/10 sm:inline-flex"
+            >
+              Contact us
+            </a>
+            <Link
+              to={appHref}
+              className="rounded-md bg-brand-orange px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-black/20 transition hover:bg-brand-orange-light hover:text-brand-navy"
+            >
+              Login
+            </Link>
+          </div>
         </nav>
 
-        <div className="relative z-10 flex min-h-[calc(100svh-5.5rem)] flex-col justify-center px-5 pb-16 pt-8 sm:px-8 lg:px-12">
-          <div
+        <div className="relative z-10 mx-auto grid min-h-[88svh] max-w-7xl items-center gap-10 px-5 pb-16 pt-6 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:px-12">
+          <section
             className={cn(
-              'max-w-2xl transition-all duration-700 ease-out',
-              heroReady ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
+              'max-w-3xl transition-all duration-700 ease-out',
+              heroReady ? 'translate-y-0 opacity-100' : 'translate-y-5 opacity-0'
             )}
           >
-            <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-brand-orange-light">
+            <p className="inline-flex items-center gap-2 rounded-md border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-normal text-brand-orange-light backdrop-blur">
+              <Sparkles className="h-3.5 w-3.5" />
+              Smart cafe operating system
+            </p>
+            <h1 className="mt-5 max-w-3xl text-5xl font-extrabold leading-[1.02] text-white sm:text-6xl lg:text-7xl">
               {APP_NAME}
-            </p>
-            <h1 className="text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
-              {APP_TAGLINE}
             </h1>
-            <p
-              className={cn(
-                'mt-5 max-w-lg text-base leading-relaxed text-white/80 sm:text-lg transition-all delay-150 duration-700',
-                heroReady ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
-              )}
-            >
-              The operating system for café chains — POS, kitchen, floors, QR menus, inventory, and
-              CRM in one place, with every company kept separate.
+            <p className="mt-5 max-w-2xl text-xl font-semibold text-white sm:text-2xl">
+              {APP_TAGLINE}
             </p>
-            <div
-              className={cn(
-                'mt-8 flex flex-wrap items-center gap-3 transition-all delay-300 duration-700',
-                heroReady ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
-              )}
-            >
+            <p className="mt-5 max-w-2xl text-base leading-7 text-white/78 sm:text-lg">
+              One clean platform for POS billing, QR ordering, kitchen display, table management,
+              stock control, CRM, and branch-wise reporting.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link
                 to={appHref}
-                className="group inline-flex items-center gap-2 rounded-md bg-brand-orange px-6 py-3 text-base font-semibold text-white shadow-xl shadow-black/30 transition hover:bg-brand-orange-light hover:text-brand-navy"
+                className="group inline-flex items-center gap-2 rounded-md bg-brand-orange px-6 py-3 text-base font-bold text-white shadow-xl shadow-black/25 transition hover:bg-brand-orange-light hover:text-brand-navy"
               >
-                Open app
+                Open dashboard
                 <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
               </Link>
-              <button
-                type="button"
-                onClick={() => scrollToId('capabilities')}
-                className="inline-flex items-center gap-2 rounded-md border border-white/25 bg-white/5 px-6 py-3 text-base font-medium text-white backdrop-blur-sm transition hover:border-white/50 hover:bg-white/10"
+              <a
+                href={mailHref}
+                className="inline-flex items-center gap-2 rounded-md border border-white/25 bg-white/10 px-6 py-3 text-base font-semibold text-white backdrop-blur transition hover:border-white/45 hover:bg-white/15"
               >
-                See features
-                <ChevronDown className="h-4 w-4" />
-              </button>
+                <Mail className="h-4 w-4" />
+                Contact us
+              </a>
             </div>
-          </div>
+          </section>
+
+          <aside className="hidden lg:block">
+            <div className="max-w-md rounded-lg border border-white/16 bg-white/12 p-5 shadow-2xl shadow-black/25 backdrop-blur-md">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <div>
+                  <p className="text-sm font-semibold text-white">Today at Main Branch</p>
+                  <p className="mt-1 text-xs text-white/55">Live operating view</p>
+                </div>
+                <span className="rounded-md bg-emerald-400/15 px-2.5 py-1 text-xs font-bold text-emerald-200">
+                  Active
+                </span>
+              </div>
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                {[
+                  ['Orders', '128'],
+                  ['QR guests', '34'],
+                  ['Open tables', '12'],
+                  ['Low stock', '8'],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-md bg-white/10 p-4">
+                    <div className="text-2xl font-extrabold text-white">{value}</div>
+                    <div className="mt-1 text-xs font-semibold uppercase tracking-normal text-white/50">
+                      {label}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 space-y-3">
+                {[
+                  ['Kitchen', '18 tickets in progress'],
+                  ['Inventory', 'Daily stock update pending'],
+                  ['CRM', '7 repeat guests today'],
+                ].map(([label, body]) => (
+                  <div key={label} className="flex items-center gap-3 rounded-md bg-white/10 p-3">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-brand-orange-light" />
+                    <div>
+                      <div className="text-sm font-semibold text-white">{label}</div>
+                      <div className="text-xs text-white/55">{body}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </aside>
         </div>
       </header>
 
-      {/* What it is */}
-      <section className="relative border-t border-white/10 bg-brand-steel px-5 py-20 sm:px-8 lg:px-12">
-        <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              Built for multi-outlet cafés
-            </h2>
-            <p className="mt-4 text-lg leading-relaxed text-white/75">
-              {APP_NAME} is a SaaS platform for Indian F&amp;B brands that run more than one counter.
-              Each company gets its own catalog, outlets, staff, and guests — so your data never
-              mixes with another tenant.
-            </p>
-          </div>
-          <div className="flex items-start gap-4 rounded-lg border border-white/10 bg-brand-navy/50 p-6">
-            <Building2 className="mt-1 h-8 w-8 shrink-0 text-brand-orange" />
-            <div>
-              <p className="font-semibold text-white">Company-scoped by design</p>
-              <p className="mt-2 text-sm leading-relaxed text-white/70">
-                Platform HQ manages the product. Your brand runs its own branches, menus, and
-                reports — isolated from every other customer on {APP_DOMAIN}.
+      <section className="border-b border-slate-200 bg-slate-50 px-5 py-5 sm:px-8 lg:px-12">
+        <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[1fr_420px] lg:items-center">
+          <p className="text-sm font-semibold uppercase tracking-normal text-slate-500">
+            Built for cafe owners, outlet managers, counter teams, kitchen staff, and inventory
+            teams working from one shared truth.
+          </p>
+          <MetricStrip />
+        </div>
+      </section>
+
+      <main>
+        <section id="features" className="px-5 py-20 sm:px-8 lg:px-12">
+          <div className="mx-auto max-w-7xl">
+            <div className="max-w-3xl">
+              <p className="text-sm font-bold uppercase tracking-normal text-brand-orange">
+                Complete control
+              </p>
+              <h2 className="mt-3 text-3xl font-extrabold tracking-normal text-slate-950 sm:text-5xl">
+                Run service, stock, staff, and guests from one place.
+              </h2>
+              <p className="mt-4 text-base leading-7 text-slate-600 sm:text-lg">
+                CafePilots keeps day-to-day operations simple for staff while giving owners a clean
+                view of every branch.
               </p>
             </div>
+
+            <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {PRODUCT_AREAS.map(({ icon: Icon, label, title, body }) => (
+                <article
+                  key={title}
+                  className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <Icon className="h-7 w-7 text-brand-orange" />
+                    <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
+                      {label}
+                    </span>
+                  </div>
+                  <h3 className="mt-5 text-xl font-bold text-slate-950">{title}</h3>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">{body}</p>
+                </article>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Capabilities */}
-      <section
-        id="capabilities"
-        className="scroll-mt-8 border-t border-white/10 bg-brand-navy px-5 py-20 sm:px-8 lg:px-12"
-      >
-        <div className="mx-auto max-w-6xl">
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Everything you need to run</h2>
-          <p className="mt-3 max-w-2xl text-white/70">
-            From the first order to stock and guest presence — one stack for floor, kitchen, and
-            back office.
-          </p>
-          <ul className="mt-12 grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
-            {CAPABILITIES.map(({ icon: Icon, title, body }) => (
-              <li key={title} className="group">
-                <Icon className="h-7 w-7 text-brand-orange transition group-hover:text-brand-orange-light" />
-                <h3 className="mt-3 text-lg font-semibold">{title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-white/65">{body}</p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section
-        id="how-it-works"
-        className="border-t border-white/10 bg-gradient-to-b from-brand-steel to-brand-navy px-5 py-20 sm:px-8 lg:px-12"
-      >
-        <div className="mx-auto max-w-6xl">
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">How it works</h2>
-          <p className="mt-3 max-w-xl text-white/70">
-            A clear path from opening a branch to daily service and insights.
-          </p>
-          <ol className="mt-12 grid gap-8 md:grid-cols-3">
-            {STEPS.map((step) => (
-              <li key={step.n} className="relative border-l-2 border-brand-orange/60 pl-5">
-                <span className="text-xs font-bold tracking-widest text-brand-orange">{step.n}</span>
-                <h3 className="mt-2 text-xl font-semibold">{step.title}</h3>
-                <p className="mt-2 text-sm text-white/65">{step.body}</p>
-              </li>
-            ))}
-          </ol>
-        </div>
-      </section>
-
-      {/* Built for */}
-      <section className="border-t border-white/10 bg-brand-navy px-5 py-20 sm:px-8 lg:px-12">
-        <div className="mx-auto max-w-6xl">
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Who it&apos;s for</h2>
-          <p className="mt-3 max-w-xl text-white/70">
-            Roles that match how café teams actually work.
-          </p>
-          <div className="mt-12 grid gap-8 sm:grid-cols-2">
-            {AUDIENCES.map((a) => (
-              <div key={a.title}>
-                <h3 className="text-lg font-semibold text-brand-orange-light">{a.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-white/70">{a.body}</p>
+        <section id="product-screens" className="bg-slate-50 px-5 py-20 sm:px-8 lg:px-12">
+          <div className="mx-auto max-w-7xl">
+            <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-end">
+              <div>
+                <p className="text-sm font-bold uppercase tracking-normal text-brand-orange">
+                  Product screens
+                </p>
+                <h2 className="mt-3 text-3xl font-extrabold tracking-normal text-slate-950 sm:text-5xl">
+                  See the real CafePilots workflow before your team signs in.
+                </h2>
               </div>
-            ))}
+              <p className="text-base leading-7 text-slate-600 sm:text-lg">
+                These are live product views from the CafePilots ERP: dashboard, POS, checkout,
+                kitchen display, floor planning, and branch setup. The sales page now shows the
+                product workflow clearly for buyers and staff reviewers.
+              </p>
+            </div>
+
+            <figure className="mt-12 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl shadow-slate-950/10">
+              <img
+                src={PRODUCT_SCREENSHOTS[0].src}
+                alt={PRODUCT_SCREENSHOTS[0].alt}
+                className="block w-full"
+                loading="eager"
+              />
+              <figcaption className="border-t border-slate-200 px-5 py-4 sm:px-6">
+                <p className="text-base font-bold text-slate-950">{PRODUCT_SCREENSHOTS[0].title}</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  {PRODUCT_SCREENSHOTS[0].body}
+                </p>
+              </figcaption>
+            </figure>
+
+            <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-5">
+              {PRODUCT_SCREENSHOTS.slice(1).map((screen) => (
+                <article
+                  key={screen.title}
+                  className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+                >
+                  <img
+                    src={screen.src}
+                    alt={screen.alt}
+                    className="block aspect-[16/9] w-full bg-slate-100 object-contain"
+                    loading="lazy"
+                  />
+                  <div className="p-5">
+                    <h3 className="text-base font-bold text-slate-950">{screen.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">{screen.body}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Trust */}
-      <section className="border-t border-white/10 bg-brand-steel px-5 py-20 sm:px-8 lg:px-12">
-        <div className="mx-auto max-w-3xl text-center">
-          <ShieldCheck className="mx-auto h-10 w-10 text-brand-orange" />
-          <h2 className="mt-4 text-3xl font-bold tracking-tight">Your brand. Your data.</h2>
-          <p className="mt-4 text-base leading-relaxed text-white/75">
-            {APP_NAME} HQ runs the platform. Every customer company is a separate tenant — menus,
-            outlets, staff, orders, and guests stay inside that company. Switch branches without
-            leaking data across brands.
-          </p>
-          <Link
-            to={appHref}
-            className="mt-8 inline-flex items-center gap-2 rounded-md bg-brand-orange px-6 py-3 font-semibold text-white transition hover:bg-brand-orange-light hover:text-brand-navy"
-          >
-            Sign in to {APP_NAME}
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-      </section>
+        <section className="bg-slate-950 px-5 py-20 text-white sm:px-8 lg:px-12">
+          <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
+            <div>
+              <p className="text-sm font-bold uppercase tracking-normal text-brand-orange-light">
+                Operating flow
+              </p>
+              <h2 className="mt-3 text-3xl font-extrabold tracking-normal text-white sm:text-5xl">
+                From setup to service to insight.
+              </h2>
+              <p className="mt-4 text-base leading-7 text-white/68">
+                The system follows how a cafe actually runs: branches, menus, staff, tables, orders,
+                kitchen, inventory, reports.
+              </p>
+            </div>
 
-      {/* Footer */}
-      <footer className="border-t border-white/10 bg-brand-navy px-5 py-12 sm:px-8 lg:px-12">
-        <div className="mx-auto flex max-w-6xl flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
+            <ol className="grid gap-4">
+              {OPERATING_FLOW.map((item, index) => (
+                <li key={item} className="grid grid-cols-[48px_1fr] gap-4 rounded-lg bg-white/8 p-5">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-md bg-brand-orange text-sm font-extrabold text-white">
+                    {String(index + 1).padStart(2, '0')}
+                  </span>
+                  <div>
+                    <p className="font-semibold text-white">{item}</p>
+                    <p className="mt-1 text-sm text-white/55">
+                      Each step stays company and branch scoped, so normal users only see the work
+                      that belongs to them.
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section className="px-5 py-20 sm:px-8 lg:px-12">
+          <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1fr_1fr] lg:items-center">
+            <div>
+              <p className="text-sm font-bold uppercase tracking-normal text-brand-orange">
+                Smart access
+              </p>
+              <h2 className="mt-3 text-3xl font-extrabold tracking-normal text-slate-950 sm:text-5xl">
+                Powerful for owners. Simple for staff.
+              </h2>
+              <p className="mt-4 text-base leading-7 text-slate-600">
+                Super Admins can manage the platform. Admins and owners can manage their business.
+                Cashiers, kitchen, and inventory teams get focused screens without confusing admin
+                options.
+              </p>
+            </div>
+
+            <div className="grid gap-3">
+              {TRUST_POINTS.map((point) => (
+                <div key={point} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-600" />
+                  <span className="font-semibold text-slate-800">{point}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-[#F6F2EC] px-5 py-20 sm:px-8 lg:px-12">
+          <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+            <div className="rounded-lg bg-white p-6 shadow-sm">
+              <div className="flex items-center gap-3">
+                <Clock3 className="h-6 w-6 text-brand-orange" />
+                <div>
+                  <p className="font-bold text-slate-950">Ready for your next branch</p>
+                  <p className="text-sm text-slate-500">One platform, multiple outlets.</p>
+                </div>
+              </div>
+              <div className="mt-6 grid grid-cols-2 gap-3 text-sm">
+                {['POS', 'KDS', 'QR menu', 'Inventory', 'CRM', 'Reports'].map((item) => (
+                  <div key={item} className="rounded-md bg-slate-50 px-3 py-2 font-semibold text-slate-700">
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-sm font-bold uppercase tracking-normal text-brand-orange">
+                Contact
+              </p>
+              <h2 className="mt-3 text-3xl font-extrabold tracking-normal text-slate-950 sm:text-5xl">
+                Want CafePilots for your cafe?
+              </h2>
+              <p className="mt-4 text-base leading-7 text-slate-600">
+                Share your outlet count, current billing setup, and what you want to improve first.
+                We will help you plan the cleanest setup.
+              </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <a
+                  href={mailHref}
+                  className="inline-flex items-center gap-2 rounded-md bg-brand-orange px-6 py-3 font-bold text-white transition hover:bg-brand-orange-light hover:text-brand-navy"
+                >
+                  <Mail className="h-4 w-4" />
+                  {CONTACT_EMAIL}
+                </a>
+                <button
+                  type="button"
+                  onClick={() => scrollToId('features')}
+                  className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-6 py-3 font-bold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
+                >
+                  View features
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="border-t border-slate-200 bg-white px-5 py-10 sm:px-8 lg:px-12">
+        <div className="mx-auto flex max-w-7xl flex-col gap-8 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CafePilotsLogo size={32} withWordmark withDivider onDark />
-            <p className="mt-3 max-w-xs text-sm text-white/55">{APP_TAGLINE}</p>
+            <CafePilotsLogo size={34} withWordmark withDivider />
+            <p className="mt-3 max-w-md text-sm text-slate-500">
+              Cafe management software for POS, QR ordering, inventory, CRM, and multi-branch
+              reporting.
+            </p>
           </div>
-          <div className="flex flex-wrap gap-8 text-sm">
-            <div className="flex flex-col gap-2">
-              <span className="font-semibold text-white/90">Product</span>
-              <button
-                type="button"
-                className="text-left text-white/55 hover:text-white"
-                onClick={() => scrollToId('capabilities')}
-              >
-                Features
-              </button>
-              <button
-                type="button"
-                className="text-left text-white/55 hover:text-white"
-                onClick={() => scrollToId('how-it-works')}
-              >
-                How it works
-              </button>
-              <Link to={appHref} className="text-white/55 hover:text-white">
-                Open app
-              </Link>
-            </div>
-            <div className="flex flex-col gap-2">
-              <span className="font-semibold text-white/90">Contact</span>
-              <a
-                href={`mailto:hello@${APP_DOMAIN}`}
-                className="text-white/55 hover:text-white"
-              >
-                hello@{APP_DOMAIN}
-              </a>
-            </div>
+          <div className="flex flex-wrap items-center gap-4 text-sm font-semibold text-slate-600">
+            <button type="button" onClick={() => scrollToId('features')} className="hover:text-slate-950">
+              Features
+            </button>
+            <a href={mailHref} className="hover:text-slate-950">
+              Contact
+            </a>
+            <Link to={appHref} className="hover:text-slate-950">
+              Login
+            </Link>
           </div>
         </div>
-        <p className="mx-auto mt-10 max-w-6xl text-xs text-white/40">
-          © {new Date().getFullYear()} {APP_NAME}. All rights reserved.
+        <p className="mx-auto mt-8 max-w-7xl text-xs text-slate-400">
+          Copyright {new Date().getFullYear()} {APP_NAME}. Built for smart cafe operations on {APP_DOMAIN}.
         </p>
       </footer>
     </div>

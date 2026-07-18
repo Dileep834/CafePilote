@@ -1,6 +1,6 @@
 import { formatCurrency } from '../../utils/format';
 import React, { useState, useEffect } from 'react';
-import { Box, Button, IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Grid, Accordion, AccordionSummary, AccordionDetails, Typography, Paper, MenuItem } from '@mui/material';
+import { Box, Button, IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Grid, Accordion, AccordionSummary, AccordionDetails, Typography, Paper, MenuItem, useMediaQuery, useTheme } from '@mui/material';
 import type { GridColDef } from '@mui/x-data-grid';
 import { Add, Edit, Delete, ExpandMore } from '@mui/icons-material';
 import DataTable from '../../components/DataTable';
@@ -12,6 +12,8 @@ import { HQ_COMPANY_ID } from '../../constants';
 
 const Products: React.FC = () => {
   const { user } = useAuthStore();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -152,14 +154,16 @@ const Products: React.FC = () => {
   ];
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', pb: { xs: 8, sm: 0 } }}>
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="h5" sx={{ fontWeight: "bold", fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
           Products Catalog
         </Typography>
-        <Button variant="contained" startIcon={<Add />} onClick={() => handleOpen()}>
-          Add Product
-        </Button>
+        {!isMobile && (
+          <Button variant="contained" startIcon={<Add />} onClick={() => handleOpen()}>
+            Add Product
+          </Button>
+        )}
       </Box>
       <Box sx={{ flexGrow: 1, overflowY: 'auto' }}>
         {loading ? (
@@ -188,6 +192,35 @@ const Products: React.FC = () => {
           ))
         )}
       </Box>
+
+      {/* Mobile sticky bottom Add button */}
+      {isMobile && (
+        <Box
+          sx={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: 1200,
+            px: 2,
+            py: 1.5,
+            bgcolor: 'background.paper',
+            borderTop: '1px solid',
+            borderColor: 'divider',
+            boxShadow: '0 -4px 16px rgba(0,0,0,0.10)',
+          }}
+        >
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={() => handleOpen()}
+            fullWidth
+            sx={{ height: 48, borderRadius: 2, fontWeight: 700, fontSize: '0.95rem' }}
+          >
+            Add Product
+          </Button>
+        </Box>
+      )}
 
       <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
         <DialogTitle>{formData.id ? 'Edit Product' : 'Add New Product'}</DialogTitle>

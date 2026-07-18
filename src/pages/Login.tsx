@@ -15,9 +15,9 @@ import {
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { CafePilotsLogo } from '../components/CafePilotsLogo';
 import { useAuthStore } from '../store/useAuthStore';
-import { supabase } from '../lib/supabase';
-import { APP_NAME, APP_TAGLINE, HQ_COMPANY_ID } from '../constants';
+import { APP_NAME, APP_TAGLINE, HQ_COMPANY_ID, Role } from '../constants';
 import { isMarketingHost } from '../lib/appHost';
+import { authenticateStaff } from '../lib/staffSessionService';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -31,6 +31,8 @@ const Login: React.FC = () => {
   const [error, setError] = React.useState<string | null>(null);
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isSessionExpired = useAuthStore((state) => state.isSessionExpired);
 
   const {
     register,
@@ -40,83 +42,35 @@ const Login: React.FC = () => {
     resolver: zodResolver(loginSchema),
   });
 
+  React.useEffect(() => {
+    if (isAuthenticated && !isSessionExpired()) {
+      navigate('/erp', { replace: true });
+    }
+  }, [isAuthenticated, isSessionExpired, navigate]);
+
   const onSubmit = async (data: LoginFormValues) => {
     try {
       setError(null);
-      // Live database login check
-      const { data: dbUser, error: dbError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', data.email)
-        .eq('is_active', true)
-        .single();
-        
-      if (dbError || !dbUser) {
-        setError('Invalid login. User not found or inactive.');
-        return;
-      }
-      
-      // Verify Password
-      if (dbUser.password && dbUser.password !== data.password) {
-        setError('Invalid password. Please try again.');
-        return;
-      }
-      
-      // Create a user login log session
-      let sessionId = null;
-      try {
-        const { data: sessionData, error: sessionError } = await supabase
-          .from('user_sessions')
-          .insert([{ user_id: dbUser.id, company_id: dbUser.company_id }])
-          .select('id')
-          .single();
-          
-        if (!sessionError && sessionData) {
-          sessionId = sessionData.id;
-        }
-      } catch (err) {
-        console.warn('Failed to create session log', err);
-      }
-      
-      // Super Admin always CafePilots HQ (ignore stale customer company in DB/cache)
-      const companyId =
-        dbUser.role === 'Super Admin' ? HQ_COMPANY_ID : dbUser.company_id;
-
-      login({
-        id: dbUser.id,
-        name: dbUser.name,
-        email: dbUser.email,
-        role: dbUser.role,
-        outletId: dbUser.outlet_id,
-        companyId,
-        isActive: dbUser.is_active
-      }, 'live-jwt-token', sessionId || undefined);
+      const { user, token, sessionId } = await authenticateStaff(data.email, data.password);
+      login(user, token, sessionId);
 
       // Reset stale tenant persist so header shows HQ + correct plan
       try {
         const { useTenantStore } = await import('../store/useTenantStore');
-        if (dbUser.role === 'Super Admin') {
+        if (user.role === Role.SUPER_ADMIN) {
           useTenantStore.setState({
             companyId: HQ_COMPANY_ID,
             planId: 'enterprise',
           });
         }
-        await useTenantStore.getState().hydrateFromUser({
-          id: dbUser.id,
-          name: dbUser.name,
-          email: dbUser.email,
-          role: dbUser.role,
-          outletId: dbUser.outlet_id,
-          companyId,
-          isActive: dbUser.is_active,
-        });
+        await useTenantStore.getState().hydrateFromUser(user);
       } catch {
         /* ignore */
       }
       navigate('/erp');
       
-    } catch (_err) {
-      setError('An error occurred during login');
+    } catch (err: any) {
+      setError(err?.message || 'An error occurred during login');
     }
   };
 
@@ -194,7 +148,7 @@ const Login: React.FC = () => {
         {isMarketingHost() && (
           <Typography variant="body2" sx={{ mb: 2 }}>
             <Link to="/" style={{ color: 'inherit', textDecoration: 'underline' }}>
-              ← Back to website
+              Back to website
             </Link>
           </Typography>
         )}

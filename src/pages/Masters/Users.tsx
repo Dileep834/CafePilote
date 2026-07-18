@@ -4,7 +4,14 @@ import type { GridColDef } from '@mui/x-data-grid';
 import { Add, Edit, Delete } from '@mui/icons-material';
 import { v4 as uuidv4 } from 'uuid';
 import DataTable from '../../components/DataTable';
-import { Role, HQ_COMPANY_ID } from '../../constants';
+import {
+  HQ_COMPANY_ID,
+  OUTLET_SCOPED_ROLES,
+  Role,
+  SUPER_ADMIN_ASSIGNABLE_ROLES,
+  TENANT_ADMIN_ASSIGNABLE_ROLES,
+  type RoleType,
+} from '../../constants';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { getScopedCompanyId } from '../../lib/tenantScope';
@@ -33,7 +40,7 @@ const Users: React.FC = () => {
       let query = supabase.from('users').select(`*, outlet:outlets(name)`).order('name');
       if (companyId) {
         query = query.eq('company_id', companyId);
-        if (!isSuperAdmin(user)) query = query.neq('role', 'Super Admin');
+        if (!isSuperAdmin(user)) query = query.neq('role', Role.SUPER_ADMIN);
       }
       const { data, error } = await query;
       if (error) throw error;
@@ -63,20 +70,22 @@ const Users: React.FC = () => {
     if (u) {
       setFormData(u);
     } else {
-      setFormData({ 
-        role: Role.STAFF,
+      setFormData({
+        role: Role.CASHIER,
         is_active: true,
         company_id: getScopedCompanyId(user) || HQ_COMPANY_ID,
-        outlet_id: (user?.role === Role.OUTLET_OWNER) ? user?.outletId : ''
+        outlet_id: (user?.role === Role.OUTLET_OWNER || user?.role === Role.OUTLET_MANAGER) ? user?.outletId : ''
       });
     }
     setOpen(true);
   };
 
   const getAvailableRoles = () => {
-    if (user?.role === Role.SUPER_ADMIN) return Object.values(Role);
-    if (user?.role === Role.ADMIN) return [Role.ADMIN, Role.OUTLET_OWNER, Role.STAFF];
-    if (user?.role === Role.OUTLET_OWNER) return [Role.OUTLET_OWNER, Role.STAFF];
+    if (user?.role === Role.SUPER_ADMIN) return SUPER_ADMIN_ASSIGNABLE_ROLES;
+    if (user?.role === Role.ADMIN) return TENANT_ADMIN_ASSIGNABLE_ROLES;
+    if (user?.role === Role.OUTLET_OWNER || user?.role === Role.OUTLET_MANAGER) {
+      return [Role.CASHIER, Role.KITCHEN_STAFF, Role.INVENTORY_STAFF, Role.STAFF];
+    }
     return [];
   };
 
@@ -91,12 +100,12 @@ const Users: React.FC = () => {
       const dataToSave = { ...formData };
       delete dataToSave.outlet;
       delete dataToSave.outletName;
-      
+
       // Only include password if it was typed (don't overwrite with empty string on edit)
       if (!dataToSave.password) {
         delete dataToSave.password;
       }
-      
+
       if (dataToSave.id) {
         const { error } = await supabase.from('users').update(dataToSave).eq('id', dataToSave.id);
         if (error) throw error;
@@ -150,11 +159,11 @@ const Users: React.FC = () => {
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Box sx={{ flexGrow: 1 }}>
-        <DataTable 
-          title="User Management" 
-          columns={columns} 
-          rows={users} 
-          loading={loading} 
+        <DataTable
+          title="User Management"
+          columns={columns}
+          rows={users}
+          loading={loading}
           action={
             <Button variant="contained" startIcon={<Add />} onClick={() => handleOpen()}>
               Add User
@@ -167,45 +176,52 @@ const Users: React.FC = () => {
         <DialogTitle>{formData.id ? 'Edit User' : 'Add New User'}</DialogTitle>
         <DialogContent dividers>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-            <TextField 
-              fullWidth 
-              label="Full Name" 
-              value={formData.name || ''} 
-              onChange={e => setFormData({...formData, name: e.target.value})} 
+            <TextField
+              fullWidth
+              label="Full Name"
+              value={formData.name || ''}
+              onChange={e => setFormData({...formData, name: e.target.value})}
             />
-            <TextField 
-              fullWidth 
-              label="Email" 
+            <TextField
+              fullWidth
+              label="Email"
               type="email"
-              value={formData.email || ''} 
-              onChange={e => setFormData({...formData, email: e.target.value})} 
+              value={formData.email || ''}
+              onChange={e => setFormData({...formData, email: e.target.value})}
             />
-            <TextField 
-              fullWidth 
-              label="Password" 
+            <TextField
+              fullWidth
+              label="Password"
               type="password"
               placeholder="Leave blank to keep unchanged"
-              value={formData.password || ''} 
-              onChange={e => setFormData({...formData, password: e.target.value})} 
+              value={formData.password || ''}
+              onChange={e => setFormData({...formData, password: e.target.value})}
             />
-            <TextField 
+            <TextField
               select
-              fullWidth 
-              label="Role" 
-              value={formData.role || ''} 
-              onChange={e => setFormData({...formData, role: e.target.value})} 
+              fullWidth
+              label="Role"
+              value={formData.role || ''}
+              onChange={e => {
+                const role = e.target.value as RoleType;
+                setFormData({
+                  ...formData,
+                  role,
+                  outlet_id: OUTLET_SCOPED_ROLES.includes(role) ? formData.outlet_id : '',
+                });
+              }}
             >
               {getAvailableRoles().map(r => (
                 <MenuItem key={r} value={r}>{r}</MenuItem>
               ))}
             </TextField>
-            <TextField 
+            <TextField
               select
-              fullWidth 
-              label="Assign to Outlet" 
-              value={formData.outlet_id || ''} 
-              onChange={e => setFormData({...formData, outlet_id: e.target.value})} 
-              disabled={user?.role === Role.OUTLET_OWNER || user?.role === Role.STORE_MANAGER}
+              fullWidth
+              label="Assign to Outlet"
+              value={formData.outlet_id || ''}
+              onChange={e => setFormData({...formData, outlet_id: e.target.value})}
+              disabled={user?.role === Role.OUTLET_OWNER || user?.role === Role.OUTLET_MANAGER}
             >
               <MenuItem value=""><em>None</em></MenuItem>
               {outlets.map(f => (

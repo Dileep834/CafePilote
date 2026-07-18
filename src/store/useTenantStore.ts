@@ -8,7 +8,7 @@ import {
   type PlanLimits,
 } from '@/lib/planLimits';
 import { HQ_COMPANY_ID, HQ_COMPANY_NAME } from '@/constants';
-import { isSuperAdmin } from '@/lib/access';
+import { canSwitchBranchesByRole, isSuperAdmin } from '@/lib/access';
 
 /**
  * Super Admin always belongs to CafePilots HQ (platform owner).
@@ -78,7 +78,7 @@ export const useTenantStore = create<TenantState>()(
 
       canSwitchBranch: (user) => {
         if (!user) return false;
-        return user.role === 'Super Admin' || user.role === 'Admin' || user.role === 'Outlet Owner';
+        return canSwitchBranchesByRole(user);
       },
 
       plan: () => getPlanLimits(get().planId),

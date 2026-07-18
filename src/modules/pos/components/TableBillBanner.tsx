@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { BRAND } from '@/constants';
@@ -100,8 +101,8 @@ function TablePickerModal({ onClose }: { onClose: () => void }) {
     [tables, outletId]
   );
 
-  return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-[#0D1B2A]/45 backdrop-blur-sm">
+  const modal = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-[#0D1B2A]/45 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden max-h-[80vh] flex flex-col">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-[#F3F3F8]">
           <div>
@@ -158,4 +159,6 @@ function TablePickerModal({ onClose }: { onClose: () => void }) {
       </div>
     </div>
   );
+
+  return ReactDOM.createPortal(modal, document.body);
 }

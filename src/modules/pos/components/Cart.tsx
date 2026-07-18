@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { Minus, Plus, Trash2, ShoppingCart, Clock, ChefHat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -248,8 +249,8 @@ export function Cart({ onOpenHeld }: Props) {
         </div>
       </div>
 
-      {editingQtyFor && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      {editingQtyFor && ReactDOM.createPortal(
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 flex flex-col items-center">
             <h3 className="text-lg font-bold text-slate-800 mb-4">Update quantity</h3>
             <input
@@ -280,7 +281,8 @@ export function Cart({ onOpenHeld }: Props) {
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

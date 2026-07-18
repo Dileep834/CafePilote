@@ -2,10 +2,58 @@ export const Role = {
   SUPER_ADMIN: 'Super Admin',
   ADMIN: 'Admin',
   OUTLET_OWNER: 'Outlet Owner',
+  OUTLET_MANAGER: 'Outlet Manager',
+  CASHIER: 'Cashier',
+  KITCHEN_STAFF: 'Kitchen Staff',
+  INVENTORY_STAFF: 'Inventory Staff',
+  ACCOUNTANT: 'Accountant',
   STAFF: 'Staff',
 } as const;
 
 export type RoleType = typeof Role[keyof typeof Role];
+
+export const APP_ROLES = Object.values(Role) as RoleType[];
+
+export const CONFIGURABLE_ROLES: RoleType[] = [
+  Role.ADMIN,
+  Role.OUTLET_OWNER,
+  Role.OUTLET_MANAGER,
+  Role.CASHIER,
+  Role.KITCHEN_STAFF,
+  Role.INVENTORY_STAFF,
+  Role.ACCOUNTANT,
+  Role.STAFF,
+];
+
+export const SUPER_ADMIN_ASSIGNABLE_ROLES: RoleType[] = APP_ROLES;
+
+export const TENANT_ADMIN_ASSIGNABLE_ROLES: RoleType[] = [
+  Role.OUTLET_OWNER,
+  Role.OUTLET_MANAGER,
+  Role.CASHIER,
+  Role.KITCHEN_STAFF,
+  Role.INVENTORY_STAFF,
+  Role.ACCOUNTANT,
+  Role.STAFF,
+];
+
+export const OUTLET_SCOPED_ROLES: RoleType[] = [
+  Role.OUTLET_OWNER,
+  Role.OUTLET_MANAGER,
+  Role.CASHIER,
+  Role.KITCHEN_STAFF,
+  Role.INVENTORY_STAFF,
+  Role.ACCOUNTANT,
+  Role.STAFF,
+];
+
+export const BRANCH_SWITCH_ROLES: RoleType[] = [
+  Role.SUPER_ADMIN,
+  Role.ADMIN,
+  Role.OUTLET_OWNER,
+  Role.OUTLET_MANAGER,
+  Role.ACCOUNTANT,
+];
 
 export const InventoryStatus = {
   PENDING: 'Pending',
@@ -18,14 +66,14 @@ export const InventoryStatus = {
 
 export type InventoryStatusType = typeof InventoryStatus[keyof typeof InventoryStatus];
 
-/** Official product brand — always "CafePilots" (with an s). */
+/** Official product brand: always "CafePilots" (with an s). */
 export const APP_NAME = 'CafePilots';
-export const APP_TAGLINE = 'Run Every Café Smarter.';
+export const APP_TAGLINE = 'Run Every Cafe Smarter.';
 export const APP_DOMAIN = 'cafepilots.com';
 
 /**
  * Platform owner tenant (Super Admin / CafePilots HQ).
- * Separate from real customer companies — never reuse a customer UUID.
+ * Separate from real customer companies. Never reuse a customer UUID.
  */
 export const HQ_COMPANY_ID = 'a1000000-0000-4000-8000-000000000001';
 export const HQ_COMPANY_NAME = 'CafePilots HQ';
@@ -34,7 +82,7 @@ export const HQ_COMPANY_SUBDOMAIN = 'cafepilots-hq';
 export const HQ_OUTLET_ID = 'a1000000-0000-4000-8000-000000000010';
 
 /**
- * Real customer tenant (Backbenchers). Historical seed id — do not rename or merge.
+ * Real customer tenant (Backbenchers). Historical seed id. Do not rename or merge.
  */
 export const BACKBENCHERS_COMPANY_ID = 'c1000000-0000-0000-0000-000000000001';
 export const BACKBENCHERS_COMPANY_NAME = 'Backbenchers Cafeteria';

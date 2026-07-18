@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { X, Plus, Check, ShoppingBag, Leaf, Drumstick, Droplet, UtensilsCrossed } from 'lucide-react';
 import { formatCurrency } from '@/utils/format';
 import { Button } from '@/components/ui/button';
@@ -74,8 +75,8 @@ export function ProductAddonModal({ isOpen, onClose, product, allProducts }: Pro
 
   const totalPrice = safePrice(product) + selectedAddons.reduce((sum, item) => sum + safePrice(item), 0);
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center pointer-events-auto">
+  return ReactDOM.createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center pointer-events-auto">
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
@@ -200,6 +201,7 @@ export function ProductAddonModal({ isOpen, onClose, product, allProducts }: Pro
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

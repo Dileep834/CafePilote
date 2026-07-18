@@ -4,14 +4,17 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { useTenantStore } from '@/store/useTenantStore';
 import { getPlanLimits } from '@/lib/planLimits';
 import { BRAND } from '@/constants';
+import { PERMISSIONS } from '@/constants/permissions';
 import { Store, Plus, MapPin, Hash, CheckCircle2, XCircle, Building2 } from 'lucide-react';
 import dayjs from 'dayjs';
 import { OutletFloorPlanMapper } from '@/modules/floordesigner/components/OutletFloorPlanMapper';
 import { useNavigate } from 'react-router-dom';
+import { useHasPermission } from '@/hooks/useHasPermission';
 
 export function FranchiseManagement() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const canManageOutlets = useHasPermission(PERMISSIONS.FRANCHISE_MANAGE);
   const { outlets, isLoading, error, fetchOutlets, addOutlet, toggleOutletStatus } =
     useFranchiseStore();
   const companyId = useTenantStore((s) => s.companyId);
@@ -49,15 +52,15 @@ export function FranchiseManagement() {
     setFormData({ name: '', location: '' });
   };
 
-  if (user?.role !== 'Super Admin' && user?.role !== 'Admin') {
+  if (!canManageOutlets) {
     return (
       <div className="p-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="bg-red-50 text-red-600 border border-red-200 rounded-xl p-8 max-w-lg mx-auto shadow-sm">
           <Store className="w-12 h-12 mx-auto mb-4 opacity-50" />
           <h2 className="text-xl font-bold mb-2">Access Denied</h2>
           <p>
-            Only Admins can manage outlets / branches. Your assigned branch is selected in the
-            header.
+            You do not have permission to manage outlets / branches. Your assigned branch is
+            selected in the header.
           </p>
         </div>
       </div>
@@ -92,9 +95,9 @@ export function FranchiseManagement() {
         </button>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 flex items-start gap-2">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 flex items-start gap-3 min-w-0">
         <Building2 className="w-4 h-4 mt-0.5 shrink-0" style={{ color: BRAND.navy }} />
-        <p>
+        <p className="flex-1 min-w-0">
           Use the header branch switcher for day-to-day work. Floor Designer and Table Management
           always load the <strong>active outlet</strong>.
         </p>
@@ -121,104 +124,186 @@ export function FranchiseManagement() {
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
-                  <th className="px-6 py-4 font-semibold">Code</th>
-                  <th className="px-6 py-4 font-semibold">Outlet / branch</th>
-                  <th className="px-6 py-4 font-semibold">Location</th>
-                  <th className="px-6 py-4 font-semibold">Created</th>
-                  <th className="px-6 py-4 font-semibold text-center">Status</th>
-                  <th className="px-6 py-4 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {outlets.map((outlet) => {
-                  const isActiveBranch = outlet.id === activeOutletId;
-                  return (
-                    <tr
-                      key={outlet.id}
-                      className={
-                        isActiveBranch ? 'bg-orange-50/40' : 'hover:bg-slate-50 transition-colors'
-                      }
-                    >
-                      <td className="px-6 py-4">
-                        <div
-                          className="flex items-center gap-1.5 font-mono text-sm font-bold px-2 py-1 rounded-md w-fit"
-                          style={{ color: BRAND.navy, backgroundColor: '#F3F3F8' }}
-                        >
-                          <Hash className="w-3.5 h-3.5" />
-                          {outlet.code}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="font-bold text-slate-800 flex items-center gap-2">
-                          {outlet.name}
-                          {isActiveBranch && (
-                            <span
-                              className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white"
-                              style={{ backgroundColor: BRAND.orange }}
+          <>
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
+                    <th className="px-6 py-4 font-semibold">Code</th>
+                    <th className="px-6 py-4 font-semibold">Outlet / branch</th>
+                    <th className="px-6 py-4 font-semibold">Location</th>
+                    <th className="px-6 py-4 font-semibold">Created</th>
+                    <th className="px-6 py-4 font-semibold text-center">Status</th>
+                    <th className="px-6 py-4 font-semibold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {outlets.map((outlet) => {
+                    const isActiveBranch = outlet.id === activeOutletId;
+                    return (
+                      <tr
+                        key={outlet.id}
+                        className={
+                          isActiveBranch ? 'bg-orange-50/40' : 'hover:bg-slate-50 transition-colors'
+                        }
+                      >
+                        <td className="px-6 py-4">
+                          <div
+                            className="flex items-center gap-1.5 font-mono text-sm font-bold px-2 py-1 rounded-md w-fit"
+                            style={{ color: BRAND.navy, backgroundColor: '#F3F3F8' }}
+                          >
+                            <Hash className="w-3.5 h-3.5" />
+                            {outlet.code}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-slate-800 flex items-center gap-2">
+                            {outlet.name}
+                            {isActiveBranch && (
+                              <span
+                                className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white"
+                                style={{ backgroundColor: BRAND.orange }}
+                              >
+                                Active
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-start gap-2 text-sm text-slate-600 font-medium">
+                            <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                            <span className="line-clamp-2">{outlet.location || '—'}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-600 font-medium">
+                          {dayjs(outlet.created_at).format('MMM D, YYYY')}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <span
+                            className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${
+                              outlet.is_active
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {outlet.is_active ? (
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            ) : (
+                              <XCircle className="w-3.5 h-3.5" />
+                            )}
+                            {outlet.is_active ? 'Open' : 'Closed'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right space-x-2">
+                          {outlet.is_active && !isActiveBranch && (
+                            <button
+                              type="button"
+                              onClick={() => setActiveOutletId(outlet.id)}
+                              className="text-sm font-bold px-3 py-1.5 rounded-lg transition-colors"
+                              style={{ color: BRAND.navy }}
                             >
-                              Active
-                            </span>
+                              Switch here
+                            </button>
                           )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-start gap-2 text-sm text-slate-600 font-medium">
-                          <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-                          <span className="line-clamp-2">{outlet.location || '—'}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600 font-medium">
-                        {dayjs(outlet.created_at).format('MMM D, YYYY')}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span
-                          className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${
-                            outlet.is_active
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-slate-100 text-slate-500'
-                          }`}
-                        >
-                          {outlet.is_active ? (
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                          ) : (
-                            <XCircle className="w-3.5 h-3.5" />
-                          )}
-                          {outlet.is_active ? 'Open' : 'Closed'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right space-x-2">
-                        {outlet.is_active && !isActiveBranch && (
                           <button
                             type="button"
-                            onClick={() => setActiveOutletId(outlet.id)}
-                            className="text-sm font-bold px-3 py-1.5 rounded-lg transition-colors"
-                            style={{ color: BRAND.navy }}
+                            onClick={() => void toggleOutletStatus(outlet.id, outlet.is_active)}
+                            className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                              outlet.is_active
+                                ? 'text-rose-600 hover:bg-rose-50'
+                                : 'text-emerald-600 hover:bg-emerald-50'
+                            }`}
                           >
-                            Switch here
+                            {outlet.is_active ? 'Disable' : 'Enable'}
                           </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile View */}
+            <div className="md:hidden flex flex-col divide-y divide-slate-100">
+              {outlets.map((outlet) => {
+                const isActiveBranch = outlet.id === activeOutletId;
+                return (
+                  <div key={outlet.id} className={`p-4 ${isActiveBranch ? 'bg-orange-50/40' : 'bg-white hover:bg-slate-50 transition-colors'}`}>
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="font-bold text-slate-800 flex items-center gap-2 text-base">
+                        {outlet.name}
+                        {isActiveBranch && (
+                          <span
+                            className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white"
+                            style={{ backgroundColor: BRAND.orange }}
+                          >
+                            Active
+                          </span>
                         )}
+                      </div>
+                      <div
+                        className="flex items-center gap-1.5 font-mono text-xs font-bold px-1.5 py-0.5 rounded-md w-fit"
+                        style={{ color: BRAND.navy, backgroundColor: '#F3F3F8' }}
+                      >
+                        <Hash className="w-3.5 h-3.5" />
+                        {outlet.code}
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2 text-sm text-slate-600 font-medium mb-3">
+                      <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                      <span className="line-clamp-2">{outlet.location || '—'}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs mb-4">
+                      <div className="text-slate-600 font-medium">
+                        {dayjs(outlet.created_at).format('MMM D, YYYY')}
+                      </div>
+                      <span
+                        className={`inline-flex items-center gap-1.5 font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                          outlet.is_active
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-slate-100 text-slate-500'
+                        }`}
+                      >
+                        {outlet.is_active ? (
+                          <CheckCircle2 className="w-3 h-3" />
+                        ) : (
+                          <XCircle className="w-3 h-3" />
+                        )}
+                        {outlet.is_active ? 'Open' : 'Closed'}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-3 border-t border-slate-50">
+                      {outlet.is_active && !isActiveBranch && (
                         <button
                           type="button"
-                          onClick={() => void toggleOutletStatus(outlet.id, outlet.is_active)}
-                          className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
-                            outlet.is_active
-                              ? 'text-rose-600 hover:bg-rose-50'
-                              : 'text-emerald-600 hover:bg-emerald-50'
-                          }`}
+                          onClick={() => setActiveOutletId(outlet.id)}
+                          className="text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+                          style={{ color: BRAND.navy }}
                         >
-                          {outlet.is_active ? 'Disable' : 'Enable'}
+                          Switch here
                         </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => void toggleOutletStatus(outlet.id, outlet.is_active)}
+                        className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-colors ${
+                          outlet.is_active
+                            ? 'text-rose-600 bg-rose-50'
+                            : 'text-emerald-600 bg-emerald-50'
+                        }`}
+                      >
+                        {outlet.is_active ? 'Disable' : 'Enable'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
 

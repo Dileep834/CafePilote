@@ -45,26 +45,34 @@ import {
 } from '@mui/icons-material';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
+import { useTenantStore } from '../store/useTenantStore';
 import { useThemeContext } from '../contexts/ThemeContext';
-import { APP_NAME, BRAND } from '../constants';
+import { BRAND } from '../constants';
+import { PERMISSIONS, type PermissionId } from '../constants/permissions';
 import { CafePilotsLogo } from '../components/CafePilotsLogo';
+import { usePermissionsStore } from '../store/usePermissionsStore';
 
 const drawerWidth = 260;
 
-const menuItems = [
-  { text: 'ERP Home', icon: <Dashboard />, path: '/erp' },
-  { text: 'POS (Billing)', icon: <ShoppingCart />, path: '/erp/pos' },
-  { text: 'Products', icon: <Store />, path: '/erp/menu/products' },
-  { text: 'Categories', icon: <Store />, path: '/erp/menu/categories' },
-  { text: 'Recipes', icon: <PrecisionManufacturing />, path: '/erp/menu/recipes' },
-  { text: 'Stock on hand', icon: <Inventory />, path: '/erp/inventory' },
-  { text: 'Daily Update', icon: <Assessment />, path: '/erp/inventory/daily' },
-  { text: 'Adjustments', icon: <Inventory />, path: '/erp/inventory/adjustments' },
-  { text: 'Purchase Orders', icon: <Receipt />, path: '/erp/purchase' },
-  { text: 'Waste log', icon: <Warning />, path: '/erp/inventory/waste' },
-  { text: 'Companies', icon: <Store />, path: '/masters/companies' },
-  { text: 'Staff & users', icon: <People />, path: '/erp/users' },
-  { text: 'Settings', icon: <Settings />, path: '/erp/settings' },
+const menuItems: Array<{
+  text: string;
+  icon: React.ReactNode;
+  path: string;
+  requiredPermission: PermissionId;
+}> = [
+  { text: 'ERP Home', icon: <Dashboard />, path: '/erp', requiredPermission: PERMISSIONS.DASHBOARD_ACCESS },
+  { text: 'POS (Billing)', icon: <ShoppingCart />, path: '/erp/pos', requiredPermission: PERMISSIONS.POS_ACCESS },
+  { text: 'Products', icon: <Store />, path: '/erp/menu/products', requiredPermission: PERMISSIONS.MENU_PRODUCTS_MANAGE },
+  { text: 'Categories', icon: <Store />, path: '/erp/menu/categories', requiredPermission: PERMISSIONS.MENU_CATEGORIES_MANAGE },
+  { text: 'Recipes', icon: <PrecisionManufacturing />, path: '/erp/menu/recipes', requiredPermission: PERMISSIONS.RECIPES_MANAGE },
+  { text: 'Stock on hand', icon: <Inventory />, path: '/erp/inventory', requiredPermission: PERMISSIONS.INVENTORY_VIEW },
+  { text: 'Daily Update', icon: <Assessment />, path: '/erp/inventory/daily', requiredPermission: PERMISSIONS.INVENTORY_DAILY },
+  { text: 'Adjustments', icon: <Inventory />, path: '/erp/inventory/adjustments', requiredPermission: PERMISSIONS.INVENTORY_ADJUST },
+  { text: 'Purchase Orders', icon: <Receipt />, path: '/erp/purchase', requiredPermission: PERMISSIONS.PURCHASE_MANAGE },
+  { text: 'Waste log', icon: <Warning />, path: '/erp/inventory/waste', requiredPermission: PERMISSIONS.INVENTORY_WASTE },
+  { text: 'Companies', icon: <Store />, path: '/erp/companies', requiredPermission: PERMISSIONS.COMPANIES_MANAGE },
+  { text: 'Staff & users', icon: <People />, path: '/erp/users', requiredPermission: PERMISSIONS.USERS_MANAGE },
+  { text: 'Settings', icon: <Settings />, path: '/erp/settings', requiredPermission: PERMISSIONS.SETTINGS_MANAGE },
 ];
 
 const DashboardLayout: React.FC = () => {
@@ -74,6 +82,8 @@ const DashboardLayout: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
   const { user, logout } = useAuthStore();
+  const clearTenant = useTenantStore((s) => s.clear);
+  const hasPermission = usePermissionsStore((s) => s.hasPermission);
   const { mode, toggleTheme } = useThemeContext();
   const navigate = useNavigate();
   const location = useLocation();
@@ -93,16 +103,9 @@ const DashboardLayout: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    const sessionId = useAuthStore.getState().sessionId;
-    if (sessionId) {
-      try {
-        await supabase.from('user_sessions').update({ logout_time: new Date().toISOString() }).eq('id', sessionId);
-      } catch (e) {
-        console.error('Failed to log logout time', e);
-      }
-    }
-    logout();
-    navigate(loginPath());
+    clearTenant();
+    await logout('manual');
+    navigate(loginPath(), { replace: true });
   };
 
   const handlePasswordChange = async () => {
@@ -137,21 +140,8 @@ const DashboardLayout: React.FC = () => {
       <Divider />
       <List sx={{ px: 2, pt: 2 }}>
         {menuItems.map((item) => {
-          // Role-Based Access Logic for Sidebar
           const role = user?.role;
-          if (item.text === 'Companies' && role !== 'Super Admin') return null;
-          
-          // Staff can only see Sales, Stock, and Waste
-          if (role === 'Staff') {
-            const staffAllowed = ['Dashboard', 'Point of Sale (POS)', 'Live Inventory', 'Daily Update', 'Adjustments', 'Wastage Log'];
-            if (!staffAllowed.includes(item.text)) return null;
-          }
-
-          // Outlet Managers can see Sales and Suppliers but NOT Recipes/Products
-          if (role === 'Outlet Owner') {
-            const outletAllowed = ['Dashboard', 'Point of Sale (POS)', 'Live Inventory', 'Daily Update', 'Adjustments', 'Purchase Orders', 'Wastage Log', 'Suppliers', 'Settings'];
-            if (!outletAllowed.includes(item.text)) return null;
-          }
+          if (!role || !hasPermission(role, item.requiredPermission)) return null;
 
           const isSelected = location.pathname.startsWith(item.path);
           return (

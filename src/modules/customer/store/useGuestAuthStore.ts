@@ -42,6 +42,18 @@ function displayNameFromEmail(email: string) {
     .trim();
 }
 
+function sameSessionContext(
+  a: GuestSessionContext | null | undefined,
+  b: GuestSessionContext | null | undefined
+) {
+  return (
+    (a?.outletId || null) === (b?.outletId || null) &&
+    (a?.tableId || null) === (b?.tableId || null) &&
+    (a?.tableNumber || null) === (b?.tableNumber || null) &&
+    (a?.companyId || null) === (b?.companyId || null)
+  );
+}
+
 async function publishPresence(
   guest: GuestUser,
   ctx: GuestSessionContext | null | undefined,
@@ -67,6 +79,19 @@ export const useGuestAuthStore = create<GuestAuthState>()(
         const guest = get().guest;
         const context = ctx || get().sessionContext;
         if (!guest || !context) return;
+        const currentSessionId = get().activeSessionId;
+
+        if (currentSessionId && sameSessionContext(get().sessionContext, context)) {
+          set({ sessionContext: context });
+          await touchGuestSession(currentSessionId);
+          return;
+        }
+
+        if (currentSessionId) {
+          await endGuestSession({ sessionId: currentSessionId, email: guest.email });
+          set({ activeSessionId: null });
+        }
+
         await publishPresence(guest, context, set);
         const sid = get().activeSessionId;
         if (sid) void touchGuestSession(sid);
@@ -99,6 +124,14 @@ export const useGuestAuthStore = create<GuestAuthState>()(
         } catch {
           /* auth optional */
         }
+
+        const guest = get().guest;
+        if (guest?.provider === 'google') {
+          await endGuestSession({ sessionId: get().activeSessionId, email: guest.email });
+          set({ guest: null, activeSessionId: null, lastError: null, isReady: true });
+          return;
+        }
+
         set({ isReady: true });
       },
 

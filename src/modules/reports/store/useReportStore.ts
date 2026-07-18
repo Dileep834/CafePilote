@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
 import dayjs from 'dayjs';
-import { isSuperAdmin } from '@/lib/access';
+import { canSwitchBranchesByRole, isSuperAdmin } from '@/lib/access';
+import { Role } from '@/constants';
 import { getScopedCompanyId, getOutletIdsForCompany } from '@/lib/tenantScope';
 import { getTenantOutletId } from '@/store/useTenantStore';
 
@@ -71,7 +72,7 @@ export const useReportStore = create<ReportState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       // Outlets scoped to active company (SA included — switch branch to change company)
-      if (isSuperAdmin(user) || user?.role === 'Admin' || user?.role === 'Outlet Owner') {
+      if (canSwitchBranchesByRole(user)) {
         let oq = supabase.from('outlets').select('id, name, company_id').order('name');
         if (companyId) oq = oq.eq('company_id', companyId);
         const { data: outletsData } = await oq;
@@ -116,7 +117,7 @@ export const useReportStore = create<ReportState>((set, get) => ({
         } else {
           query = query.eq('outlet_id', selectedOutletId);
         }
-      } else if (user?.outletId && user.role !== 'Super Admin' && user.role !== 'Admin') {
+      } else if (user?.outletId && user.role !== Role.SUPER_ADMIN && user.role !== Role.ADMIN) {
         query = query.eq('outlet_id', user.outletId);
       } else if (companyOutletIds.length > 0) {
         // Active company only (includes Super Admin on a branch)

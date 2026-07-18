@@ -12,7 +12,9 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useFeedback } from '../../hooks/useFeedback';
 import { FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 import { InventoryStatus } from '../../constants';
+import { PERMISSIONS } from '../../constants/permissions';
 import { getScopedCompanyId } from '../../lib/tenantScope';
+import { useHasPermission } from '../../hooks/useHasPermission';
 
 interface StockRow extends DailyInventory {
   productName: string;
@@ -109,6 +111,7 @@ function applyDraftToRows(rows: StockRow[], draft: DailyStockDraft): StockRow[] 
 
 const DailyStockUpdate: React.FC = () => {
   const { user } = useAuthStore();
+  const canSwitchBranches = useHasPermission(PERMISSIONS.BRANCH_SWITCH);
   const [rows, setRows] = useState<StockRow[]>([]);
   const [outlets, setOutlets] = useState<any[]>([]);
   const [selectedOutlet, setSelectedOutlet] = useState<string>('');
@@ -169,12 +172,12 @@ const DailyStockUpdate: React.FC = () => {
   }, [scheduleDraftSave]);
 
   useEffect(() => {
-    if (user?.role === 'Super Admin' || user?.role === 'Admin') {
+    if (canSwitchBranches) {
       fetchOutlets();
     } else if (user?.outletId) {
       setSelectedOutlet(user.outletId);
     }
-  }, [user]);
+  }, [canSwitchBranches, user]);
 
   useEffect(() => {
     if (selectedOutlet) {
@@ -406,7 +409,7 @@ const DailyStockUpdate: React.FC = () => {
         )}
 
         <Box sx={{ display: 'flex', flexWrap: 'nowrap', gap: 1.5, alignItems: 'center' }}>
-          {(user?.role === 'Super Admin' || user?.role === 'Admin') && (
+          {canSwitchBranches && (
             <FormControl
               size="small"
               sx={{ minWidth: 0, flex: '1 1 auto' }}
@@ -511,7 +514,7 @@ const DailyStockUpdate: React.FC = () => {
                   {category} <Chip label={catRows.length} size="small" sx={{ ml: 1 }} />
                 </Typography>
               </AccordionSummary>
-              <AccordionDetails sx={{ p: viewMode === 'card' ? 2 : 0 }}>
+              <AccordionDetails sx={{ p: viewMode === 'card' ? 2 : 0, overflow: 'visible' }}>
                 {viewMode === 'list' ? (
                   <StockTable
                     catRows={catRows}
@@ -624,8 +627,10 @@ const StockTable: React.FC<StockTableProps> = ({ catRows, onRowChange }) => {
     left: 0,
     zIndex: 2,
     fontWeight: 600,
-    minWidth: 150,
-    maxWidth: 220,
+    minWidth: 130,
+    maxWidth: 200,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
     boxShadow: isDark
       ? '3px 0 8px rgba(0,0,0,0.6)'
       : '3px 0 8px rgba(0,0,0,0.08)',
@@ -645,7 +650,7 @@ const StockTable: React.FC<StockTableProps> = ({ catRows, onRowChange }) => {
   };
 
   return (
-    <Box sx={{ width: '100%', overflowX: 'auto' }}>
+    <Box sx={{ width: '100%', overflowX: 'auto', overflowY: 'visible' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
         <thead>
           <tr style={{ backgroundColor: headerBg }}>

@@ -91,7 +91,7 @@ export function VoucherManagement() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-            <Ticket className="w-6 h-6 text-pink-500" />
+            <Ticket className="w-6 h-6 text-orange-500" />
             Offers & Vouchers
           </h1>
           <p className="text-slate-500 text-sm">Create and manage promotional codes for customers.</p>
@@ -112,7 +112,7 @@ export function VoucherManagement() {
           <input 
             type="text" 
             placeholder="Search promo codes..." 
-            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-colors"
+            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-colors"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -130,7 +130,7 @@ export function VoucherManagement() {
               <div className="p-5 border-b border-slate-100 flex justify-between items-start">
                 <div>
                   <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 font-mono font-bold text-slate-800 text-lg tracking-wider mb-2">
-                    <Tag className="w-4 h-4 text-pink-500" />
+                    <Tag className="w-4 h-4 text-orange-500" />
                     {voucher.code}
                   </div>
                   <div className="text-2xl font-black text-slate-900">
@@ -205,7 +205,7 @@ export function VoucherManagement() {
                   <input 
                     type="text" 
                     required
-                    className="w-full border-slate-200 rounded-lg focus:ring-pink-500 focus:border-pink-500 uppercase font-mono tracking-wider font-bold text-lg"
+                    className="w-full border-slate-200 rounded-lg focus:ring-orange-500 focus:border-orange-500 uppercase font-mono tracking-wider font-bold text-lg"
                     placeholder="e.g. SUMMER20"
                     value={formData.code}
                     onChange={e => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
@@ -215,7 +215,7 @@ export function VoucherManagement() {
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Discount Type</label>
                   <select 
-                    className="w-full border-slate-200 rounded-lg focus:ring-pink-500 focus:border-pink-500"
+                    className="w-full border-slate-200 rounded-lg focus:ring-orange-500 focus:border-orange-500"
                     value={formData.discount_type}
                     onChange={e => setFormData({ ...formData, discount_type: e.target.value as 'percentage' | 'fixed' })}
                   >
@@ -233,7 +233,7 @@ export function VoucherManagement() {
                     required
                     min="0"
                     step="0.01"
-                    className="w-full border-slate-200 rounded-lg focus:ring-pink-500 focus:border-pink-500"
+                    className="w-full border-slate-200 rounded-lg focus:ring-orange-500 focus:border-orange-500"
                     value={formData.discount_value}
                     onChange={e => setFormData({ ...formData, discount_value: e.target.value })}
                   />
@@ -246,7 +246,7 @@ export function VoucherManagement() {
                     min="0"
                     step="0.01"
                     placeholder="0.00"
-                    className="w-full border-slate-200 rounded-lg focus:ring-pink-500 focus:border-pink-500"
+                    className="w-full border-slate-200 rounded-lg focus:ring-orange-500 focus:border-orange-500"
                     value={formData.min_order_value}
                     onChange={e => setFormData({ ...formData, min_order_value: e.target.value })}
                   />
@@ -260,7 +260,7 @@ export function VoucherManagement() {
                       min="0"
                       step="0.01"
                       placeholder="Optional"
-                      className="w-full border-slate-200 rounded-lg focus:ring-pink-500 focus:border-pink-500"
+                      className="w-full border-slate-200 rounded-lg focus:ring-orange-500 focus:border-orange-500"
                       value={formData.max_discount_amount}
                       onChange={e => setFormData({ ...formData, max_discount_amount: e.target.value })}
                     />
@@ -273,7 +273,7 @@ export function VoucherManagement() {
                     type="number" 
                     min="1"
                     placeholder="Leave empty for unlimited"
-                    className="w-full border-slate-200 rounded-lg focus:ring-pink-500 focus:border-pink-500"
+                    className="w-full border-slate-200 rounded-lg focus:ring-orange-500 focus:border-orange-500"
                     value={formData.usage_limit}
                     onChange={e => setFormData({ ...formData, usage_limit: e.target.value })}
                   />
@@ -284,7 +284,7 @@ export function VoucherManagement() {
                   <input 
                     type="datetime-local" 
                     required
-                    className="w-full border-slate-200 rounded-lg focus:ring-pink-500 focus:border-pink-500"
+                    className="w-full border-slate-200 rounded-lg focus:ring-orange-500 focus:border-orange-500"
                     value={formData.start_date}
                     onChange={e => setFormData({ ...formData, start_date: e.target.value })}
                   />
@@ -294,7 +294,7 @@ export function VoucherManagement() {
                   <label className="block text-sm font-semibold text-slate-700 mb-1">End Date</label>
                   <input 
                     type="datetime-local" 
-                    className="w-full border-slate-200 rounded-lg focus:ring-pink-500 focus:border-pink-500"
+                    className="w-full border-slate-200 rounded-lg focus:ring-orange-500 focus:border-orange-500"
                     value={formData.end_date}
                     onChange={e => setFormData({ ...formData, end_date: e.target.value })}
                   />
@@ -304,7 +304,7 @@ export function VoucherManagement() {
                   <label className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors">
                     <input 
                       type="checkbox" 
-                      className="w-5 h-5 text-pink-500 rounded border-slate-300 focus:ring-pink-500"
+                      className="w-5 h-5 text-orange-500 rounded border-slate-300 focus:ring-orange-500"
                       checked={formData.is_active}
                       onChange={e => setFormData({ ...formData, is_active: e.target.checked })}
                     />

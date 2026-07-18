@@ -1,76 +1,104 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { RoleType } from '@/constants';
+import { APP_ROLES, Role, type RoleType } from '@/constants';
+import {
+  ALL_PERMISSION_IDS,
+  DEFAULT_ROLE_PERMISSIONS,
+  type PermissionId,
+} from '@/constants/permissions';
 
 export interface RolePermissions {
   roleName: RoleType;
-  permissions: string[];
+  permissions: PermissionId[];
 }
 
 interface PermissionsState {
   rolePermissions: RolePermissions[];
   
-  getPermissionsForRole: (role: RoleType) => string[];
-  hasPermission: (role: RoleType, permissionId: string) => boolean;
-  updateRolePermissions: (role: RoleType, permissions: string[]) => void;
+  getPermissionsForRole: (role: RoleType) => PermissionId[];
+  hasPermission: (role: RoleType, permissionId: PermissionId | string) => boolean;
+  updateRolePermissions: (role: RoleType, permissions: Array<PermissionId | string>) => void;
 }
 
-const DEFAULT_PERMISSIONS: RolePermissions[] = [
-  {
-    roleName: 'Super Admin',
-    permissions: ['pos.access', 'pos.checkout', 'pos.discount', 'inventory.view', 'inventory.adjust', 'purchase.manage', 'crm.manage', 'marketing.manage', 'reports.view', 'franchise.manage', 'settings.manage', 'users.manage']
-  },
-  {
-    roleName: 'Admin',
-    permissions: ['pos.access', 'pos.checkout', 'pos.discount', 'inventory.view', 'inventory.adjust', 'purchase.manage', 'crm.manage', 'marketing.manage', 'reports.view', 'users.manage']
-  },
-  {
-    roleName: 'Outlet Owner',
-    permissions: ['pos.access', 'pos.checkout', 'pos.discount', 'inventory.view', 'inventory.adjust', 'purchase.manage', 'crm.manage', 'marketing.manage', 'reports.view']
-  },
-  {
-    roleName: 'Staff',
-    permissions: ['pos.access', 'pos.checkout', 'crm.manage', 'kitchen.access']
-  }
-];
+const knownPermissions = new Set<string>(ALL_PERMISSION_IDS);
+
+function normalizePermissionIds(permissions: Array<PermissionId | string> = []): PermissionId[] {
+  return Array.from(
+    new Set(permissions.filter((permission) => knownPermissions.has(permission)))
+  ) as PermissionId[];
+}
+
+function createDefaultRolePermissions(): RolePermissions[] {
+  return APP_ROLES.map((role) => ({
+    roleName: role,
+    permissions: [...(DEFAULT_ROLE_PERMISSIONS[role] || [])],
+  }));
+}
+
+function normalizeRolePermissions(
+  rolePermissions: RolePermissions[] = [],
+  mergeWithDefaults = false
+): RolePermissions[] {
+  return APP_ROLES.map((role) => {
+    const saved = rolePermissions.find((entry) => entry.roleName === role);
+    const defaultPermissions = DEFAULT_ROLE_PERMISSIONS[role] || [];
+    const permissions = mergeWithDefaults
+      ? [...defaultPermissions, ...(saved?.permissions || [])]
+      : saved?.permissions || defaultPermissions;
+
+    return {
+      roleName: role,
+      permissions: normalizePermissionIds(permissions),
+    };
+  });
+}
 
 export const usePermissionsStore = create<PermissionsState>()(
   persist(
     (set, get) => ({
-      rolePermissions: DEFAULT_PERMISSIONS,
+      rolePermissions: createDefaultRolePermissions(),
 
       getPermissionsForRole: (role) => {
         const rp = get().rolePermissions.find(r => r.roleName === role);
-        return rp ? rp.permissions : [];
+        return rp ? normalizePermissionIds(rp.permissions) : [...(DEFAULT_ROLE_PERMISSIONS[role] || [])];
       },
 
       hasPermission: (role, permissionId) => {
         // Super Admins automatically have all permissions to prevent lockout
-        if (role === 'Super Admin') return true;
+        if (role === Role.SUPER_ADMIN) return true;
         
         const perms = get().getPermissionsForRole(role);
-        return perms.includes(permissionId);
+        return perms.includes(permissionId as PermissionId);
       },
 
       updateRolePermissions: (role, permissions) => {
+        const normalizedPermissions = normalizePermissionIds(permissions);
         set((state) => {
           const exists = state.rolePermissions.find(r => r.roleName === role);
           if (exists) {
             return {
               rolePermissions: state.rolePermissions.map(r => 
-                r.roleName === role ? { ...r, permissions } : r
+                r.roleName === role ? { ...r, permissions: normalizedPermissions } : r
               )
             };
           } else {
             return {
-              rolePermissions: [...state.rolePermissions, { roleName: role, permissions }]
+              rolePermissions: [...state.rolePermissions, { roleName: role, permissions: normalizedPermissions }]
             };
           }
         });
       }
     }),
     {
-      name: 'cafepilot-permissions-store'
+      name: 'cafepilot-permissions-store',
+      version: 2,
+      migrate: (persistedState) => {
+        const state = persistedState as Partial<PermissionsState> | undefined;
+        return {
+          ...state,
+          rolePermissions: normalizeRolePermissions(state?.rolePermissions, true),
+        };
+      },
     }
   )
 );

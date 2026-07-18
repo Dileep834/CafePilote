@@ -3,10 +3,10 @@ import { Box, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActi
 import { Add, Edit, Delete } from '@mui/icons-material';
 import type { GridColDef } from '@mui/x-data-grid';
 import DataTable from '../../components/DataTable';
-import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { getScopedCompanyId } from '../../lib/tenantScope';
+import { isSuperAdmin } from '../../lib/access';
 
 const Recipes: React.FC = () => {
   const { user } = useAuthStore();
@@ -59,7 +59,7 @@ const Recipes: React.FC = () => {
             raw_material:products!recipe_ingredients_raw_material_id_fkey(name, unit)
           )
         `);
-      if (user?.role !== 'Super Admin' && user?.companyId) {
+      if (!isSuperAdmin(user) && user?.companyId) {
         query = query.eq('company_id', user.companyId);
       }
 

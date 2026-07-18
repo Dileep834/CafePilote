@@ -43,7 +43,7 @@ export function POSToolRail({
   return (
     <div
       className={cn(
-        'flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0',
+        'flex items-center gap-2 shrink-0',
         className
       )}
     >
@@ -59,7 +59,7 @@ export function POSToolRail({
                 type="button"
                 onClick={() => onViewChange(id)}
                 className={cn(
-                  'relative inline-flex items-center gap-1.5 h-9 px-3 sm:px-3.5 rounded-xl text-xs sm:text-sm font-bold transition-colors whitespace-nowrap',
+                  'relative inline-flex items-center gap-1.5 h-9 px-2.5 sm:px-3.5 rounded-xl text-xs sm:text-sm font-bold transition-colors whitespace-nowrap',
                   active ? 'text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
                 )}
                 style={active ? { backgroundColor: BRAND.orange } : undefined}

@@ -20,13 +20,13 @@ export function ERPMasterLayout() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex flex-1 flex-col overflow-hidden w-full">
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0 w-full">
         <Header
           isSidebarOpen={isSidebarOpen}
           onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         />
         
-        <main className="flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-6 lg:p-8">
+        <main className="relative flex flex-col flex-1 overflow-y-auto min-w-0 bg-slate-50 p-4 sm:p-6 lg:p-8">
           {/* Outlet renders the matched child route component */}
           <Outlet />
         </main>

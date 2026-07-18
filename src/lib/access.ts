@@ -1,5 +1,5 @@
 import type { User } from '@/types';
-import { Role } from '@/constants';
+import { BRANCH_SWITCH_ROLES, Role } from '@/constants';
 
 /** Platform owner — full app management access */
 export function isSuperAdmin(user?: User | null): boolean {
@@ -9,6 +9,11 @@ export function isSuperAdmin(user?: User | null): boolean {
 /** Super Admin or tenant Admin */
 export function isPlatformAdmin(user?: User | null): boolean {
   return isSuperAdmin(user) || user?.role === Role.ADMIN || user?.role === 'Admin';
+}
+
+/** Roles trusted to operate across outlets within the current company */
+export function canSwitchBranchesByRole(user?: User | null): boolean {
+  return Boolean(user?.role && BRANCH_SWITCH_ROLES.includes(user.role));
 }
 
 /**

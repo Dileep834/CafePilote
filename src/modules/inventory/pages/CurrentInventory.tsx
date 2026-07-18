@@ -28,13 +28,13 @@ const fetchInventory = async (companyId?: string): Promise<InventoryItem[]> => {
     .select('id, code, name, unit, min_stock, item_type, categories(name)')
     .eq('is_active', true)
     .order('name');
-    
+
   if (productsError) throw productsError;
 
   // 2. Fetch Live Inventory
   let invQuery = supabase.from('inventory').select('product_id, current_quantity');
   // Add company/franchise filter here in the future if inventory table has company_id
-  
+
   const { data: invData, error: invError } = await invQuery;
   if (invError) throw invError;
 
@@ -73,7 +73,7 @@ export function CurrentInventory() {
   });
 
   const filteredInventory = inventory?.filter(item => {
-    const matchesSearch = item.productName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    const matchesSearch = item.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.productCode.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = typeFilter === 'all' || item.item_type === typeFilter;
     return matchesSearch && matchesType;
@@ -97,31 +97,31 @@ export function CurrentInventory() {
           <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
             <div className="relative w-full sm:w-96">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <Input 
-                placeholder="Search products by name or code..." 
+              <Input
+                placeholder="Search products by name or code..."
                 className="pl-9 bg-white"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            
+
             <div className="flex gap-2 w-full sm:w-auto">
-              <Button 
-                variant={typeFilter === 'all' ? 'default' : 'outline'} 
+              <Button
+                variant={typeFilter === 'all' ? 'default' : 'outline'}
                 onClick={() => setTypeFilter('all')}
                 className="flex-1 sm:flex-none"
               >
                 All Items
               </Button>
-              <Button 
-                variant={typeFilter === 'raw_material' ? 'default' : 'outline'} 
+              <Button
+                variant={typeFilter === 'raw_material' ? 'default' : 'outline'}
                 onClick={() => setTypeFilter('raw_material')}
                 className="flex-1 sm:flex-none"
               >
                 Raw Materials
               </Button>
-              <Button 
-                variant={typeFilter === 'ready_product' ? 'default' : 'outline'} 
+              <Button
+                variant={typeFilter === 'ready_product' ? 'default' : 'outline'}
                 onClick={() => setTypeFilter('ready_product')}
                 className="flex-1 sm:flex-none"
               >
@@ -131,70 +131,126 @@ export function CurrentInventory() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-slate-50 hover:bg-slate-50">
-                  <TableHead className="w-[100px]">Code</TableHead>
-                  <TableHead>Product Name</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead className="text-right">Current Stock</TableHead>
-                  <TableHead className="text-right">Min Stock</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center text-slate-500">
-                      Loading inventory data...
-                    </TableCell>
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50 hover:bg-slate-50">
+                    <TableHead className="w-[100px]">Code</TableHead>
+                    <TableHead className="sticky left-0 bg-slate-50 z-10 font-bold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-100">Product Name</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead className="text-right">Current Stock</TableHead>
+                    <TableHead className="text-right">Min Stock</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
-                ) : filteredInventory?.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center text-slate-500">
-                      No inventory items found matching your filters.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredInventory?.map((item) => (
-                    <TableRow key={item.id} className="hover:bg-slate-50/50">
-                      <TableCell className="font-medium text-slate-600">{item.productCode}</TableCell>
-                      <TableCell className="font-semibold text-slate-900">{item.productName}</TableCell>
-                      <TableCell>
-                        <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-800">
-                          {item.category}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
-                          {item.item_type === 'ready_product' ? 'Ready' : 'Raw'}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {item.quantity} <span className="text-slate-400 text-xs ml-1">{item.unit}</span>
-                      </TableCell>
-                      <TableCell className="text-right text-slate-500">
-                        {item.minStock} <span className="text-slate-400 text-xs ml-1">{item.unit}</span>
-                      </TableCell>
-                      <TableCell>
-                        {item.status === 'Optimal' ? (
-                          <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
-                            Optimal
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/10">
-                            Low Stock
-                          </span>
-                        )}
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-24 text-center text-slate-500">
+                        Loading inventory data...
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                  ) : filteredInventory?.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-24 text-center text-slate-500">
+                        No inventory items found matching your filters.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredInventory?.map((item) => (
+                      <TableRow key={item.id} className="hover:bg-slate-50/50">
+                        <TableCell className="font-medium text-slate-600">{item.productCode}</TableCell>
+                        <TableCell className="sticky left-0 bg-white z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] font-bold text-slate-900 border-r border-slate-100">{item.productName}</TableCell>
+                        <TableCell>
+                          <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-800">
+                            {item.category}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
+                            {item.item_type === 'ready_product' ? 'Ready' : 'Raw'}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-slate-900">
+                          {item.quantity} <span className="text-slate-400 text-xs ml-1 font-normal">{item.unit}</span>
+                        </TableCell>
+                        <TableCell className="text-right text-slate-500">
+                          {item.minStock} <span className="text-slate-400 text-xs ml-1">{item.unit}</span>
+                        </TableCell>
+                        <TableCell>
+                          {item.status === 'Optimal' ? (
+                            <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
+                              Optimal
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/10">
+                              Low Stock
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden flex flex-col divide-y divide-slate-100">
+              {isLoading ? (
+                <div className="p-8 text-center text-slate-500 text-sm">Loading inventory data...</div>
+              ) : filteredInventory?.length === 0 ? (
+                <div className="p-8 text-center text-slate-500 text-sm">No inventory items found.</div>
+              ) : (
+                filteredInventory?.map((item) => (
+                  <div key={item.id} className="p-4 bg-white hover:bg-slate-50 transition-colors">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <div className="font-bold text-slate-900 text-base">{item.productName}</div>
+                        <div className="text-xs font-mono text-slate-500 mt-0.5">{item.productCode}</div>
+                      </div>
+                      {item.status === 'Optimal' ? (
+                        <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-bold text-green-700 ring-1 ring-inset ring-green-600/20 uppercase tracking-wider">
+                          Optimal
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700 ring-1 ring-inset ring-red-600/10 uppercase tracking-wider">
+                          Low Stock
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                        {item.category}
+                      </span>
+                      <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 uppercase">
+                        {item.item_type === 'ready_product' ? 'Ready' : 'Raw'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between bg-slate-50 rounded-lg p-3 border border-slate-100">
+                      <div>
+                        <div className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Current Stock</div>
+                        <div className="font-black text-slate-900 text-lg">
+                          {item.quantity} <span className="text-sm text-slate-500 font-medium">{item.unit}</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Min Stock</div>
+                        <div className="font-bold text-slate-700 text-sm">
+                          {item.minStock} <span className="text-xs text-slate-400 font-medium">{item.unit}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </>
         </CardContent>
       </Card>
     </div>
