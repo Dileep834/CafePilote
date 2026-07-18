@@ -68,7 +68,7 @@ export type InventoryStatusType = typeof InventoryStatus[keyof typeof InventoryS
 
 /** Official product brand: always "CafePilots" (with an s). */
 export const APP_NAME = 'CafePilots';
-export const APP_TAGLINE = 'Run Every Cafe Smarter.';
+export const APP_TAGLINE = 'Run Every Food Business Smarter.';
 export const APP_DOMAIN = 'cafepilots.com';
 
 /**

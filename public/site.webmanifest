@@ -1,7 +1,7 @@
 {
   "name": "CafePilots",
   "short_name": "CafePilots",
-  "description": "Smart cafe management software for POS, QR ordering, inventory, CRM, and multi-branch operations.",
+  "description": "Complete restaurant operating system for POS billing, QR ordering, KDS, inventory, CRM, staff access, and multi-branch reports.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0D1B2A",

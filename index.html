@@ -10,7 +10,11 @@
     <meta name="author" content="CafePilots" />
     <meta
       name="description"
-      content="CafePilots is a smart cafe management platform for POS billing, QR ordering, kitchen display, inventory, CRM, reports, and multi-branch operations."
+      content="CafePilots is a complete restaurant operating system for cafes, restaurants, pubs, bars, bakeries, QSRs, cloud kitchens and multi-outlet food businesses: POS billing, QR ordering, KDS, inventory, CRM and reports."
+    />
+    <meta
+      name="keywords"
+      content="restaurant POS software, restaurant operating system, cafe POS software, pub management software, bar POS software, QR ordering system, kitchen display system, KDS software, restaurant inventory software, cloud kitchen management software, QSR POS, bakery POS, multi outlet restaurant software"
     />
 
     <link rel="canonical" href="https://cafepilots.com/" />
@@ -24,46 +28,107 @@
     <meta property="og:site_name" content="CafePilots" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://cafepilots.com/" />
-    <meta property="og:title" content="CafePilots - Cafe POS, QR Ordering, Inventory and CRM" />
+    <meta property="og:title" content="CafePilots - Restaurant POS, QR Ordering, KDS and Inventory OS" />
     <meta
       property="og:description"
-      content="Run cafe POS, QR ordering, kitchen display, table management, inventory, CRM, and reports from one smart platform."
+      content="Run restaurant POS, QR ordering, kitchen display, tables, floor plans, inventory, CRM, staff roles, and multi-branch reports from one complete F&B operating system."
     />
-    <meta
-      property="og:image"
-      content="https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=1200&h=630"
-    />
+    <meta property="og:image" content="https://cafepilots.com/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="CafePilots - Run Every Cafe Smarter" />
+    <meta name="twitter:title" content="CafePilots - Complete Restaurant Operating System" />
     <meta
       name="twitter:description"
-      content="Smart cafe management software for POS, QR ordering, inventory, CRM, and multi-branch operations."
+      content="POS, QR ordering, KDS, inventory, CRM, staff roles, and multi-outlet reports for cafes, restaurants, pubs, bars, QSRs, bakeries, and cloud kitchens."
     />
-    <meta
-      name="twitter:image"
-      content="https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=1200&h=630"
-    />
+    <meta name="twitter:image" content="https://cafepilots.com/og.png" />
 
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "CafePilots",
-        "applicationCategory": "BusinessApplication",
-        "operatingSystem": "Web",
-        "url": "https://cafepilots.com/",
-        "description": "CafePilots is a smart cafe management platform for POS billing, QR ordering, kitchen display, inventory, CRM, reports, and multi-branch operations.",
-        "publisher": {
-          "@type": "Organization",
-          "name": "CafePilots",
-          "url": "https://cafepilots.com/",
-          "email": "singhdileep834@gmail.com",
-          "logo": "https://cafepilots.com/favicon.svg"
-        }
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://cafepilots.com/#organization",
+            "name": "CafePilots",
+            "url": "https://cafepilots.com/",
+            "email": "singhdileep834@gmail.com",
+            "logo": "https://cafepilots.com/favicon.svg"
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://cafepilots.com/#website",
+            "name": "CafePilots",
+            "url": "https://cafepilots.com/",
+            "publisher": {
+              "@id": "https://cafepilots.com/#organization"
+            },
+            "inLanguage": "en"
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://cafepilots.com/#software",
+            "name": "CafePilots",
+            "applicationCategory": "BusinessApplication",
+            "applicationSubCategory": "Restaurant management software",
+            "operatingSystem": "Web",
+            "url": "https://cafepilots.com/",
+            "description": "CafePilots is a complete restaurant operating system for cafes, restaurants, pubs, bars, bakeries, QSRs, cloud kitchens and multi-outlet food businesses.",
+            "keywords": "restaurant POS software, cafe POS, pub management software, bar POS, QR ordering, kitchen display system, restaurant inventory, QSR POS, cloud kitchen management",
+            "featureList": [
+              "Restaurant POS billing",
+              "QR table ordering",
+              "Kitchen display system",
+              "Floor and table management",
+              "Inventory, recipes, waste and purchase orders",
+              "Customer CRM and vouchers",
+              "Role-based staff access",
+              "Multi-branch reporting"
+            ],
+            "audience": {
+              "@type": "BusinessAudience",
+              "audienceType": "Restaurants, cafes, pubs, bars, bakeries, QSRs, cloud kitchens and multi-outlet food businesses"
+            },
+            "publisher": {
+              "@id": "https://cafepilots.com/#organization"
+            }
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "https://cafepilots.com/#faq",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Is CafePilots only for cafes?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. CafePilots is built as a complete operating system for restaurants, cafes, pubs, bars, bakeries, QSR outlets, cloud kitchens, food courts, and multi-outlet food businesses."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What restaurant operations does CafePilots manage?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "CafePilots covers POS billing, QR table ordering, kitchen display system, floor and table management, inventory, recipes, purchase orders, waste logs, CRM, vouchers, staff roles, session management, and reports."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Can normal staff see only the tools they need?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. Role-based access keeps cashier, kitchen, inventory, manager, accountant, owner, and admin screens focused so staff are not confused by unrelated options."
+                }
+              }
+            ]
+          }
+        ]
       }
     </script>
 
-    <title>CafePilots - Cafe POS, QR Ordering, Inventory and CRM</title>
+    <title>CafePilots - Restaurant POS, QR Ordering, KDS and Inventory OS</title>
   </head>
   <body>
     <div id="root"></div>

@@ -20,45 +20,75 @@ import {
 } from 'lucide-react';
 
 const CONTACT_EMAIL = 'singhdileep834@gmail.com';
+const SEO_TITLE = `${APP_NAME} - Restaurant POS, QR Ordering, KDS and Inventory OS`;
+const SEO_DESCRIPTION =
+  'CafePilots is a complete restaurant operating system for cafes, restaurants, pubs, bars, bakeries, QSRs, cloud kitchens and multi-outlet food businesses: POS billing, QR ordering, KDS, inventory, CRM and reports.';
 const HERO_IMAGE =
   'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=2400';
 
 const PRODUCT_AREAS = [
   {
     icon: MonitorSmartphone,
-    label: 'POS',
-    title: 'Fast counter and table billing',
-    body: 'Favorites, held bills, checkout, and order flow designed for busy service hours.',
+    label: 'Restaurant POS',
+    title: 'Fast counter, table, bar, and takeaway billing',
+    body: 'Favorites, held bills, checkout, and order flow designed for busy restaurants, cafes, pubs, and QSR counters.',
   },
   {
     icon: QrCode,
-    label: 'QR',
-    title: 'Guest ordering from the table',
-    body: 'Customers scan, sign in, browse the menu, and send orders without waiting for staff.',
+    label: 'QR ordering',
+    title: 'Guest ordering from tables and rooms',
+    body: 'Customers scan, sign in, browse the digital menu, and send orders without waiting for floor staff.',
   },
   {
     icon: ChefHat,
     label: 'KDS',
-    title: 'Kitchen tickets stay organized',
-    body: 'Live kitchen status helps the counter, floor, and kitchen move as one team.',
+    title: 'Kitchen, bar, and pickup queues stay organized',
+    body: 'Live order status helps the counter, service floor, kitchen, and bar move as one team.',
   },
   {
     icon: Package,
-    label: 'Stock',
-    title: 'Inventory without daily guesswork',
-    body: 'Daily stock updates, adjustments, waste, suppliers, and purchase orders per branch.',
+    label: 'Inventory',
+    title: 'Inventory, recipes, waste, and purchasing',
+    body: 'Track daily stock, adjustments, waste, suppliers, recipes, and purchase orders per outlet.',
   },
   {
     icon: Users,
     label: 'CRM',
-    title: 'Guest and customer memory',
-    body: 'Track customers, live table guests, and repeat visits across the business.',
+    title: 'Guest CRM, repeat visits, and offers',
+    body: 'Track customers, live table guests, vouchers, repeat visits, and relationships across the business.',
   },
   {
     icon: BarChart3,
     label: 'Reports',
-    title: 'Owner-ready business views',
-    body: 'Branch filters and order history show what is selling and where attention is needed.',
+    title: 'Owner-ready reporting for every outlet',
+    body: 'Branch filters and order history show what is selling, where stock is moving, and where attention is needed.',
+  },
+] as const;
+
+const BUSINESS_TYPES = [
+  {
+    name: 'Restaurants',
+    body: 'Table service, dine-in billing, kitchen tickets, floor plans, reservations, and outlet reports.',
+  },
+  {
+    name: 'Cafes and bakeries',
+    body: 'Fast billing, product photos, QR menus, daily stock, recipes, offers, and guest CRM.',
+  },
+  {
+    name: 'Pubs and bars',
+    body: 'Open checks, table tabs, bar queues, stock watch, settlement, and role-aware staff screens.',
+  },
+  {
+    name: 'QSR and food courts',
+    body: 'High-speed counters, order queues, pickup status, menu filters, and branch-wise control.',
+  },
+  {
+    name: 'Cloud kitchens',
+    body: 'Kitchen display, order fulfilment, inventory, purchase orders, waste logs, and reports.',
+  },
+  {
+    name: 'Multi-outlet brands',
+    body: 'Company isolation, branch switching, staff permissions, outlet setup, and consolidated reporting.',
   },
 ] as const;
 
@@ -112,7 +142,26 @@ const TRUST_POINTS = [
   'Company-wise data isolation',
   'Role-based staff access',
   'Branch switching for owners',
-  'Google-ready public landing page',
+  'Restaurant, cafe, pub, and QSR workflows',
+  'SEO-ready public landing page',
+] as const;
+
+const FAQS = [
+  {
+    question: 'Is CafePilots only for cafes?',
+    answer:
+      'No. CafePilots is built as a complete operating system for restaurants, cafes, pubs, bars, bakeries, QSR outlets, cloud kitchens, food courts, and multi-outlet food businesses.',
+  },
+  {
+    question: 'What restaurant operations does CafePilots manage?',
+    answer:
+      'CafePilots covers POS billing, QR table ordering, kitchen display system, floor and table management, inventory, recipes, purchase orders, waste logs, CRM, vouchers, staff roles, session management, and reports.',
+  },
+  {
+    question: 'Can normal staff see only the tools they need?',
+    answer:
+      'Yes. Role-based access keeps cashier, kitchen, inventory, manager, accountant, owner, and admin screens focused so staff are not confused by unrelated options.',
+  },
 ] as const;
 
 function scrollToId(id: string) {
@@ -144,23 +193,21 @@ export default function LandingPage() {
   const appHref = loginPath();
   const [heroReady, setHeroReady] = useState(false);
   const mailHref = useMemo(() => {
-    const subject = encodeURIComponent('CafePilots enquiry');
+    const subject = encodeURIComponent('CafePilots restaurant OS enquiry');
     return `mailto:${CONTACT_EMAIL}?subject=${subject}`;
   }, []);
 
   useEffect(() => {
-    document.title = `${APP_NAME} - Cafe POS, QR Ordering, Inventory and CRM`;
-    const description =
-      'CafePilots is a smart cafe management platform for POS billing, QR ordering, kitchen display, inventory, CRM, reports, and multi-branch operations.';
+    document.title = SEO_TITLE;
     const meta = document.querySelector('meta[name="description"]');
-    if (meta) meta.setAttribute('content', description);
+    if (meta) meta.setAttribute('content', SEO_DESCRIPTION);
 
     const timer = window.setTimeout(() => setHeroReady(true), 60);
     return () => window.clearTimeout(timer);
   }, []);
 
   return (
-    <div className="min-h-screen bg-white text-slate-950 font-sans antialiased">
+    <div className="min-h-screen overflow-x-hidden bg-white text-slate-950 font-sans antialiased">
       <header className="relative isolate overflow-hidden bg-brand-navy text-white">
         <div
           className={cn(
@@ -199,7 +246,7 @@ export default function LandingPage() {
           >
             <p className="inline-flex items-center gap-2 rounded-md border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-normal text-brand-orange-light backdrop-blur">
               <Sparkles className="h-3.5 w-3.5" />
-              Smart cafe operating system
+              Complete restaurant operating system
             </p>
             <h1 className="mt-5 max-w-3xl text-5xl font-extrabold leading-[1.02] text-white sm:text-6xl lg:text-7xl">
               {APP_NAME}
@@ -208,8 +255,9 @@ export default function LandingPage() {
               {APP_TAGLINE}
             </p>
             <p className="mt-5 max-w-2xl text-base leading-7 text-white/78 sm:text-lg">
-              One clean platform for POS billing, QR ordering, kitchen display, table management,
-              stock control, CRM, and branch-wise reporting.
+              One powerful F&B platform for restaurants, cafes, pubs, bars, bakeries, QSR outlets,
+              food courts, and cloud kitchens: POS billing, QR ordering, KDS, tables, floor plans,
+              inventory, CRM, staff roles, and multi-branch reports.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link
@@ -278,8 +326,8 @@ export default function LandingPage() {
       <section className="border-b border-slate-200 bg-slate-50 px-5 py-5 sm:px-8 lg:px-12">
         <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[1fr_420px] lg:items-center">
           <p className="text-sm font-semibold uppercase tracking-normal text-slate-500">
-            Built for cafe owners, outlet managers, counter teams, kitchen staff, and inventory
-            teams working from one shared truth.
+            Built for restaurant owners, cafe founders, pub operators, outlet managers, counter
+            teams, kitchen staff, bar teams, and inventory teams working from one shared truth.
           </p>
           <MetricStrip />
         </div>
@@ -290,14 +338,15 @@ export default function LandingPage() {
           <div className="mx-auto max-w-7xl">
             <div className="max-w-3xl">
               <p className="text-sm font-bold uppercase tracking-normal text-brand-orange">
-                Complete control
+                Complete F&B control
               </p>
               <h2 className="mt-3 text-3xl font-extrabold tracking-normal text-slate-950 sm:text-5xl">
-                Run service, stock, staff, and guests from one place.
+                Restaurant POS, QR ordering, kitchen, stock, staff, and guests in one OS.
               </h2>
               <p className="mt-4 text-base leading-7 text-slate-600 sm:text-lg">
                 CafePilots keeps day-to-day operations simple for staff while giving owners a clean
-                view of every branch.
+                operating view across dine-in, takeaway, delivery, bar service, stock movement, and
+                every branch.
               </p>
             </div>
 
@@ -321,6 +370,38 @@ export default function LandingPage() {
           </div>
         </section>
 
+        <section className="border-y border-slate-200 bg-white px-5 py-20 sm:px-8 lg:px-12">
+          <div className="mx-auto max-w-7xl">
+            <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-end">
+              <div>
+                <p className="text-sm font-bold uppercase tracking-normal text-brand-orange">
+                  Built beyond cafes
+                </p>
+                <h2 className="mt-3 text-3xl font-extrabold tracking-normal text-slate-950 sm:text-5xl">
+                  A food-business OS for every service style.
+                </h2>
+              </div>
+              <p className="text-base leading-7 text-slate-600 sm:text-lg">
+                Whether the business is a premium restaurant, busy cafe, pub, bar, bakery, fast-food
+                counter, cloud kitchen, or multi-outlet brand, CafePilots brings sales, service,
+                stock, guests, staff, and reporting into one operating system.
+              </p>
+            </div>
+
+            <div className="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {BUSINESS_TYPES.map((business) => (
+                <article
+                  key={business.name}
+                  className="rounded-lg border border-slate-200 bg-slate-50 p-6"
+                >
+                  <h3 className="text-lg font-extrabold text-slate-950">{business.name}</h3>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">{business.body}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section id="product-screens" className="bg-slate-50 px-5 py-20 sm:px-8 lg:px-12">
           <div className="mx-auto max-w-7xl">
             <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-end">
@@ -328,14 +409,14 @@ export default function LandingPage() {
                 <p className="text-sm font-bold uppercase tracking-normal text-brand-orange">
                   Product screens
                 </p>
-                <h2 className="mt-3 text-3xl font-extrabold tracking-normal text-slate-950 sm:text-5xl">
-                  See the real CafePilots workflow before your team signs in.
-                </h2>
+              <h2 className="mt-3 text-3xl font-extrabold tracking-normal text-slate-950 sm:text-5xl">
+                See the real CafePilots workflow before your team signs in.
+              </h2>
               </div>
               <p className="text-base leading-7 text-slate-600 sm:text-lg">
-                These are live product views from the CafePilots ERP: dashboard, POS, checkout,
-                kitchen display, floor planning, and branch setup. The sales page now shows the
-                product workflow clearly for buyers and staff reviewers.
+                These are live product views from the CafePilots restaurant OS: dashboard, POS,
+                checkout, kitchen display, floor planning, and branch setup. Buyers can see the
+                real operating workflow instead of generic software mockups.
               </p>
             </div>
 
@@ -386,8 +467,9 @@ export default function LandingPage() {
                 From setup to service to insight.
               </h2>
               <p className="mt-4 text-base leading-7 text-white/68">
-                The system follows how a cafe actually runs: branches, menus, staff, tables, orders,
-                kitchen, inventory, reports.
+                The system follows how restaurants, cafes, pubs, bars, QSR counters, and cloud
+                kitchens actually run: branches, menus, staff, tables, orders, kitchen, inventory,
+                CRM, and reports.
               </p>
             </div>
 
@@ -421,8 +503,8 @@ export default function LandingPage() {
               </h2>
               <p className="mt-4 text-base leading-7 text-slate-600">
                 Super Admins can manage the platform. Admins and owners can manage their business.
-                Cashiers, kitchen, and inventory teams get focused screens without confusing admin
-                options.
+                Cashiers, kitchen staff, bar teams, inventory users, accountants, and managers get
+                focused screens without confusing admin options.
               </p>
             </div>
 
@@ -448,7 +530,7 @@ export default function LandingPage() {
                 </div>
               </div>
               <div className="mt-6 grid grid-cols-2 gap-3 text-sm">
-                {['POS', 'KDS', 'QR menu', 'Inventory', 'CRM', 'Reports'].map((item) => (
+                {['Restaurant POS', 'KDS', 'QR menu', 'Inventory', 'CRM', 'Reports'].map((item) => (
                   <div key={item} className="rounded-md bg-slate-50 px-3 py-2 font-semibold text-slate-700">
                     {item}
                   </div>
@@ -461,11 +543,11 @@ export default function LandingPage() {
                 Contact
               </p>
               <h2 className="mt-3 text-3xl font-extrabold tracking-normal text-slate-950 sm:text-5xl">
-                Want CafePilots for your cafe?
+                Want CafePilots for your restaurant, cafe, pub, or cloud kitchen?
               </h2>
               <p className="mt-4 text-base leading-7 text-slate-600">
-                Share your outlet count, current billing setup, and what you want to improve first.
-                We will help you plan the cleanest setup.
+                Share your outlet count, current billing setup, service style, and what you want to
+                improve first. We will help you plan the cleanest setup for your food business.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <a
@@ -487,6 +569,28 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+
+        <section className="px-5 py-20 sm:px-8 lg:px-12">
+          <div className="mx-auto max-w-7xl">
+            <div className="max-w-3xl">
+              <p className="text-sm font-bold uppercase tracking-normal text-brand-orange">
+                Restaurant OS FAQ
+              </p>
+              <h2 className="mt-3 text-3xl font-extrabold tracking-normal text-slate-950 sm:text-5xl">
+                Clear answers for operators comparing POS and restaurant management software.
+              </h2>
+            </div>
+
+            <div className="mt-10 grid gap-4 lg:grid-cols-3">
+              {FAQS.map((item) => (
+                <article key={item.question} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                  <h3 className="text-lg font-extrabold text-slate-950">{item.question}</h3>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">{item.answer}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
       </main>
 
       <footer className="border-t border-slate-200 bg-white px-5 py-10 sm:px-8 lg:px-12">
@@ -494,8 +598,8 @@ export default function LandingPage() {
           <div>
             <CafePilotsLogo size={34} withWordmark withDivider />
             <p className="mt-3 max-w-md text-sm text-slate-500">
-              Cafe management software for POS, QR ordering, inventory, CRM, and multi-branch
-              reporting.
+              Restaurant operating system for POS, QR ordering, kitchen display, inventory, CRM,
+              staff access, and multi-branch reporting.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-4 text-sm font-semibold text-slate-600">
@@ -511,7 +615,7 @@ export default function LandingPage() {
           </div>
         </div>
         <p className="mx-auto mt-8 max-w-7xl text-xs text-slate-400">
-          Copyright {new Date().getFullYear()} {APP_NAME}. Built for smart cafe operations on {APP_DOMAIN}.
+          Copyright {new Date().getFullYear()} {APP_NAME}. Built for smart restaurant and food-business operations on {APP_DOMAIN}.
         </p>
       </footer>
     </div>
