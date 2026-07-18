@@ -6,8 +6,11 @@ import { getPlanLimits } from '@/lib/planLimits';
 import { BRAND } from '@/constants';
 import { Store, Plus, MapPin, Hash, CheckCircle2, XCircle, Building2 } from 'lucide-react';
 import dayjs from 'dayjs';
+import { OutletFloorPlanMapper } from '@/modules/floordesigner/components/OutletFloorPlanMapper';
+import { useNavigate } from 'react-router-dom';
 
 export function FranchiseManagement() {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const { outlets, isLoading, error, fetchOutlets, addOutlet, toggleOutletStatus } =
     useFranchiseStore();
@@ -218,6 +221,19 @@ export function FranchiseManagement() {
           </div>
         )}
       </div>
+
+      <OutletFloorPlanMapper
+        outlets={outlets.filter((o) => o.is_active).map((o) => ({
+          id: o.id,
+          name: o.name,
+          code: o.code,
+        }))}
+        companyId={companyId}
+        onApplied={(outletId) => {
+          setActiveOutletId(outletId);
+          navigate('/erp/floor');
+        }}
+      />
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0D1B2A]/45 backdrop-blur-sm">

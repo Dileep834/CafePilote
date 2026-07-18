@@ -9,13 +9,17 @@ import { ThermalReceipt } from '../../pos/components/ThermalReceipt';
 import { RolesPermissions } from '../components/RolesPermissions';
 import { BRAND } from '@/constants';
 import { cn } from '@/lib/utils';
+import { OutletFloorPlanMapper } from '@/modules/floordesigner/components/OutletFloorPlanMapper';
+import { useNavigate } from 'react-router-dom';
 
 export function SystemSettings() {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const settings = useSettingsStore();
   const planId = useTenantStore((s) => s.planId);
   const setPlanId = useTenantStore((s) => s.setPlanId);
   const companyName = useTenantStore((s) => s.companyName);
+  const companyId = useTenantStore((s) => s.companyId);
   const outlets = useTenantStore((s) => s.outlets);
   const [formData, setFormData] = useState({
     printerSize: settings.printerSize,
@@ -273,6 +277,12 @@ export function SystemSettings() {
             </p>
           </div>
         </div>
+
+        <OutletFloorPlanMapper
+          outlets={outlets.map((o) => ({ id: o.id, name: o.name }))}
+          companyId={companyId}
+          onApplied={() => navigate('/erp/floor')}
+        />
 
         {/* Table view preference */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
