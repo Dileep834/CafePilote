@@ -113,7 +113,12 @@ export function FloorTabs({ opsMode = false }: Props) {
             className="shrink-0 h-9 px-3 rounded-xl border border-dashed border-slate-300 text-xs font-bold text-slate-500 hover:border-[#FF6A00] hover:text-[#0D1B2A] flex items-center gap-1"
             onClick={() => {
               const name = prompt('Floor name', `Floor ${floors.length + 1}`);
-              if (name?.trim()) void createFloor(name.trim());
+              if (name?.trim()) {
+                void createFloor(name.trim()).then(() => {
+                  const err = useFloorStore.getState().lastError;
+                  if (err) alert(err);
+                });
+              }
             }}
           >
             <Plus className="w-3.5 h-3.5" />

@@ -44,6 +44,7 @@ function fromFloorRow(row: any): Floor {
   return {
     id: row.id,
     outletId: row.outlet_id,
+    companyId: row.company_id || undefined,
     brandId: row.brand_id || undefined,
     name: row.name,
     sortOrder: Number(row.sort_order) || 0,
@@ -81,11 +82,12 @@ export const layoutService = {
     return local.sort((a, b) => a.sortOrder - b.sortOrder);
   },
 
-  async createFloor(outletId: string, name: string): Promise<Floor> {
+  async createFloor(outletId: string, name: string, companyId?: string): Promise<Floor> {
     const sortOrder = readLocalFloors().filter((f) => f.outletId === outletId).length;
     const draft: Floor = {
       id: crypto.randomUUID(),
       outletId,
+      companyId,
       name,
       sortOrder,
       createdAt: nowIso(),
@@ -99,6 +101,7 @@ export const layoutService = {
           {
             id: draft.id,
             outlet_id: outletId,
+            company_id: companyId || null,
             name,
             sort_order: sortOrder,
           },
@@ -107,13 +110,13 @@ export const layoutService = {
         .single();
       if (error) throw error;
       const floor = fromFloorRow(data);
-      const layout = emptyLayout(floor.id, outletId);
+      const layout = emptyLayout(floor.id, outletId, companyId);
       await layoutService.saveLayout(layout);
       writeLocalFloors([...readLocalFloors().filter((f) => f.id !== floor.id), floor]);
       return floor;
     } catch {
       writeLocalFloors([...readLocalFloors(), draft]);
-      writeLocalLayout(emptyLayout(draft.id, outletId));
+      writeLocalLayout(emptyLayout(draft.id, outletId, companyId));
       return draft;
     }
   },
@@ -186,6 +189,7 @@ export const layoutService = {
           floor_id: next.floorId,
           outlet_id: next.outletId,
           brand_id: next.brandId || null,
+          company_id: next.companyId || null,
           schema_version: next.schemaVersion,
           layout: next,
           version: next.version,

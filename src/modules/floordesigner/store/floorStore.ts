@@ -14,6 +14,13 @@ import { createObjectFromCatalog, getCatalogItem, type CatalogItem } from '../li
 import { copyObjects, pasteObjects } from '../lib/clipboard';
 import { snapPoint } from '../lib/snap';
 import { computeAlign, type AlignAction } from '../lib/align';
+import {
+  buildSampleCafeLayout,
+  repairLinksByTableNumber,
+  SAMPLE_TABLE_SPECS,
+} from '../lib/sampleLayout';
+import { checkFloorLimit, checkTableLimit } from '@/lib/planLimits';
+import { getTenantCompanyId, useTenantStore } from '@/store/useTenantStore';
 import { useTableStore } from '@/modules/tables/store/useTableStore';
 import type { TableType } from '@/types';
 
@@ -21,6 +28,7 @@ const HISTORY_MAX = 50;
 
 type DesignerMode = 'design' | 'preview';
 export type DesignerTool = 'select' | 'pan';
+export type DevicePreview = 'desktop' | 'tablet' | 'mobile';
 
 interface HistoryEntry {
   objects: FloorObject[];
@@ -36,6 +44,8 @@ interface FloorDesignerState {
   mode: DesignerMode;
   /** Active canvas tool while editing (select objects vs pan floor) */
   tool: DesignerTool;
+  /** Page-designer device frame */
+  devicePreview: DevicePreview;
   isDirty: boolean;
   isLoading: boolean;
   isSaving: boolean;
@@ -57,6 +67,7 @@ interface FloorDesignerState {
 
   setMode: (mode: DesignerMode) => void;
   setTool: (tool: DesignerTool) => void;
+  setDevicePreview: (device: DevicePreview) => void;
   setViewport: (viewport: Partial<LayoutViewport>, opts?: { markDirty?: boolean }) => void;
   setGrid: (patch: { size?: GridSize; snap?: boolean; visible?: boolean }) => void;
   setFloorSize: (patch: Partial<FloorSize>) => void;
@@ -88,6 +99,8 @@ interface FloorDesignerState {
   updateObjects: (ids: string[], patch: Partial<FloorObject>) => void;
   linkDiningTable: (objectId: string, diningTableId: string) => boolean;
   unlinkDiningTable: (objectId: string) => void;
+  repairTableLinks: () => number;
+  loadSampleLayout: (opts?: { force?: boolean }) => Promise<boolean>;
   moveObjects: (ids: string[], dx: number, dy: number) => void;
   setObjectTransform: (
     id: string,
@@ -132,6 +145,7 @@ export const useFloorStore = create<FloorDesignerState>((set, get) => ({
   selectedIds: [],
   mode: 'design',
   tool: 'select',
+  devicePreview: 'desktop',
   isDirty: false,
   isLoading: false,
   isSaving: false,
@@ -148,13 +162,39 @@ export const useFloorStore = create<FloorDesignerState>((set, get) => ({
   hydrate: async (outletId) => {
     set({ isLoading: true, lastError: null, outletId });
     try {
+      await useTableStore.getState().fetchTables(outletId);
       const floors = await layoutService.listFloors(outletId);
       const active = floors[0];
       if (!active) {
         set({ floors: [], activeFloorId: null, layout: null, isLoading: false });
         return;
       }
-      const layout = await layoutService.getLayout(active.id, outletId);
+      let layout = await layoutService.getLayout(active.id, outletId);
+
+      // Repair broken / number-only links
+      const tables = useTableStore.getState().tables;
+      const repaired = repairLinksByTableNumber(layout.objects, tables, outletId);
+      if (repaired.repaired > 0) {
+        layout = { ...layout, objects: repaired.objects };
+        await layoutService.saveLayout(layout);
+      }
+
+      // Empty floor → seed sample café once
+      if (layout.objects.length === 0) {
+        set({
+          floors,
+          activeFloorId: active.id,
+          layout,
+          isDirty: false,
+          historyPast: [],
+          historyFuture: [],
+          selectedIds: [],
+          isLoading: false,
+        });
+        await get().loadSampleLayout({ force: true });
+        return;
+      }
+
       set({
         floors,
         activeFloorId: active.id,
@@ -189,17 +229,26 @@ export const useFloorStore = create<FloorDesignerState>((set, get) => ({
   },
 
   createFloor: async (name) => {
-    const floor = await layoutService.createFloor(get().outletId, name);
-    const floors = await layoutService.listFloors(get().outletId);
-    const layout = await layoutService.getLayout(floor.id, get().outletId);
+    const { outletId, floors } = get();
+    const planId = useTenantStore.getState().planId;
+    const gate = checkFloorLimit(planId, floors.filter((f) => f.outletId === outletId).length);
+    if (!gate.ok) {
+      set({ lastError: gate.message });
+      return;
+    }
+    const companyId = getTenantCompanyId();
+    const floor = await layoutService.createFloor(outletId, name, companyId);
+    const nextFloors = await layoutService.listFloors(outletId);
+    const layout = await layoutService.getLayout(floor.id, outletId);
     set({
-      floors,
+      floors: nextFloors,
       activeFloorId: floor.id,
-      layout,
+      layout: { ...layout, companyId },
       isDirty: false,
       selectedIds: [],
       historyPast: [],
       historyFuture: [],
+      lastError: null,
     });
   },
 
@@ -240,6 +289,8 @@ export const useFloorStore = create<FloorDesignerState>((set, get) => ({
     }),
 
   setTool: (tool) => set({ tool }),
+
+  setDevicePreview: (devicePreview) => set({ devicePreview }),
 
   setViewport: (viewport, opts) =>
     set((s) => {
@@ -380,12 +431,19 @@ export const useFloorStore = create<FloorDesignerState>((set, get) => ({
           });
           return null;
         }
+        const planId = useTenantStore.getState().planId;
+        const tableGate = checkTableLimit(planId, existing.length);
+        if (!tableGate.ok) {
+          set({ lastError: tableGate.message });
+          return null;
+        }
         const created = await store.addTable({
           outletId,
           tableNumber,
           capacity,
           type: mapTableShape(item.tableShape),
           status: 'available',
+          companyId: getTenantCompanyId(),
         });
         if (!created) {
           set({ lastError: store.lastError || `Could not create ${tableNumber}` });
@@ -485,6 +543,83 @@ export const useFloorStore = create<FloorDesignerState>((set, get) => ({
         isDirty: true,
       };
     });
+  },
+
+  repairTableLinks: () => {
+    const { layout, outletId } = get();
+    if (!layout) return 0;
+    const tables = useTableStore.getState().tables;
+    const { objects, repaired } = repairLinksByTableNumber(layout.objects, tables, outletId);
+    if (repaired === 0) return 0;
+    set({
+      layout: { ...layout, objects, updatedAt: new Date().toISOString() },
+      isDirty: true,
+      lastError: null,
+    });
+    return repaired;
+  },
+
+  loadSampleLayout: async (opts) => {
+    const { layout, outletId, pushHistory } = get();
+    if (!layout) return false;
+    if (!opts?.force && layout.objects.length > 0) {
+      const ok = window.confirm(
+        'Replace the current floor with the sample café layout? Unsaved designer changes may be lost after save.'
+      );
+      if (!ok) return false;
+    }
+
+    const tableStore = useTableStore.getState();
+    await tableStore.fetchTables(outletId);
+
+    const linkByNumber: Record<string, string> = {};
+    for (const spec of SAMPLE_TABLE_SPECS) {
+      const existing = tableStore.tables.find(
+        (t) =>
+          (t.outletId === outletId || t.outletId === 'current-outlet') &&
+          t.tableNumber.toUpperCase() === spec.tableNumber.toUpperCase()
+      );
+      if (existing) {
+        linkByNumber[spec.tableNumber] = existing.id;
+        continue;
+      }
+      const created = await tableStore.addTable({
+        outletId,
+        tableNumber: spec.tableNumber,
+        capacity: spec.capacity,
+        type: spec.type,
+        status: 'available',
+      });
+      if (created) {
+        linkByNumber[spec.tableNumber] = created.id;
+        await tableStore.generateQR(created.id);
+      }
+    }
+
+    // Refresh after creates
+    await tableStore.fetchTables(outletId);
+    for (const spec of SAMPLE_TABLE_SPECS) {
+      if (linkByNumber[spec.tableNumber]) continue;
+      const again = tableStore.tables.find(
+        (t) =>
+          (t.outletId === outletId || t.outletId === 'current-outlet') &&
+          t.tableNumber.toUpperCase() === spec.tableNumber.toUpperCase()
+      );
+      if (again) linkByNumber[spec.tableNumber] = again.id;
+    }
+
+    pushHistory();
+    const sample = buildSampleCafeLayout(layout.floorId, outletId, linkByNumber);
+    set({
+      layout: sample,
+      isDirty: true,
+      selectedIds: [],
+      historyFuture: [],
+      lastError: null,
+    });
+    await layoutService.saveLayout(sample);
+    set({ isDirty: false });
+    return true;
   },
 
   updateObjects: (ids, patch) => {

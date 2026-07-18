@@ -35,7 +35,10 @@ import {
   CopyPlus,
   QrCode,
   ChevronDown,
+  LayoutTemplate,
+  Link2,
 } from 'lucide-react';
+import { DevicePreviewToggle } from './DevicePreviewToggle';
 
 type Props = {
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -72,6 +75,10 @@ export function FloorToolbar({
   const exportJson = useFloorStore((s) => s.exportJson);
   const importJson = useFloorStore((s) => s.importJson);
   const alignSelected = useFloorStore((s) => s.alignSelected);
+  const loadSampleLayout = useFloorStore((s) => s.loadSampleLayout);
+  const repairTableLinks = useFloorStore((s) => s.repairTableLinks);
+  const devicePreview = useFloorStore((s) => s.devicePreview);
+  const setDevicePreview = useFloorStore((s) => s.setDevicePreview);
   const historyPast = useFloorStore((s) => s.historyPast);
   const historyFuture = useFloorStore((s) => s.historyFuture);
 
@@ -368,8 +375,26 @@ export function FloorToolbar({
         }}
       />
 
-      <ToolBtn title="Duplicate floor" onClick={() => void duplicateFloor()}>
+      <ToolBtn
+        title="Duplicate floor"
+        onClick={() => void duplicateFloor()}
+      >
         <CopyPlus className="w-4 h-4" />
+      </ToolBtn>
+      <ToolBtn
+        title="Load sample café layout"
+        onClick={() => void loadSampleLayout()}
+      >
+        <LayoutTemplate className="w-4 h-4" />
+      </ToolBtn>
+      <ToolBtn
+        title="Repair table links by number"
+        onClick={() => {
+          const n = repairTableLinks();
+          alert(n ? `Linked ${n} table(s) by number` : 'All table links look OK');
+        }}
+      >
+        <Link2 className="w-4 h-4" />
       </ToolBtn>
       <ToolBtn title="Generate / print QR" onClick={onGenerateQr}>
         <QrCode className="w-4 h-4" />
@@ -390,6 +415,8 @@ export function FloorToolbar({
       />
 
       <div className="flex-1" />
+
+      <DevicePreviewToggle value={devicePreview} onChange={setDevicePreview} size="sm" />
 
       {mode === 'design' && tool === 'pan' && (
         <span className="text-[11px] font-bold text-[#0D1B2A] px-2 py-1 rounded-lg bg-slate-100">

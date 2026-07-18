@@ -31,14 +31,22 @@ export function ObjectRenderer({
   onDragEnd,
   onContextMenu,
 }: Props) {
-  const linkedTable = useTableStore((s) =>
-    o.linkedTableId ? s.tables.find((t) => t.id === o.linkedTableId) : undefined
-  );
+  const linkedTable = useTableStore((s) => {
+    if (o.linkedTableId) {
+      const byId = s.tables.find((t) => t.id === o.linkedTableId);
+      if (byId) return byId;
+    }
+    if (o.tableNumber) {
+      const num = o.tableNumber.trim().toUpperCase();
+      return s.tables.find((t) => t.tableNumber.toUpperCase() === num);
+    }
+    return undefined;
+  });
 
   if (!o.visible) return null;
 
   const fill =
-    o.linkedTableId && status
+    linkedTable && status
       ? TABLE_STATUS_COLORS[status]
       : o.color === 'transparent'
         ? 'rgba(0,0,0,0)'
@@ -109,7 +117,7 @@ export function ObjectRenderer({
           verticalAlign="middle"
           fontSize={o.fontSize || (linkedTable?.tableNumber || o.tableNumber ? 13 : 10)}
           fontStyle="bold"
-          fill={o.linkedTableId && status ? '#fff' : BRAND.navy}
+          fill={linkedTable && status ? '#fff' : BRAND.navy}
           listening={false}
         />
       )}

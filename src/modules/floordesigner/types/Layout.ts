@@ -73,6 +73,7 @@ export interface FloorLayoutDocument {
   schemaVersion: typeof LAYOUT_SCHEMA_VERSION;
   floorId: string;
   outletId: string;
+  companyId?: string;
   brandId?: string;
   viewport: LayoutViewport;
   grid: LayoutGrid;
@@ -85,11 +86,16 @@ export interface FloorLayoutDocument {
   updatedAt: string;
 }
 
-export function emptyLayout(floorId: string, outletId: string): FloorLayoutDocument {
+export function emptyLayout(
+  floorId: string,
+  outletId: string,
+  companyId?: string
+): FloorLayoutDocument {
   return {
     schemaVersion: LAYOUT_SCHEMA_VERSION,
     floorId,
     outletId,
+    companyId,
     viewport: { x: 40, y: 40, scale: 1 },
     grid: { size: 'medium', snap: true, visible: true },
     floorSize: { ...DEFAULT_FLOOR_SIZE },

@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { useSettingsStore } from '../store/useSettingsStore';
 import type { PrinterSize, TableViewMode } from '../store/useSettingsStore';
 import { useAuthStore } from '@/store/useAuthStore';
-import { Settings, Printer, Store, Save, FileText, CheckCircle2, Shield, LayoutGrid, Map } from 'lucide-react';
+import { useTenantStore } from '@/store/useTenantStore';
+import { PLAN_LIMITS, type SubscriptionPlanId } from '@/lib/planLimits';
+import { Settings, Printer, Store, Save, FileText, CheckCircle2, Shield, LayoutGrid, Map, CreditCard } from 'lucide-react';
 import { ThermalReceipt } from '../../pos/components/ThermalReceipt';
 import { RolesPermissions } from '../components/RolesPermissions';
 import { BRAND } from '@/constants';
@@ -11,6 +13,10 @@ import { cn } from '@/lib/utils';
 export function SystemSettings() {
   const { user } = useAuthStore();
   const settings = useSettingsStore();
+  const planId = useTenantStore((s) => s.planId);
+  const setPlanId = useTenantStore((s) => s.setPlanId);
+  const companyName = useTenantStore((s) => s.companyName);
+  const outlets = useTenantStore((s) => s.outlets);
   const [formData, setFormData] = useState({
     printerSize: settings.printerSize,
     cafeName: settings.cafeName,
@@ -217,6 +223,54 @@ export function SystemSettings() {
                 onChange={e => setFormData({ ...formData, receiptFooterMessage: e.target.value })}
               />
             </div>
+          </div>
+        </div>
+
+        {/* Subscription / tenant */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+            <CreditCard className="w-5 h-5" style={{ color: BRAND.orange }} />
+            <h2 className="text-lg font-bold text-slate-800">Subscription & branches</h2>
+          </div>
+          <div className="p-6 space-y-3">
+            <p className="text-sm text-slate-500">
+              Company: <span className="font-bold text-slate-800">{companyName || user?.companyId || '—'}</span>
+              {' · '}
+              {outlets.length} branch{outlets.length === 1 ? '' : 'es'} loaded
+            </p>
+            <p className="text-xs text-slate-500">
+              Floor plans and tables are scoped to the active branch (header switcher). Plan limits
+              block extra floors/tables when you hit the quota.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {(Object.keys(PLAN_LIMITS) as SubscriptionPlanId[]).map((id) => {
+                const p = PLAN_LIMITS[id];
+                const on = planId === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setPlanId(id)}
+                    className={cn(
+                      'text-left border-2 rounded-xl p-4 transition-all',
+                      on ? 'border-[#FF6A00] bg-orange-50/40' : 'border-slate-200 hover:border-slate-300'
+                    )}
+                  >
+                    <div className="flex justify-between items-start mb-1">
+                      <p className="font-bold text-slate-800">{p.label}</p>
+                      {on && <CheckCircle2 className="w-5 h-5" style={{ color: BRAND.orange }} />}
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      {p.maxOutlets} branches · {p.maxFloorsPerOutlet} floors · {p.maxTablesPerOutlet}{' '}
+                      tables/branch
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-slate-400">
+              Demo: plan is stored locally (and in company_subscriptions when that SQL is applied).
+            </p>
           </div>
         </div>
 

@@ -82,8 +82,8 @@ const modules = [
     path: '/erp/reports'
   },
   {
-    title: 'Franchise',
-    description: 'Multi-outlet Management, Royalties',
+    title: 'Outlets / Branches',
+    description: 'Locations, floor plans & tables per branch',
     icon: Store,
     color: 'text-indigo-600',
     bgColor: 'bg-indigo-100',

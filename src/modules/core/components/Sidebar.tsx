@@ -29,7 +29,7 @@ const navigation = [
   { name: 'Kitchen', href: '/erp/kitchen', icon: ChefHat },
   { name: 'CRM', href: '/erp/crm', icon: Users },
   { name: 'Reports', href: '/erp/reports', icon: BarChart3 },
-  { name: 'Franchise', href: '/erp/franchise', icon: Store },
+  { name: 'Outlets / Branches', href: '/erp/franchise', icon: Store },
   { name: 'Offers & Vouchers', href: '/erp/vouchers', icon: Ticket },
   { name: 'Staff & Users', href: '/erp/users', icon: Shield },
   { name: 'Settings', href: '/erp/settings', icon: Settings },

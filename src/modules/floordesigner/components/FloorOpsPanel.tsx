@@ -19,6 +19,8 @@ import {
   Map,
   CircleDot,
   Users,
+  LayoutTemplate,
+  Wrench,
 } from 'lucide-react';
 import { formatCurrency } from '@/utils/format';
 import { openTableOnPOS } from '@/modules/pos/store/usePOSStore';
@@ -47,6 +49,9 @@ export function FloorOpsPanel({ onPrintQr, onEditLayout }: Props) {
   const outletId = useFloorStore((s) => s.outletId);
   const linkDiningTable = useFloorStore((s) => s.linkDiningTable);
   const unlinkDiningTable = useFloorStore((s) => s.unlinkDiningTable);
+  const repairTableLinks = useFloorStore((s) => s.repairTableLinks);
+  const loadSampleLayout = useFloorStore((s) => s.loadSampleLayout);
+  const save = useFloorStore((s) => s.save);
   const tables = useTableStore((s) => s.tables);
   const updateTableStatus = useTableStore((s) => s.updateTableStatus);
   const lastError = useTableStore((s) => s.lastError);
@@ -139,10 +144,34 @@ export function FloorOpsPanel({ onPrintQr, onEditLayout }: Props) {
                       Tap a table on the floor to open bill, change status, or print QR.
                     </p>
                     {linkedCount === 0 && (
-                      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
-                        No linked tables on this floor yet. Place tables in Floor Designer so they
-                        connect to Table Management.
-                      </p>
+                      <>
+                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                          No linked tables detected. If you see T-01 labels on the map, repair links
+                          or load the sample café.
+                        </p>
+                        <Button
+                          type="button"
+                          className="w-full h-10 rounded-xl text-xs font-bold text-white"
+                          style={{ backgroundColor: BRAND.navy }}
+                          onClick={() => {
+                            const n = repairTableLinks();
+                            if (n > 0) void save();
+                            else void loadSampleLayout({ force: false });
+                          }}
+                        >
+                          <Wrench className="w-3.5 h-3.5 mr-1.5" />
+                          Repair links
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full h-10 rounded-xl text-xs font-bold"
+                          onClick={() => void loadSampleLayout()}
+                        >
+                          <LayoutTemplate className="w-3.5 h-3.5 mr-1.5" />
+                          Load sample café
+                        </Button>
+                      </>
                     )}
                     {onEditLayout && (
                       <Button

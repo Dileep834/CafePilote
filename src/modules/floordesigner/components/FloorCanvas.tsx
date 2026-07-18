@@ -105,16 +105,18 @@ export function FloorCanvas({ containerRef }: Props) {
 
   const vp = layout.viewport;
 
-  const statusFor = (linkedTableId?: string) => {
-    if (!linkedTableId) return undefined;
-    const table = tables.find((t) => t.id === linkedTableId);
-    const bill = table ? getOpenBillForTable(table, tables) : undefined;
-    return toCanvasStatus(table?.status, {
+  const statusFor = (obj: (typeof objects)[0]) => {
+    const linkedTableId = obj.linkedTableId;
+    let table = linkedTableId ? tables.find((t) => t.id === linkedTableId) : undefined;
+    if (!table && obj.tableNumber) {
+      const num = obj.tableNumber.trim().toUpperCase();
+      table = tables.find((t) => t.tableNumber.toUpperCase() === num);
+    }
+    if (!table) return undefined;
+    const bill = getOpenBillForTable(table, tables);
+    return toCanvasStatus(table.status, {
       hasOpenBill: !!(bill && bill.items.length > 0),
-      selected: selectedIds.some((id) => {
-        const obj = layout.objects.find((o) => o.id === id);
-        return obj?.linkedTableId === linkedTableId;
-      }),
+      selected: selectedIds.includes(obj.id),
     });
   };
 
@@ -213,7 +215,7 @@ export function FloorCanvas({ containerRef }: Props) {
           <ObjectRenderer
             key={obj.id}
             object={obj}
-            status={statusFor(obj.linkedTableId)}
+            status={statusFor(obj)}
             selected={selectedIds.includes(obj.id)}
             preview={mode === 'preview'}
             draggable={canEditObjects}

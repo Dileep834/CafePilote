@@ -9,6 +9,8 @@ import { supabase } from '@/lib/supabase';
 import { CafePilotsLogo } from '@/components/CafePilotsLogo';
 import { BRAND } from '@/constants';
 import { cn } from '@/lib/utils';
+import { BranchSwitcher } from './BranchSwitcher';
+import { useTenantStore } from '@/store/useTenantStore';
 
 interface HeaderProps {
   onToggleSidebar?: () => void;
@@ -18,6 +20,7 @@ interface HeaderProps {
 export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const { logout } = useAuthStore();
+  const clearTenant = useTenantStore((s) => s.clear);
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -29,12 +32,13 @@ export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
         console.error('Failed to log logout time', e);
       }
     }
+    clearTenant();
     logout();
     navigate('/login');
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b bg-white px-4 shadow-sm sm:px-6">
+    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b bg-white px-4 shadow-sm sm:px-6 gap-3">
       <div className="flex items-center gap-3 min-w-0">
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
           <SheetTrigger render={
@@ -58,10 +62,13 @@ export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
           <span className="sr-only">Toggle sidebar</span>
         </Button>
 
-        {/* Logo when sidebar closed (desktop) or always on mobile */}
         <div className={cn('min-w-0', isSidebarOpen ? 'lg:hidden' : 'lg:flex')}>
           <CafePilotsLogo size={32} withWordmark withDivider />
         </div>
+      </div>
+
+      <div className="flex-1 flex justify-center min-w-0 px-2">
+        <BranchSwitcher />
       </div>
 
       <div className="flex items-center gap-2 sm:gap-4 shrink-0">
@@ -70,7 +77,7 @@ export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
           <span className="sr-only">View notifications</span>
         </Button>
         <Button variant="ghost" size="icon" className="text-slate-500" onClick={handleLogout} title="Logout">
-          <LogOut className="h-5 w-5" />
+          <LogOut className="w-5 h-5" />
           <span className="sr-only">Logout</span>
         </Button>
         <div

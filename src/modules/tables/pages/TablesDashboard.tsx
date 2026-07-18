@@ -28,6 +28,8 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useTenantStore } from '@/store/useTenantStore';
+import { getPlanLimits } from '@/lib/planLimits';
 import { BRAND } from '@/constants';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/utils/format';
@@ -103,9 +105,17 @@ const FLOW_STEPS: { status: TableStatus; label: string }[] = [
 export function TablesDashboard() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const outletId = user?.outletId || 'current-outlet';
+  const activeOutletId = useTenantStore((s) => s.activeOutletId);
+  const hydrateTenant = useTenantStore((s) => s.hydrateFromUser);
+  const planId = useTenantStore((s) => s.planId);
+  const outletId =
+    activeOutletId || user?.outletId || useTenantStore.getState().resolvedOutletId(user);
   const tableViewMode = useSettingsStore((s) => s.tableViewMode);
   const setTableViewMode = useSettingsStore((s) => s.setTableViewMode);
+
+  useEffect(() => {
+    void hydrateTenant(user);
+  }, [user, hydrateTenant]);
 
   const {
     tables,
@@ -334,6 +344,8 @@ export function TablesDashboard() {
           <p className="text-[11px] text-slate-400 mt-1">
             {cloudEnabled ? 'Synced with cloud' : 'Saved on this device'}
             {isLoading ? ' · Loading…' : ''}
+            {' · '}
+            {getPlanLimits(planId).label} · max {getPlanLimits(planId).maxTablesPerOutlet} tables/branch
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

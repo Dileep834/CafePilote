@@ -5,6 +5,7 @@ export type FloorId = string;
 export interface Floor {
   id: FloorId;
   outletId: string;
+  companyId?: string;
   brandId?: string;
   name: string;
   sortOrder: number;

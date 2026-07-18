@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useTenantStore } from '@/store/useTenantStore';
 import { useFloorStore } from '../store/floorStore';
 import { useTableStore } from '@/modules/tables/store/useTableStore';
 import { useKeyboard } from '../hooks/useKeyboard';
@@ -12,6 +13,9 @@ import { FloorTabs } from '../components/FloorTabs';
 import { FloorCanvas } from '../components/FloorCanvas';
 import { FloorContextMenu } from '../components/FloorContextMenu';
 import { FloorMiniMap } from '../components/FloorMiniMap';
+import { DeviceFrame } from '../components/DeviceFrame';
+import { DevicePreviewToggle } from '../components/DevicePreviewToggle';
+import { MobileOpsTableList } from '../components/MobileOpsTableList';
 import { TableQrPrintModal } from '@/modules/tables/components/TableQrPrintModal';
 import { PlaceTableModal } from '../components/PlaceTableModal';
 import { syncTableForQr } from '@/modules/tables/lib/resolveTableByQr';
@@ -33,7 +37,10 @@ export function FloorDesignerPage({ variant = 'designer' }: Props) {
   const navigate = useNavigate();
   const { floorId: routeFloorId } = useParams();
   const user = useAuthStore((s) => s.user);
-  const outletId = user?.outletId || 'current-outlet';
+  const activeOutletId = useTenantStore((s) => s.activeOutletId);
+  const hydrateTenant = useTenantStore((s) => s.hydrateFromUser);
+  const outletId =
+    activeOutletId || user?.outletId || useTenantStore.getState().resolvedOutletId(user);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const hydrate = useFloorStore((s) => s.hydrate);
@@ -46,12 +53,25 @@ export function FloorDesignerPage({ variant = 'designer' }: Props) {
   const mode = useFloorStore((s) => s.mode);
   const setMode = useFloorStore((s) => s.setMode);
   const setTool = useFloorStore((s) => s.setTool);
+  const devicePreview = useFloorStore((s) => s.devicePreview);
+  const setDevicePreview = useFloorStore((s) => s.setDevicePreview);
+  const planLimits = useTenantStore((s) => s.plan());
+
+  const setDevice = (d: typeof devicePreview) => {
+    if (!planLimits.devicePreview && d !== 'desktop') {
+      alert(`${planLimits.label} plan: Desktop only. Upgrade for Tablet/Mobile preview.`);
+      setDevicePreview('desktop');
+      return;
+    }
+    setDevicePreview(d);
+  };
   const addFromCatalog = useFloorStore((s) => s.addFromCatalog);
   const activeFloorId = useFloorStore((s) => s.activeFloorId);
   const pendingPlace = useFloorStore((s) => s.pendingPlace);
   const setPendingPlace = useFloorStore((s) => s.setPendingPlace);
   const setLibraryOpen = useFloorStore((s) => s.setLibraryOpen);
   const setPropsOpen = useFloorStore((s) => s.setPropsOpen);
+  const repairTableLinks = useFloorStore((s) => s.repairTableLinks);
 
   const tables = useTableStore((s) => s.tables);
   const fetchTables = useTableStore((s) => s.fetchTables);
@@ -70,6 +90,10 @@ export function FloorDesignerPage({ variant = 'designer' }: Props) {
   useKeyboard();
 
   useEffect(() => {
+    void hydrateTenant(user);
+  }, [user, hydrateTenant]);
+
+  useEffect(() => {
     void hydrate(outletId);
     void fetchTables(outletId);
   }, [outletId, hydrate, fetchTables]);
@@ -80,8 +104,11 @@ export function FloorDesignerPage({ variant = 'designer' }: Props) {
       setTool('select');
       setLibraryOpen(false);
       setPropsOpen(true);
+      // Fix orphaned T-01 labels without linkedTableId
+      const n = repairTableLinks();
+      if (n > 0) void useFloorStore.getState().save();
     }
-  }, [isOps, setMode, setTool, setLibraryOpen, setPropsOpen]);
+  }, [isOps, setMode, setTool, setLibraryOpen, setPropsOpen, repairTableLinks]);
 
   useEffect(() => {
     if (routeFloorId && routeFloorId !== activeFloorId && !isLoading) {
@@ -96,12 +123,15 @@ export function FloorDesignerPage({ variant = 'designer' }: Props) {
 
   const resolveQrTable = async (): Promise<Table | null> => {
     const linkedId = selectedObject?.linkedTableId;
-    if (!linkedId) return null;
-    let table = tables.find((t) => t.id === linkedId) || null;
+    const num = selectedObject?.tableNumber?.trim().toUpperCase();
+    let table =
+      (linkedId ? tables.find((t) => t.id === linkedId) : undefined) ||
+      (num ? tables.find((t) => t.tableNumber.toUpperCase() === num) : undefined) ||
+      null;
     if (!table) return null;
     if (!table.qrCodeToken) {
       const token = await generateQR(table.id);
-      table = useTableStore.getState().tables.find((t) => t.id === linkedId) || {
+      table = useTableStore.getState().tables.find((t) => t.id === table!.id) || {
         ...table,
         qrCodeToken: token || undefined,
       };
@@ -161,6 +191,8 @@ export function FloorDesignerPage({ variant = 'designer' }: Props) {
     else void addFromCatalog(item, worldX, worldY);
   };
 
+  const showMobileList = isOps && devicePreview === 'mobile';
+
   return (
     <div
       className={
@@ -171,15 +203,16 @@ export function FloorDesignerPage({ variant = 'designer' }: Props) {
       style={{ backgroundColor: BRAND.gray }}
     >
       {!isOps && (
-        <div className="px-4 pt-3 pb-1 flex items-center justify-between gap-3 shrink-0">
+        <div className="px-4 pt-3 pb-1 flex items-center justify-between gap-3 shrink-0 flex-wrap">
           <div>
             <h1 className="text-lg font-bold" style={{ color: BRAND.navy }}>
               Floor Designer
             </h1>
             <p className="text-xs text-slate-500">
-              Design your cafe layout · {mode === 'preview' ? 'Live preview' : 'Edit mode'}
+              Page-style floor layout · {mode === 'preview' ? 'Live preview' : 'Edit mode'}
             </p>
           </div>
+          <DevicePreviewToggle value={devicePreview} onChange={setDevice} size="sm" />
         </div>
       )}
 
@@ -192,10 +225,11 @@ export function FloorDesignerPage({ variant = 'designer' }: Props) {
       )}
 
       {isOps && (
-        <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-slate-200 bg-white/90">
-          <p className="text-xs text-slate-500 flex-1 min-w-[140px]">
-            Live floor · tap a table for bill / QR · empty space to pan
+        <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-slate-200 bg-white/90 flex-wrap">
+          <p className="text-xs text-slate-500 flex-1 min-w-[120px]">
+            Live floor · Desktop / Tablet / Mobile preview
           </p>
+          <DevicePreviewToggle value={devicePreview} onChange={setDevice} size="sm" />
           <FloorToolbar
             containerRef={containerRef}
             onGenerateQr={() => void handleGenerateQr()}
@@ -206,39 +240,46 @@ export function FloorDesignerPage({ variant = 'designer' }: Props) {
       )}
 
       <div className="flex-1 min-h-0 flex">
-        {!isOps && <FloorSidebar />}
+        {!isOps && devicePreview === 'desktop' && <FloorSidebar />}
 
-        <div
-          ref={containerRef}
-          className="relative flex-1 min-w-0 min-h-0 overflow-hidden"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={handleCanvasDrop}
-        >
-          {isLoading ? (
-            <div className="h-full flex items-center justify-center text-slate-400 animate-pulse">
-              Loading floors…
+        <div className="relative flex-1 min-w-0 min-h-0 overflow-hidden">
+          <DeviceFrame device={devicePreview}>
+            <div
+              ref={containerRef}
+              className="relative h-full w-full min-h-0 overflow-hidden"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleCanvasDrop}
+            >
+              {isLoading ? (
+                <div className="h-full flex items-center justify-center text-slate-400 animate-pulse">
+                  Loading floors…
+                </div>
+              ) : showMobileList ? (
+                <MobileOpsTableList />
+              ) : (
+                <>
+                  <FloorCanvas containerRef={containerRef} />
+                  {devicePreview === 'desktop' && <FloorMiniMap />}
+                </>
+              )}
+              {lastError && (
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium px-3 py-2">
+                  {lastError}
+                </div>
+              )}
             </div>
-          ) : (
-            <>
-              <FloorCanvas containerRef={containerRef} />
-              <FloorMiniMap />
-            </>
-          )}
-          {lastError && (
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium px-3 py-2">
-              {lastError}
-            </div>
-          )}
+          </DeviceFrame>
         </div>
 
-        {isOps ? (
-          <FloorOpsPanel
-            onPrintQr={() => void handleGenerateQr()}
-            onEditLayout={() => navigate('/erp/floor')}
-          />
-        ) : (
-          <FloorPropertiesPanel onPrintQr={() => void handleGenerateQr()} />
-        )}
+        {devicePreview !== 'mobile' &&
+          (isOps ? (
+            <FloorOpsPanel
+              onPrintQr={() => void handleGenerateQr()}
+              onEditLayout={() => navigate('/erp/floor')}
+            />
+          ) : (
+            <FloorPropertiesPanel onPrintQr={() => void handleGenerateQr()} />
+          ))}
       </div>
 
       <FloorTabs opsMode={isOps} />

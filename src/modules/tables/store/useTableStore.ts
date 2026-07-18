@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '@/lib/supabase';
 import type { Table, TableStatus, TableType } from '@/types';
+import { checkTableLimit } from '@/lib/planLimits';
+import { useTenantStore } from '@/store/useTenantStore';
 
 export type TableFormInput = {
   outletId: string;
@@ -9,6 +11,7 @@ export type TableFormInput = {
   capacity: number;
   type: TableType;
   status?: TableStatus;
+  companyId?: string;
 };
 
 interface TableState {
@@ -181,6 +184,17 @@ export const useTableStore = create<TableState>()(
           return null;
         }
 
+        const outletCount = get().tables.filter((t) => t.outletId === input.outletId).length;
+        const planId = useTenantStore.getState().planId;
+        const gate = checkTableLimit(planId, outletCount);
+        if (!gate.ok) {
+          set({ lastError: gate.message });
+          return null;
+        }
+
+        const companyId =
+          input.companyId || useTenantStore.getState().companyId || undefined;
+
         const local: Table = {
           id: `local-${Date.now()}`,
           outletId: input.outletId,
@@ -194,6 +208,7 @@ export const useTableStore = create<TableState>()(
         try {
           const row = {
             outlet_id: local.outletId,
+            company_id: companyId || null,
             table_number: local.tableNumber,
             capacity: local.capacity,
             status: local.status,
