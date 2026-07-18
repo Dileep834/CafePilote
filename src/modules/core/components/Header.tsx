@@ -11,6 +11,7 @@ import { BRAND } from '@/constants';
 import { cn } from '@/lib/utils';
 import { BranchSwitcher } from './BranchSwitcher';
 import { useTenantStore } from '@/store/useTenantStore';
+import { loginPath } from '@/lib/appHost';
 
 interface HeaderProps {
   onToggleSidebar?: () => void;
@@ -34,7 +35,7 @@ export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
     }
     clearTenant();
     logout();
-    navigate('/login');
+    navigate(loginPath());
   };
 
   return (

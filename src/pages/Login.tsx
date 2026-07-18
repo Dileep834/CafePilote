@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useForm as useHookForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -17,6 +17,7 @@ import { CafePilotsLogo } from '../components/CafePilotsLogo';
 import { useAuthStore } from '../store/useAuthStore';
 import { supabase } from '../lib/supabase';
 import { APP_NAME, APP_TAGLINE, HQ_COMPANY_ID } from '../constants';
+import { isMarketingHost } from '../lib/appHost';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -190,6 +191,13 @@ const Login: React.FC = () => {
       </form>
       
       <Box sx={{ mt: 4, textAlign: 'center' }}>
+        {isMarketingHost() && (
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            <Link to="/" style={{ color: 'inherit', textDecoration: 'underline' }}>
+              ← Back to website
+            </Link>
+          </Typography>
+        )}
         <Typography variant="caption" color="text.secondary">
           Powered by <strong>{APP_NAME}</strong> SaaS
         </Typography>

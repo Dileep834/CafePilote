@@ -4,7 +4,11 @@
 -- 3) Add redirect URLs:
 --    http://localhost:5173/**
 --    https://cafepilots.com/**
+--    https://app.cafepilots.com/**
 --    https://*.vercel.app/**
 
 -- Email continue works without Auth providers (local guest session).
 -- Google one-tap requires the Google provider above.
+
+-- Domain split (landing vs app): see scripts/domain_setup.md
+

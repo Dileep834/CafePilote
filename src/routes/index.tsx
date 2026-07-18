@@ -1,9 +1,9 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
-import DashboardLayout from '../layouts/DashboardLayout';
 import AuthLayout from '../layouts/AuthLayout';
 import ErrorBoundary from '../components/ErrorBoundary';
+import { isAppHost, loginPath } from '../lib/appHost';
 
 import { ERPMasterLayout } from '../modules/core/layouts/ERPMasterLayout';
 import { ERPHome } from '../modules/core/pages/ERPHome';
@@ -31,6 +31,7 @@ const FloorDesignerPage = React.lazy(() =>
 );
 
 const Login = React.lazy(() => import('../pages/Login'));
+const LandingPage = React.lazy(() => import('../pages/marketing/LandingPage'));
 const Products = React.lazy(() => import('../pages/Masters/Products'));
 const Categories = React.lazy(() => import('../pages/Masters/Categories'));
 const Companies = React.lazy(() => import('../pages/Masters/Companies'));
@@ -39,17 +40,21 @@ const Recipes = React.lazy(() => import('../pages/Masters/Recipes'));
 const DailyStockUpdate = React.lazy(() => import('../pages/Inventory/DailyStockUpdate'));
 const StockAdjustments = React.lazy(() => import('../pages/Inventory/StockAdjustments'));
 const WasteEntry = React.lazy(() => import('../pages/Waste/WasteEntry'));
-const InventoryReport = React.lazy(() => import('../pages/Reports/InventoryReport'));
 const NotFound = React.lazy(() => import('../pages/NotFound'));
 
-const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
+const ProtectedRoute = ({
+  children,
+  allowedRoles,
+}: {
+  children: React.ReactNode;
+  allowedRoles?: string[];
+}) => {
   const { isAuthenticated, user } = useAuthStore();
-  
+
   if (!isAuthenticated || !user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={loginPath()} replace />;
   }
-  
-  // Platform owner always passes role gates
+
   if (user.role === 'Super Admin') {
     return <>{children}</>;
   }
@@ -57,30 +62,57 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode,
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to="/erp" replace />;
   }
-  
+
   return <>{children}</>;
 };
 
+/** Apex `/` — landing for guests; signed-in users go to ERP. */
+const MarketingHome = () => {
+  const { isAuthenticated, user } = useAuthStore();
+  if (isAuthenticated && user) {
+    return <Navigate to="/erp" replace />;
+  }
+  return <LandingPage />;
+};
+
 const AppRoutes = () => {
+  const appHost = isAppHost();
+
   return (
     <React.Suspense fallback={<div>Loading...</div>}>
       <Routes>
+        {/* Host-aware home */}
+        {appHost ? (
+          <Route element={<AuthLayout />}>
+            <Route path="/" element={<Login />} />
+          </Route>
+        ) : (
+          <Route path="/" element={<MarketingHome />} />
+        )}
+
+        {/* Staff auth */}
         <Route element={<AuthLayout />}>
-          <Route path="/login" element={<Login />} />
+          <Route
+            path="/app"
+            element={appHost ? <Navigate to="/" replace /> : <Login />}
+          />
+          <Route path="/login" element={<Navigate to={loginPath()} replace />} />
           <Route path="/forgot-password" element={<div>Forgot Password</div>} />
         </Route>
 
-        {/* New Modular ERP Routes */}
-        <Route path="/erp" element={
-          <ProtectedRoute>
-            <ERPMasterLayout />
-          </ProtectedRoute>
-        }>
+        {/* Modular ERP */}
+        <Route
+          path="/erp"
+          element={
+            <ProtectedRoute>
+              <ERPMasterLayout />
+            </ProtectedRoute>
+          }
+        >
           <Route index element={<ERPHome />} />
           <Route path="pos" element={<POSDashboard />} />
           <Route path="pos/checkout" element={<CheckoutPage />} />
 
-          {/* Menu & catalog */}
           <Route path="menu/products" element={<Products />} />
           <Route path="menu/categories" element={<Categories />} />
           <Route
@@ -93,7 +125,6 @@ const AppRoutes = () => {
           />
           <Route path="menu" element={<Navigate to="/erp/menu/products" replace />} />
 
-          {/* Inventory & purchase */}
           <Route path="inventory" element={<ERPCurrentInventory />} />
           <Route path="inventory/daily" element={<DailyStockUpdate />} />
           <Route path="inventory/adjustments" element={<StockAdjustments />} />
@@ -136,7 +167,7 @@ const AppRoutes = () => {
           />
         </Route>
 
-        {/* Keep old Master Data URLs working → ERP menu */}
+        {/* Legacy URL redirects */}
         <Route path="/masters/companies" element={<Navigate to="/erp/companies" replace />} />
         <Route path="/masters/products" element={<Navigate to="/erp/menu/products" replace />} />
         <Route path="/masters/categories" element={<Navigate to="/erp/menu/categories" replace />} />
@@ -148,34 +179,18 @@ const AppRoutes = () => {
         <Route path="/inventory/current" element={<Navigate to="/erp/inventory" replace />} />
         <Route path="/waste" element={<Navigate to="/erp/inventory/waste" replace />} />
         <Route path="/purchase/orders" element={<Navigate to="/erp/purchase" replace />} />
+        <Route path="/dashboard" element={<Navigate to="/erp" replace />} />
+        <Route path="/reports" element={<Navigate to="/erp/reports" replace />} />
+        <Route path="/settings" element={<Navigate to="/erp/settings" replace />} />
+        <Route path="/users" element={<Navigate to="/erp/users" replace />} />
+        <Route path="/sales/entry" element={<Navigate to="/erp/pos" replace />} />
 
-        {/* Legacy MVP Routes */}
-        <Route path="/" element={
-          <ProtectedRoute>
-            <DashboardLayout />
-          </ProtectedRoute>
-        }>
-          <Route index element={<Navigate to="/erp" replace />} />
-          <Route path="dashboard" element={<Navigate to="/erp" replace />} />
-          
-          <Route path="masters/companies" element={<Navigate to="/erp/companies" replace />} />
-          <Route path="sales/entry" element={<Navigate to="/erp/pos" replace />} />
-          <Route path="users" element={<Navigate to="/erp/users" replace />} />
-
-          <Route path="reports" element={<InventoryReport />} />
-          <Route path="settings" element={<Navigate to="/erp/settings" replace />} />
-
-          <Route path="*" element={<NotFound />} />
-        </Route>
-        
-        {/* Customer Public Routes */}
+        {/* Guest QR menu */}
         <Route path="/menu" element={<CustomerMenuLayout />}>
-          {/* Token-only link must be declared before :outletId/:qrToken */}
           <Route path="t/:qrToken" element={<CustomerMenu />} />
           <Route path=":outletId/:qrToken" element={<CustomerMenu />} />
         </Route>
 
-        {/* Top-level catch-all route for URLs outside of the dashboard path */}
         <Route path="*" element={<NotFound />} />
       </Routes>
     </React.Suspense>

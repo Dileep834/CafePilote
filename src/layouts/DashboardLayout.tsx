@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { loginPath } from '../lib/appHost';
 import { 
   Box, 
   Drawer, 
@@ -101,7 +102,7 @@ const DashboardLayout: React.FC = () => {
       }
     }
     logout();
-    navigate('/login');
+    navigate(loginPath());
   };
 
   const handlePasswordChange = async () => {
