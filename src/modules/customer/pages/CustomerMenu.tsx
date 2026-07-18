@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useCustomerOrderStore } from '../store/useCustomerOrderStore';
 import { useGuestAuthStore } from '../store/useGuestAuthStore';
-import { resolveTableByQr } from '@/modules/tables/lib/resolveTableByQr';
+import { resolveTableByQrDetailed } from '@/modules/tables/lib/resolveTableByQr';
 import { formatCurrency } from '@/utils/format';
 import { CafePilotsLogo } from '@/components/CafePilotsLogo';
 import { APP_TAGLINE, BRAND } from '@/constants';
@@ -179,6 +179,34 @@ export function CustomerMenu() {
     void initFromSupabase();
   }, [initFromSupabase]);
 
+  // Register table context as soon as QR resolves so login can write guest_sessions
+  useEffect(() => {
+    if (!table) return;
+    useGuestAuthStore.getState().setSessionContext({
+      outletId: table.outletId,
+      tableId: table.id,
+      tableNumber: table.tableNumber,
+    });
+  }, [table]);
+
+  // When guest is signed in with a table, publish / refresh presence
+  useEffect(() => {
+    if (!guest || !table) return;
+    void useGuestAuthStore.getState().registerPresence({
+      outletId: table.outletId,
+      tableId: table.id,
+      tableNumber: table.tableNumber,
+    });
+    const timer = window.setInterval(() => {
+      void useGuestAuthStore.getState().registerPresence({
+        outletId: table.outletId,
+        tableId: table.id,
+        tableNumber: table.tableNumber,
+      });
+    }, 45000);
+    return () => window.clearInterval(timer);
+  }, [guest?.id, table?.id, table?.outletId, table?.tableNumber]);
+
   useEffect(() => {
     if (guest) setAuthGateOpen(false);
   }, [guest]);
@@ -194,14 +222,14 @@ export function CustomerMenu() {
       setResolving(true);
       setResolveError(null);
       try {
-        const found = await resolveTableByQr(qrToken, outletId);
+        const result = await resolveTableByQrDetailed(qrToken, outletId);
         if (cancelled) return;
-        if (!found) {
+        if (!result.ok) {
           setTable(null);
-          setResolveError('invalid');
+          setResolveError(result.reason === 'cloud_error' ? 'error' : 'invalid');
         } else {
-          setTable(found);
-          setSession(found.outletId, found.qrCodeToken || qrToken);
+          setTable(result.table);
+          setSession(result.table.outletId, result.table.qrCodeToken || qrToken);
         }
       } catch {
         if (!cancelled) {
@@ -231,11 +259,21 @@ export function CustomerMenu() {
     queryKey: ['public-products', table?.outletId || outletId],
     enabled: !!table && !!guest,
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Prefer POS-aligned catalog (ready_product); fall back to all active sellables
+      let { data, error } = await supabase
         .from('products')
         .select(`*, categories (name)`)
         .eq('is_active', true)
+        .eq('item_type', 'ready_product')
         .order('name');
+
+      if (error || !data?.length) {
+        ({ data, error } = await supabase
+          .from('products')
+          .select(`*, categories (name)`)
+          .eq('is_active', true)
+          .order('name'));
+      }
 
       if (error) throw error;
       return data ?? [];
@@ -244,16 +282,16 @@ export function CustomerMenu() {
 
   const menuProducts = useMemo(() => {
     return (products ?? []).filter((p: any) => {
-      const price = Number(p.selling_price ?? p.sellingPrice ?? 0);
+      const price = Number(p.selling_price ?? p.sellingPrice ?? p.price ?? 0);
       const type = (p.item_type || '').toLowerCase();
-      const isReady =
-        !type ||
-        type === 'ready_product' ||
-        type === 'finished' ||
-        type === 'menu' ||
-        type === 'sellable';
       const isRaw = type === 'raw_material' || type === 'raw';
-      return !isRaw && isReady && price > 0;
+      if (isRaw) return false;
+      if (price <= 0) return false;
+      // Allow empty type (some catalogs omit it) and common sellable aliases
+      if (!type || type === 'ready_product' || type === 'finished' || type === 'menu' || type === 'sellable') {
+        return true;
+      }
+      return false;
     });
   }, [products]);
 
@@ -315,7 +353,9 @@ export function CustomerMenu() {
           {resolveError === 'error' ? 'Could not open menu' : 'Invalid QR Code'}
         </h2>
         <p className="text-slate-500 max-w-xs">
-          Ask staff to regenerate the table QR from the floor board.
+          {resolveError === 'error'
+            ? 'Network or table directory error. Try again, or ask staff to check dining_tables sync.'
+            : 'This QR is not linked to an active table. Ask staff to regenerate it from Table Management or Floor Designer.'}
         </p>
       </div>
     );

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Minus, Plus, Trash2, ShoppingCart, Clock, ArrowRight, ChefHat } from 'lucide-react';
+import { Minus, Plus, Trash2, ShoppingCart, Clock, ChefHat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { usePOSStore } from '../store/usePOSStore';
@@ -8,11 +8,26 @@ import { useTableBillStore } from '@/modules/tables/store/useTableBillStore';
 import { formatCurrency } from '@/utils/format';
 import { useNavigate } from 'react-router-dom';
 
-export function Cart() {
-  const { 
-    cart, removeItem, updateQuantity, clearCart, discountType, discountValue,
-    heldOrders, holdCurrentOrder, resumeOrder, fetchHeldOrders, discardHeldOrder,
-    activeTableId, activeTableLabel, syncActiveTableBill, fireActiveTableKitchen,
+type Props = {
+  /** Switch POS workspace to Held tab */
+  onOpenHeld?: () => void;
+};
+
+export function Cart({ onOpenHeld }: Props) {
+  const {
+    cart,
+    removeItem,
+    updateQuantity,
+    clearCart,
+    discountType,
+    discountValue,
+    heldOrders,
+    holdCurrentOrder,
+    fetchHeldOrders,
+    activeTableId,
+    activeTableLabel,
+    syncActiveTableBill,
+    fireActiveTableKitchen,
   } = usePOSStore();
   const getOpenBill = useTableBillStore((s) => s.getOpenBill);
   const getUnfiredItems = useTableBillStore((s) => s.getUnfiredItems);
@@ -21,7 +36,6 @@ export function Cart() {
 
   const [editingQtyFor, setEditingQtyFor] = useState<string | null>(null);
   const [manualQty, setManualQty] = useState('');
-  const [isHoldModalOpen, setIsHoldModalOpen] = useState(false);
   const [firing, setFiring] = useState(false);
   const [fireMsg, setFireMsg] = useState<string | null>(null);
 
@@ -59,8 +73,9 @@ export function Cart() {
     if (ok) setTimeout(() => setFireMsg(null), 2000);
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const discountAmount = discountType === 'percentage' ? (subtotal * discountValue) / 100 : discountValue;
+  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const discountAmount =
+    discountType === 'percentage' ? (subtotal * discountValue) / 100 : discountValue;
   const discountedSubtotal = Math.max(0, subtotal - discountAmount);
   const tax = discountedSubtotal * 0.18;
   const total = discountedSubtotal + tax;
@@ -83,7 +98,12 @@ export function Cart() {
                 >
                   {activeTableLabel ? 'Park' : 'Hold'}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={clearCart} className="text-red-500 hover:text-red-600 hover:bg-red-50 h-8 px-3 rounded-full text-xs font-bold uppercase tracking-wider">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearCart}
+                  className="text-red-500 hover:text-red-600 hover:bg-red-50 h-8 px-3 rounded-full text-xs font-bold uppercase tracking-wider"
+                >
                   Clear All
                 </Button>
               </>
@@ -93,18 +113,19 @@ export function Cart() {
 
         <TableBillBanner />
 
-        {heldOrders.length > 0 && !activeTableLabel && (
-          <Button 
-            variant="secondary" 
+        {heldOrders.length > 0 && !activeTableLabel && onOpenHeld && (
+          <Button
+            type="button"
+            variant="secondary"
             className="w-full bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
-            onClick={() => setIsHoldModalOpen(true)}
+            onClick={onOpenHeld}
           >
             <Clock className="w-4 h-4 mr-2" />
-            View {heldOrders.length} Held {heldOrders.length === 1 ? 'Order' : 'Orders'}
+            View {heldOrders.length} held {heldOrders.length === 1 ? 'order' : 'orders'}
           </Button>
         )}
       </div>
-      
+
       <ScrollArea className="flex-1 min-h-0 px-4 py-4">
         {cart.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full p-8 text-slate-400">
@@ -117,117 +138,122 @@ export function Cart() {
         ) : (
           <div className="flex flex-col gap-3">
             {cart.map((item) => (
-              <div key={item.id} className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-slate-100/50 hover:shadow-md transition-shadow group">
-                <div className="flex-1 min-w-0 pr-3">
-                  <h4 className="font-bold text-slate-800 text-sm leading-tight mb-1">{item.name}</h4>
-                  <span className="text-xs font-bold text-slate-400">{formatCurrency(item.price)} each</span>
+              <div
+                key={item.id}
+                className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-slate-100 shadow-sm"
+              >
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-bold text-sm text-slate-800 truncate">{item.name}</h4>
+                  <p className="text-xs text-brand-orange font-bold">
+                    {formatCurrency(item.price)}
+                  </p>
                 </div>
-                
-                <div className="flex flex-col items-end gap-2 shrink-0">
-                  <div className="font-black text-slate-900 text-base tabular-nums">
-                    {formatCurrency(item.price * item.quantity)}
-                  </div>
-                  <div className="flex items-center bg-slate-50 border border-slate-100 rounded-xl overflow-hidden h-9 shadow-inner">
-                    <Button 
-                      variant="ghost" 
-                      className="h-full w-9 rounded-none p-0 text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition-colors"
-                      onClick={() => item.quantity > 1 ? updateQuantity(item.id, item.quantity - 1) : removeItem(item.id)}
-                    >
-                      {item.quantity === 1 ? <Trash2 className="h-4 w-4 text-red-500" /> : <Minus className="h-4 w-4" />}
-                    </Button>
-                    <button 
-                      className="w-12 text-center text-sm font-black text-slate-700 h-full flex items-center justify-center hover:bg-slate-200 transition-colors"
-                      onClick={() => handleOpenQtyModal(item.id, item.quantity)}
-                      title="Click to enter quantity manually"
-                    >
-                      {item.quantity}
-                    </button>
-                    <Button 
-                      variant="ghost" 
-                      className="h-full w-9 rounded-none p-0 text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition-colors"
-                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 rounded-full"
+                    onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </Button>
+                  <button
+                    type="button"
+                    className="w-8 text-center font-bold text-sm"
+                    onClick={() => handleOpenQtyModal(item.id, item.quantity)}
+                  >
+                    {item.quantity}
+                  </button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 rounded-full"
+                    onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </Button>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50"
+                  onClick={() => removeItem(item.id)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
               </div>
             ))}
           </div>
         )}
       </ScrollArea>
-      
-      <div className="p-6 bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.04)] flex flex-col gap-3 shrink-0 z-10 border-t border-slate-100">
-        <div className="flex justify-between text-sm font-semibold text-slate-500">
-          <span>Subtotal</span>
-          <span className="text-slate-700">{formatCurrency(subtotal)}</span>
-        </div>
-        {discountAmount > 0 && (
-          <div className="flex justify-between text-sm font-bold text-brand-orange">
-            <span>Discount</span>
-            <span>-{formatCurrency(discountAmount)}</span>
+
+      <div className="p-4 bg-white border-t border-slate-100 space-y-3 shrink-0">
+        <div className="space-y-1 text-sm">
+          <div className="flex justify-between text-slate-500">
+            <span>Subtotal</span>
+            <span className="font-semibold text-slate-700">{formatCurrency(subtotal)}</span>
           </div>
-        )}
-        <div className="flex justify-between text-sm font-semibold text-slate-500">
-          <span>Tax (18%)</span>
-          <span className="text-slate-700">{formatCurrency(tax)}</span>
+          {discountAmount > 0 && (
+            <div className="flex justify-between text-emerald-600">
+              <span>Discount</span>
+              <span className="font-semibold">−{formatCurrency(discountAmount)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-slate-500">
+            <span>Tax (18%)</span>
+            <span className="font-semibold text-slate-700">{formatCurrency(tax)}</span>
+          </div>
+          <div className="flex justify-between text-lg font-black text-brand-navy pt-1">
+            <span>TOTAL</span>
+            <span className="text-brand-orange">{formatCurrency(total)}</span>
+          </div>
         </div>
-        <div className="flex justify-between mt-1 pt-3 border-t border-slate-100">
-          <span className="font-bold text-brand-navy uppercase tracking-wider text-sm">Total</span>
-          <span className="font-bold text-2xl text-brand-orange">{formatCurrency(total)}</span>
-        </div>
+
         {fireMsg && (
-          <p className={`text-xs font-bold text-center ${fireMsg.includes('Sent') ? 'text-emerald-600' : 'text-red-600'}`}>
+          <p
+            className={`text-xs font-medium text-center ${
+              fireMsg.includes('fail') || fireMsg.includes('Send')
+                ? 'text-rose-600'
+                : 'text-emerald-600'
+            }`}
+          >
             {fireMsg}
           </p>
         )}
-        {activeTableId ? (
-          <div className="grid grid-cols-2 gap-2 mt-2">
+
+        <div className="flex gap-2">
+          {activeTableId && (
             <Button
               type="button"
               variant="outline"
-              className="h-12 rounded-2xl font-bold border-slate-300"
-              disabled={cart.length === 0 || firing}
-              onClick={handleSendKitchen}
+              disabled={firing || unfiredCount === 0}
+              onClick={() => void handleSendKitchen()}
+              className="h-12 rounded-xl font-bold border-slate-200"
             >
               <ChefHat className="w-4 h-4 mr-1.5" />
-              {firing ? 'Sending…' : unfiredCount > 0 ? `Kitchen (${unfiredCount})` : 'Kitchen'}
+              Kitchen{unfiredCount > 0 ? ` (${unfiredCount})` : ''}
             </Button>
-            <Button
-              className="h-12 rounded-2xl text-base font-bold bg-brand-orange hover:bg-[#e55f00] text-white shadow-md"
-              disabled={cart.length === 0}
-              onClick={() => {
-                syncActiveTableBill();
-                navigate('/erp/pos/checkout');
-              }}
-            >
-              Pay bill
-              <ArrowRight className="w-4 h-4 ml-1" />
-            </Button>
-          </div>
-        ) : (
-          <Button 
-            className="w-full h-14 rounded-2xl text-lg font-bold mt-3 bg-brand-orange hover:bg-[#e55f00] text-white shadow-[0_8px_30px_rgba(255,106,0,0.28)] hover:shadow-[0_8px_40px_rgba(255,106,0,0.35)] hover:-translate-y-0.5 transition-all duration-300" 
+          )}
+          <Button
+            type="button"
             disabled={cart.length === 0}
             onClick={() => {
               syncActiveTableBill();
               navigate('/erp/pos/checkout');
             }}
+            className="flex-1 h-12 rounded-xl font-bold text-white bg-brand-orange hover:bg-[#e55f00] disabled:opacity-50"
           >
-            Checkout
+            Pay bill →
           </Button>
-        )}
+        </div>
       </div>
 
-      {/* Manual Quantity Modal */}
       {editingQtyFor && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200 p-6 flex flex-col items-center">
-            <h3 className="text-xl font-bold text-slate-800 mb-2">Enter Quantity</h3>
-            <p className="text-slate-500 text-sm mb-6 text-center">Type the exact quantity for this item.</p>
-            
-            <input 
-              type="number" 
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 flex flex-col items-center">
+            <h3 className="text-lg font-bold text-slate-800 mb-4">Update quantity</h3>
+            <input
+              type="number"
               autoFocus
               className="w-32 h-16 text-center text-3xl font-black border-2 border-slate-200 rounded-xl focus:border-brand-orange focus:ring-4 focus:ring-brand-orange/20 outline-none transition-all"
               value={manualQty}
@@ -238,16 +264,15 @@ export function Cart() {
               }}
               onFocus={(e) => e.target.select()}
             />
-
             <div className="flex gap-3 w-full mt-8">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="flex-1 h-12 font-bold"
                 onClick={() => setEditingQtyFor(null)}
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 className="flex-1 h-12 bg-brand-orange hover:bg-[#e55f00] text-white font-bold"
                 onClick={handleSaveQty}
               >
@@ -257,52 +282,6 @@ export function Cart() {
           </div>
         </div>
       )}
-
-      {/* Held Orders Modal */}
-      {isHoldModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[80vh]">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-xl font-bold text-slate-800">Orders on Hold</h3>
-              <Button variant="ghost" size="sm" onClick={() => setIsHoldModalOpen(false)}>Close</Button>
-            </div>
-            
-            <ScrollArea className="flex-1 p-6">
-              <div className="flex flex-col gap-4">
-                {heldOrders.map(order => (
-                  <div key={order.id} className="p-4 border border-slate-200 rounded-xl flex items-center justify-between bg-slate-50">
-                    <div>
-                      <h4 className="font-bold text-slate-800">{order.notes || 'Held Order'}</h4>
-                      <p className="text-sm text-slate-500">{new Date(order.created_at).toLocaleTimeString()} • {order.items.length} items</p>
-                      <p className="text-sm font-bold text-brand-orange">{formatCurrency(order.total_amount)}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline"
-                        onClick={() => discardHeldOrder(order.id)}
-                        className="text-red-500 hover:text-red-600 hover:bg-red-50 border-red-200"
-                        title="Discard Order"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                      <Button 
-                        onClick={() => {
-                          resumeOrder(order.id);
-                          setIsHoldModalOpen(false);
-                        }}
-                        className="bg-brand-orange hover:bg-[#e55f00] text-white font-bold"
-                      >
-                        Resume <ArrowRight className="w-4 h-4 ml-2" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }

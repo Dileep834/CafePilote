@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { checkOutletLimit } from '@/lib/planLimits';
 import { useTenantStore } from '@/store/useTenantStore';
+import { useAuthStore } from '@/store/useAuthStore';
+import { isSuperAdmin } from '@/lib/access';
 
 export interface OutletRow {
   id: string;
@@ -34,13 +36,15 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
 
   fetchOutlets: async (companyId) => {
     set({ isLoading: true, error: null });
+    const user = useAuthStore.getState().user;
     const cid = companyId || useTenantStore.getState().companyId;
     try {
-      let query = supabase.from('outlets').select('*').order('name');
+      const query = supabase.from('outlets').select('*').order('name');
       const { data, error } = await query;
       if (error) throw error;
       let rows = (data || []) as OutletRow[];
-      if (cid) {
+      // Super Admin (platform owner) sees every branch; others stay company-scoped
+      if (cid && !isSuperAdmin(user)) {
         rows = rows.filter((r) => !r.company_id || r.company_id === cid);
       }
       set({ outlets: rows, isLoading: false });
@@ -52,13 +56,17 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
   addOutlet: async (outlet) => {
     set({ error: null });
     const tenant = useTenantStore.getState();
+    const user = useAuthStore.getState().user;
     const companyId = outlet.companyId || tenant.companyId || undefined;
     const planId = tenant.planId;
     const current = get().outlets.filter((o) => o.is_active).length;
-    const gate = checkOutletLimit(planId, current);
-    if (!gate.ok) {
-      set({ error: gate.message });
-      return null;
+    // Platform owner is not limited by subscription plan caps
+    if (!isSuperAdmin(user)) {
+      const gate = checkOutletLimit(planId, current);
+      if (!gate.ok) {
+        set({ error: gate.message });
+        return null;
+      }
     }
 
     try {

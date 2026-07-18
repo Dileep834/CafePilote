@@ -51,21 +51,19 @@ import { CafePilotsLogo } from '../components/CafePilotsLogo';
 const drawerWidth = 260;
 
 const menuItems = [
-  { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+  { text: 'ERP Home', icon: <Dashboard />, path: '/erp' },
+  { text: 'POS (Billing)', icon: <ShoppingCart />, path: '/erp/pos' },
+  { text: 'Products', icon: <Store />, path: '/erp/menu/products' },
+  { text: 'Categories', icon: <Store />, path: '/erp/menu/categories' },
+  { text: 'Recipes', icon: <PrecisionManufacturing />, path: '/erp/menu/recipes' },
+  { text: 'Stock on hand', icon: <Inventory />, path: '/erp/inventory' },
+  { text: 'Daily Update', icon: <Assessment />, path: '/erp/inventory/daily' },
+  { text: 'Adjustments', icon: <Inventory />, path: '/erp/inventory/adjustments' },
+  { text: 'Purchase Orders', icon: <Receipt />, path: '/erp/purchase' },
+  { text: 'Waste log', icon: <Warning />, path: '/erp/inventory/waste' },
   { text: 'Companies', icon: <Store />, path: '/masters/companies' },
-  { text: 'Point of Sale (POS)', icon: <ShoppingCart />, path: '/sales/entry' },
-  { text: 'Live Inventory', icon: <Inventory />, path: '/inventory/current' },
-  { text: 'Daily Update', icon: <Assessment />, path: '/inventory/daily-update' },
-  { text: 'Adjustments', icon: <Inventory />, path: '/inventory/adjustments' },
-  { text: 'Purchase Orders', icon: <Receipt />, path: '/purchase/orders' },
-  { text: 'Wastage Log', icon: <Warning />, path: '/waste' },
-  { text: 'Products', icon: <Store />, path: '/masters/products' },
-  { text: 'Recipes', icon: <PrecisionManufacturing />, path: '/masters/recipes' },
-  { text: 'Categories', icon: <Store />, path: '/masters/categories' },
-  { text: 'Outlets', icon: <Store />, path: '/masters/outlets' },
-  { text: 'Suppliers', icon: <Store />, path: '/masters/suppliers' },
-  { text: 'Users', icon: <People />, path: '/users' },
-  { text: 'Settings', icon: <Settings />, path: '/settings' },
+  { text: 'Staff & users', icon: <People />, path: '/erp/users' },
+  { text: 'Settings', icon: <Settings />, path: '/erp/settings' },
 ];
 
 const DashboardLayout: React.FC = () => {

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { BRAND } from '@/constants';
-import { Map, Check, Loader2 } from 'lucide-react';
+import { Map as MapIcon, Check, Loader2 } from 'lucide-react';
 import {
   floorPlanTemplateService,
   type OutletFloorPlanMap,
@@ -121,7 +121,7 @@ export function OutletFloorPlanMapper({ outlets, companyId, onApplied }: Props) 
           className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
           style={{ backgroundColor: BRAND.navy }}
         >
-          <Map className="w-4 h-4 text-white" />
+          <MapIcon className="w-4 h-4 text-white" />
         </div>
         <div>
           <h2 className="text-base font-bold" style={{ color: BRAND.navy }}>

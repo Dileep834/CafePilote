@@ -23,6 +23,22 @@ export const APP_NAME = 'CafePilots';
 export const APP_TAGLINE = 'Run Every Café Smarter.';
 export const APP_DOMAIN = 'cafepilots.com';
 
+/**
+ * Platform owner tenant (Super Admin / CafePilots HQ).
+ * Separate from real customer companies — never reuse a customer UUID.
+ */
+export const HQ_COMPANY_ID = 'a1000000-0000-4000-8000-000000000001';
+export const HQ_COMPANY_NAME = 'CafePilots HQ';
+export const HQ_COMPANY_SUBDOMAIN = 'cafepilots-hq';
+/** Default demo outlet under CafePilots HQ for orphan / placeholder rows */
+export const HQ_OUTLET_ID = 'a1000000-0000-4000-8000-000000000010';
+
+/**
+ * Real customer tenant (Backbenchers). Historical seed id — do not rename or merge.
+ */
+export const BACKBENCHERS_COMPANY_ID = 'c1000000-0000-0000-0000-000000000001';
+export const BACKBENCHERS_COMPANY_NAME = 'Backbenchers Cafeteria';
+
 /** Brand board palette */
 export const BRAND = {
   navy: '#0D1B2A',

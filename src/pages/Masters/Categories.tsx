@@ -6,6 +6,7 @@ import DataTable from '../../components/DataTable';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useFeedback } from '../../hooks/useFeedback';
+import { HQ_COMPANY_ID } from '../../constants';
 
 const Categories: React.FC = () => {
   const { user } = useAuthStore();
@@ -46,7 +47,8 @@ const Categories: React.FC = () => {
       setFormData(category);
     } else {
       setFormData({ 
-        company_id: user?.companyId === 'SYSTEM' ? null : user?.companyId
+        company_id:
+          user?.companyId === 'SYSTEM' || !user?.companyId ? HQ_COMPANY_ID : user?.companyId,
       });
     }
     setOpen(true);

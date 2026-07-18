@@ -7,6 +7,21 @@ import {
   type SubscriptionPlanId,
   type PlanLimits,
 } from '@/lib/planLimits';
+import { HQ_COMPANY_ID, HQ_COMPANY_NAME } from '@/constants';
+import { isSuperAdmin } from '@/lib/access';
+
+/**
+ * Super Admin always belongs to CafePilots HQ (platform owner).
+ * Never inherit a customer company (e.g. Backbenchers) from a stale login cache.
+ */
+function resolveCompanyId(user: User): string {
+  if (isSuperAdmin(user)) return HQ_COMPANY_ID;
+  const raw = user.companyId;
+  if (!raw || raw === 'SYSTEM' || raw === 'default-company') {
+    return HQ_COMPANY_ID;
+  }
+  return raw;
+}
 
 export type TenantOutlet = {
   id: string;
@@ -98,22 +113,58 @@ export const useTenantStore = create<TenantState>()(
           return;
         }
 
-        const companyId = user.companyId || 'default-company';
+        const companyId = resolveCompanyId(user);
+        const sa = isSuperAdmin(user);
         set({ isLoading: true, lastError: null, companyId });
 
+        // Fix stale auth-storage that still has Backbenchers (or SYSTEM) on Super Admin
+        if (sa && user.companyId !== HQ_COMPANY_ID) {
+          try {
+            const { useAuthStore } = await import('@/store/useAuthStore');
+            const cur = useAuthStore.getState().user;
+            if (cur && cur.id === user.id) {
+              useAuthStore.setState({
+                user: { ...cur, companyId: HQ_COMPANY_ID },
+              });
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+
         let outlets: TenantOutlet[] = [];
-        let companyName: string | null = null;
-        let planId: SubscriptionPlanId = get().planId || 'growth';
+        let companyName: string | null = sa ? HQ_COMPANY_NAME : null;
+        // Do not keep a stale persisted plan when hydrating — prefer DB
+        let planId: SubscriptionPlanId = sa ? 'enterprise' : 'growth';
 
         try {
           const { data: company } = await supabase
             .from('companies')
-            .select('id, name')
+            .select('id, name, subdomain')
             .eq('id', companyId)
             .maybeSingle();
-          if (company?.name) companyName = company.name;
+
+          if (company?.name) {
+            companyName = company.name;
+          } else if (companyId === HQ_COMPANY_ID) {
+            companyName = HQ_COMPANY_NAME;
+            void supabase.from('companies').upsert(
+              {
+                id: HQ_COMPANY_ID,
+                name: HQ_COMPANY_NAME,
+                subdomain: 'cafepilots-hq',
+                is_active: true,
+              },
+              { onConflict: 'id' }
+            );
+          }
         } catch {
           /* offline */
+        }
+
+        if (sa) companyName = HQ_COMPANY_NAME;
+        if (!companyName) {
+          companyName = companyId === HQ_COMPANY_ID ? HQ_COMPANY_NAME : 'Company';
         }
 
         try {
@@ -124,19 +175,23 @@ export const useTenantStore = create<TenantState>()(
             .maybeSingle();
           if (sub?.plan_id === 'starter' || sub?.plan_id === 'growth' || sub?.plan_id === 'enterprise') {
             planId = sub.plan_id;
+          } else if (sa) {
+            planId = 'enterprise';
           }
         } catch {
-          /* table may not exist yet */
+          if (sa) planId = 'enterprise';
         }
 
         try {
-          let query = supabase.from('outlets').select('*').eq('is_active', true).order('name');
-          // Prefer company filter when column exists
-          const { data, error } = await query;
+          const { data, error } = await supabase
+            .from('outlets')
+            .select('*')
+            .eq('is_active', true)
+            .order('name');
           if (error) throw error;
           const rows = (data || []) as any[];
           outlets = rows
-            .filter((r) => !r.company_id || r.company_id === companyId || user.role === 'Super Admin')
+            .filter((r) => !r.company_id || r.company_id === companyId || sa)
             .map((r) => ({
               id: String(r.id),
               name: r.name || r.code || 'Branch',
@@ -144,23 +199,33 @@ export const useTenantStore = create<TenantState>()(
               companyId: r.company_id || companyId,
               isActive: r.is_active !== false,
             }));
+          // Super Admin: prefer HQ outlets first in the branch list
+          if (sa) {
+            outlets.sort((a, b) => {
+              const aHq = a.companyId === HQ_COMPANY_ID ? 0 : 1;
+              const bHq = b.companyId === HQ_COMPANY_ID ? 0 : 1;
+              if (aHq !== bHq) return aHq - bHq;
+              return a.name.localeCompare(b.name);
+            });
+          }
         } catch {
           outlets = [];
         }
 
         if (outlets.length === 0) {
           outlets = demoOutlets(companyId, user.outletId);
-          companyName = companyName || 'CafePilots Demo';
         }
 
-        // Staff locked to their outlet when set
         const canSwitch = get().canSwitchBranch(user);
         let activeOutletId = get().activeOutletId;
         if (!canSwitch && user.outletId) {
           activeOutletId = user.outletId;
         } else if (!activeOutletId || !outlets.some((o) => o.id === activeOutletId)) {
+          // Prefer user's outlet, else first HQ outlet for Super Admin
+          const hqFirst = outlets.find((o) => o.companyId === HQ_COMPANY_ID)?.id;
           activeOutletId =
             (user.outletId && outlets.find((o) => o.id === user.outletId)?.id) ||
+            (sa ? hqFirst : null) ||
             outlets[0]?.id ||
             null;
         }
@@ -192,5 +257,10 @@ export function getTenantOutletId(user?: User | null): string {
 }
 
 export function getTenantCompanyId(user?: User | null): string {
-  return useTenantStore.getState().companyId || user?.companyId || 'default-company';
+  const fromStore = useTenantStore.getState().companyId;
+  if (fromStore) return fromStore;
+  if (user?.companyId && user.companyId !== 'SYSTEM' && user.companyId !== 'default-company') {
+    return user.companyId;
+  }
+  return HQ_COMPANY_ID;
 }

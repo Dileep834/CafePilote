@@ -16,7 +16,7 @@ import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { CafePilotsLogo } from '../components/CafePilotsLogo';
 import { useAuthStore } from '../store/useAuthStore';
 import { supabase } from '../lib/supabase';
-import { APP_NAME, APP_TAGLINE } from '../constants';
+import { APP_NAME, APP_TAGLINE, HQ_COMPANY_ID } from '../constants';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -77,17 +77,42 @@ const Login: React.FC = () => {
         console.warn('Failed to create session log', err);
       }
       
-      // Log the user in
+      // Super Admin always CafePilots HQ (ignore stale customer company in DB/cache)
+      const companyId =
+        dbUser.role === 'Super Admin' ? HQ_COMPANY_ID : dbUser.company_id;
+
       login({
         id: dbUser.id,
         name: dbUser.name,
         email: dbUser.email,
         role: dbUser.role,
         outletId: dbUser.outlet_id,
-        companyId: dbUser.company_id,
+        companyId,
         isActive: dbUser.is_active
       }, 'live-jwt-token', sessionId || undefined);
-      navigate('/dashboard');
+
+      // Reset stale tenant persist so header shows HQ + correct plan
+      try {
+        const { useTenantStore } = await import('../store/useTenantStore');
+        if (dbUser.role === 'Super Admin') {
+          useTenantStore.setState({
+            companyId: HQ_COMPANY_ID,
+            planId: 'enterprise',
+          });
+        }
+        await useTenantStore.getState().hydrateFromUser({
+          id: dbUser.id,
+          name: dbUser.name,
+          email: dbUser.email,
+          role: dbUser.role,
+          outletId: dbUser.outlet_id,
+          companyId,
+          isActive: dbUser.is_active,
+        });
+      } catch {
+        /* ignore */
+      }
+      navigate('/erp');
       
     } catch (_err) {
       setError('An error occurred during login');

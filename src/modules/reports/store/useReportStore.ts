@@ -100,12 +100,15 @@ export const useReportStore = create<ReportState>((set, get) => ({
         .order('created_at', { ascending: false });
 
       // Apply Outlet Filter
-      if (user?.outletId) {
-        // Enforce user's assigned outlet
-        query = query.eq('outlet_id', user.outletId);
-      } else if (selectedOutletId !== 'ALL') {
-        // Super admin filter
+      if (selectedOutletId !== 'ALL') {
         query = query.eq('outlet_id', selectedOutletId);
+      } else if (
+        user?.outletId &&
+        user.role !== 'Super Admin' &&
+        user.role !== 'Admin'
+      ) {
+        // Staff locked to assigned outlet
+        query = query.eq('outlet_id', user.outletId);
       }
       
       // Apply Date Filter

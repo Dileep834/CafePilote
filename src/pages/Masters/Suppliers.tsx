@@ -24,11 +24,11 @@ const Suppliers: React.FC = () => {
   const fetchSuppliers = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('suppliers')
-        .select('*')
-        .eq('company_id', user?.companyId)
-        .order('name', { ascending: true });
+      let query = supabase.from('suppliers').select('*').order('name', { ascending: true });
+      if (user?.role !== 'Super Admin' && user?.companyId) {
+        query = query.eq('company_id', user.companyId);
+      }
+      const { data, error } = await query;
         
       if (error) throw error;
       setSuppliers(data || []);

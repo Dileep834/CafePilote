@@ -61,7 +61,8 @@ export function CustomerCartModal({ isOpen, onClose, table, onViewStatus }: Cust
       clearCart();
       setDone(true);
     } catch (e: any) {
-      setError(e?.message || 'Could not send order. Please ask staff.');
+      const storeErr = useTableBillStore.getState().lastError;
+      setError(storeErr || e?.message || 'Could not send order. Please ask staff.');
     } finally {
       setSubmitting(false);
     }

@@ -93,7 +93,7 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
         .order('created_at', { ascending: true });
 
       if (user?.outletId) {
-        query = query.eq('outlet_id', user.outletId);
+        query = query.or(`outlet_id.eq.${user.outletId},outlet_id.is.null`);
       }
 
       let { data, error } = await query;
@@ -104,7 +104,9 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
           .select(selectLegacy)
           .neq('kitchen_status', 'delivered')
           .order('created_at', { ascending: true });
-        if (user?.outletId) legacy = legacy.eq('outlet_id', user.outletId);
+        if (user?.outletId) {
+          legacy = legacy.or(`outlet_id.eq.${user.outletId},outlet_id.is.null`);
+        }
         ({ data, error } = await legacy);
         if (error) throw error;
         // Filter open/held client-side

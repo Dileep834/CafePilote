@@ -7,10 +7,12 @@ import { PLAN_LIMITS, type SubscriptionPlanId } from '@/lib/planLimits';
 import { Settings, Printer, Store, Save, FileText, CheckCircle2, Shield, LayoutGrid, Map, CreditCard } from 'lucide-react';
 import { ThermalReceipt } from '../../pos/components/ThermalReceipt';
 import { RolesPermissions } from '../components/RolesPermissions';
-import { BRAND } from '@/constants';
+import { BRAND, HQ_COMPANY_NAME } from '@/constants';
 import { cn } from '@/lib/utils';
 import { OutletFloorPlanMapper } from '@/modules/floordesigner/components/OutletFloorPlanMapper';
 import { useNavigate } from 'react-router-dom';
+import { isSuperAdmin } from '@/lib/access';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 export function SystemSettings() {
   const navigate = useNavigate();
@@ -52,6 +54,9 @@ export function SystemSettings() {
       </div>
     );
   }
+
+  const displayCompany =
+    isSuperAdmin(user) ? HQ_COMPANY_NAME : companyName || user?.companyId || '—';
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -238,7 +243,7 @@ export function SystemSettings() {
           </div>
           <div className="p-6 space-y-3">
             <p className="text-sm text-slate-500">
-              Company: <span className="font-bold text-slate-800">{companyName || user?.companyId || '—'}</span>
+              Company: <span className="font-bold text-slate-800">{displayCompany}</span>
               {' · '}
               {outlets.length} branch{outlets.length === 1 ? '' : 'es'} loaded
             </p>
@@ -278,11 +283,13 @@ export function SystemSettings() {
           </div>
         </div>
 
-        <OutletFloorPlanMapper
-          outlets={outlets.map((o) => ({ id: o.id, name: o.name }))}
-          companyId={companyId}
-          onApplied={() => navigate('/erp/floor')}
-        />
+        <ErrorBoundary area="floor plan mapper">
+          <OutletFloorPlanMapper
+            outlets={outlets.map((o) => ({ id: o.id, name: o.name }))}
+            companyId={companyId}
+            onApplied={() => navigate('/erp/floor')}
+          />
+        </ErrorBoundary>
 
         {/* Table view preference */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">

@@ -5,6 +5,8 @@ import { DataGrid } from '@mui/x-data-grid';
 import { Add } from '@mui/icons-material';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
+import { getTenantOutletId } from '../../store/useTenantStore';
+import { isSuperAdmin } from '../../lib/access';
 
 const WasteEntry: React.FC = () => {
   const { user } = useAuthStore();
@@ -21,7 +23,7 @@ const WasteEntry: React.FC = () => {
   const [reason, setReason] = useState('');
 
   useEffect(() => {
-    if (user?.companyId) {
+    if (user) {
       fetchProducts();
       fetchWasteLogs();
     }
@@ -30,8 +32,8 @@ const WasteEntry: React.FC = () => {
   const fetchProducts = async () => {
     let query = supabase.from('products').select('id, name, unit').eq('is_active', true).order('name');
     
-    // If not a platform super admin, lock products to their company
-    if (user?.role !== 'SUPER_ADMIN' && user?.companyId) {
+    // Super Admin sees all products; others stay company-scoped
+    if (!isSuperAdmin(user) && user?.companyId) {
       query = query.eq('company_id', user.companyId);
     }
     
@@ -69,18 +71,19 @@ const WasteEntry: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    if (!productId || !quantity || !reason || !user?.outletId) {
-      setSnackbar({ open: true, message: "Please fill all fields. Ensure you are logged in as a Outlet Manager.", severity: 'error' });
+    const outletId = getTenantOutletId(user) || user?.outletId;
+    if (!productId || !quantity || !reason || !outletId || outletId === 'current-outlet') {
+      setSnackbar({ open: true, message: "Please fill all fields and select a branch.", severity: 'error' });
       return;
     }
 
     const { error } = await supabase.from('waste_logs').insert([{
-      outlet_id: user.outletId,
-      company_id: user.companyId,
+      outlet_id: outletId,
+      company_id: user?.companyId,
       product_id: productId,
       quantity: parseFloat(quantity),
       reason: reason,
-      logged_by: user.name,
+      logged_by: user?.name,
       date: new Date().toISOString().split('T')[0]
     }]);
 
@@ -95,7 +98,7 @@ const WasteEntry: React.FC = () => {
       const { data: invData } = await supabase
         .from('inventory')
         .select('current_quantity')
-        .eq('outlet_id', user.outletId)
+        .eq('outlet_id', outletId)
         .eq('product_id', productId)
         .single();
         
@@ -103,7 +106,7 @@ const WasteEntry: React.FC = () => {
       const newQty = currentQty - parseFloat(quantity);
       
       await supabase.from('inventory').upsert({
-        outlet_id: user.outletId,
+        outlet_id: outletId,
         product_id: productId,
         current_quantity: newQty
       }, { onConflict: 'outlet_id, product_id' });

@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '@/lib/supabase';
+import {
+  endGuestSession,
+  startGuestSession,
+  touchGuestSession,
+  type GuestSessionContext,
+} from '../lib/guestSessionService';
 
 export type GuestUser = {
   id: string;
@@ -14,8 +20,13 @@ interface GuestAuthState {
   guest: GuestUser | null;
   isReady: boolean;
   lastError: string | null;
+  /** Cloud guest_sessions row id while dine-in */
+  activeSessionId: string | null;
+  sessionContext: GuestSessionContext | null;
 
   initFromSupabase: () => Promise<void>;
+  setSessionContext: (ctx: GuestSessionContext | null) => void;
+  registerPresence: (ctx?: GuestSessionContext) => Promise<void>;
   signInWithGoogle: (redirectTo: string) => Promise<boolean>;
   continueWithEmail: (email: string, name?: string) => Promise<boolean>;
   sendMagicLink: (email: string, redirectTo: string) => Promise<boolean>;
@@ -31,32 +42,58 @@ function displayNameFromEmail(email: string) {
     .trim();
 }
 
+async function publishPresence(
+  guest: GuestUser,
+  ctx: GuestSessionContext | null | undefined,
+  set: (partial: Partial<GuestAuthState>) => void
+) {
+  if (!ctx?.tableId && !ctx?.outletId) return;
+  const sessionId = await startGuestSession(guest, ctx || {});
+  if (sessionId) set({ activeSessionId: sessionId, sessionContext: ctx || null });
+}
+
 export const useGuestAuthStore = create<GuestAuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       guest: null,
       isReady: false,
       lastError: null,
+      activeSessionId: null,
+      sessionContext: null,
+
+      setSessionContext: (ctx) => set({ sessionContext: ctx }),
+
+      registerPresence: async (ctx) => {
+        const guest = get().guest;
+        const context = ctx || get().sessionContext;
+        if (!guest || !context) return;
+        await publishPresence(guest, context, set);
+        const sid = get().activeSessionId;
+        if (sid) void touchGuestSession(sid);
+      },
 
       initFromSupabase: async () => {
         try {
           const { data } = await supabase.auth.getSession();
           const user = data.session?.user;
           if (user?.email) {
+            const guest: GuestUser = {
+              id: user.id,
+              email: user.email,
+              name:
+                (user.user_metadata?.full_name as string) ||
+                (user.user_metadata?.name as string) ||
+                displayNameFromEmail(user.email),
+              avatarUrl: (user.user_metadata?.avatar_url as string) || undefined,
+              provider: user.app_metadata?.provider === 'google' ? 'google' : 'email',
+            };
             set({
-              guest: {
-                id: user.id,
-                email: user.email,
-                name:
-                  (user.user_metadata?.full_name as string) ||
-                  (user.user_metadata?.name as string) ||
-                  displayNameFromEmail(user.email),
-                avatarUrl: (user.user_metadata?.avatar_url as string) || undefined,
-                provider: user.app_metadata?.provider === 'google' ? 'google' : 'email',
-              },
+              guest,
               isReady: true,
               lastError: null,
             });
+            const ctx = get().sessionContext;
+            if (ctx) void publishPresence(guest, ctx, set);
             return;
           }
         } catch {
@@ -101,6 +138,7 @@ export const useGuestAuthStore = create<GuestAuthState>()(
           provider: 'email',
         };
         set({ guest, lastError: null });
+        await publishPresence(guest, get().sessionContext, set);
         return true;
       },
 
@@ -117,45 +155,36 @@ export const useGuestAuthStore = create<GuestAuthState>()(
             options: { emailRedirectTo: redirectTo },
           });
           if (error) throw error;
-          // Also set local session so they can browse immediately after OTP request
-          set({
-            guest: {
-              id: `email-${cleaned}`,
-              email: cleaned,
-              name: displayNameFromEmail(cleaned),
-              provider: 'email',
-            },
-          });
-          return true;
-        } catch (e: any) {
-          // Fall back to local email continue
-          set({
-            guest: {
-              id: `email-${cleaned}`,
-              email: cleaned,
-              name: displayNameFromEmail(cleaned),
-              provider: 'email',
-            },
-            lastError: null,
-          });
-          return true;
+        } catch {
+          /* fall through to local guest */
         }
+        const guest: GuestUser = {
+          id: `email-${cleaned}`,
+          email: cleaned,
+          name: displayNameFromEmail(cleaned),
+          provider: 'email',
+        };
+        set({ guest, lastError: null });
+        await publishPresence(guest, get().sessionContext, set);
+        return true;
       },
 
       signOut: async () => {
+        const { activeSessionId, guest } = get();
+        await endGuestSession({ sessionId: activeSessionId, email: guest?.email });
         try {
           await supabase.auth.signOut();
         } catch {
           /* ignore */
         }
-        set({ guest: null, lastError: null });
+        set({ guest: null, lastError: null, activeSessionId: null });
       },
 
       clearError: () => set({ lastError: null }),
     }),
     {
       name: 'cafepilots-guest-auth',
-      partialize: (s) => ({ guest: s.guest }),
+      partialize: (s) => ({ guest: s.guest, sessionContext: s.sessionContext }),
     }
   )
 );

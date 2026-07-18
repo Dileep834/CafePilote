@@ -25,16 +25,12 @@ const DEFAULT_PERMISSIONS: RolePermissions[] = [
     permissions: ['pos.access', 'pos.checkout', 'pos.discount', 'inventory.view', 'inventory.adjust', 'purchase.manage', 'crm.manage', 'marketing.manage', 'reports.view', 'users.manage']
   },
   {
-    roleName: 'Franchise Manager',
+    roleName: 'Outlet Owner',
     permissions: ['pos.access', 'pos.checkout', 'pos.discount', 'inventory.view', 'inventory.adjust', 'purchase.manage', 'crm.manage', 'marketing.manage', 'reports.view']
   },
   {
-    roleName: 'Cashier',
-    permissions: ['pos.access', 'pos.checkout', 'crm.manage']
-  },
-  {
-    roleName: 'Kitchen Staff',
-    permissions: ['kitchen.access']
+    roleName: 'Staff',
+    permissions: ['pos.access', 'pos.checkout', 'crm.manage', 'kitchen.access']
   }
 ];
 

@@ -32,11 +32,11 @@ const Recipes: React.FC = () => {
 
   const fetchProducts = async () => {
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .eq('company_id', user?.companyId)
-        .order('name');
+      let query = supabase.from('products').select('*').order('name');
+      if (user?.role !== 'Super Admin' && user?.companyId) {
+        query = query.eq('company_id', user.companyId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       if (data) setProducts(data);
     } catch (err) {
@@ -48,7 +48,7 @@ const Recipes: React.FC = () => {
     setLoading(true);
     try {
       // Fetch recipes with their linked product and ingredients
-      const { data, error } = await supabase
+      let query = supabase
         .from('recipes')
         .select(`
           id,
@@ -60,9 +60,12 @@ const Recipes: React.FC = () => {
             quantity_consumed,
             raw_material:products!recipe_ingredients_raw_material_id_fkey(name, unit)
           )
-        `)
-        .eq('company_id', user?.companyId);
+        `);
+      if (user?.role !== 'Super Admin' && user?.companyId) {
+        query = query.eq('company_id', user.companyId);
+      }
 
+      const { data, error } = await query;
       if (error) throw error;
       
       const formattedRecipes = (data || []).map((r: any) => ({

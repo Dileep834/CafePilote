@@ -10,11 +10,11 @@ const SystemSettings: React.FC = () => {
 
   // Form State
   const [settings, setSettings] = useState({
-    companyName: 'Backbenchers Cafeteria',
-    logoUrl: 'https://backbencherscafeteria.in/images/logo.png',
-    address: 'Patel Chowk, RB Mehta Marg, near Neelyog Square, Saibaba Nagar, Pant Nagar, Ghatkopar East, Mumbai, Maharashtra 400077',
-    phone: '+91 9702130632',
-    email: 'backbencherscafeteria@gmail.com',
+    companyName: 'CafePilots HQ',
+    logoUrl: '',
+    address: '',
+    phone: '',
+    email: '',
     
     openingTime: '20:00',
     closingTime: '23:00',

@@ -17,33 +17,54 @@ function fromRow(row: any): Table {
   };
 }
 
-/** Public QR lookup — works on guest phones without staff localStorage. */
-export async function resolveTableByQr(
+export type ResolveTableByQrResult =
+  | { ok: true; table: Table }
+  | { ok: false; reason: 'missing_token' | 'not_found' | 'cloud_error'; message: string };
+
+/** Public QR lookup — cloud first so guest phones don't depend on staff localStorage. */
+export async function resolveTableByQrDetailed(
   qrToken: string,
   outletId?: string
-): Promise<Table | null> {
+): Promise<ResolveTableByQrResult> {
   const token = (qrToken || '').trim();
-  if (!token) return null;
+  if (!token) {
+    return { ok: false, reason: 'missing_token', message: 'Missing QR token' };
+  }
 
-  // 1) Local store (same browser as staff / already hydrated)
-  const localTables = useTableStore.getState().tables;
-  const local =
-    localTables.find((t) => t.qrCodeToken === token && (!outletId || t.outletId === outletId)) ||
-    localTables.find((t) => t.qrCodeToken === token);
-  if (local) return local;
-
-  // 2) Cloud dining_tables by token (primary public path)
+  // 1) Cloud dining_tables by token (primary public path for guest phones)
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('dining_tables')
       .select('*')
       .eq('qr_code_token', token)
-      .eq('is_active', true)
-      .maybeSingle();
+      .eq('is_active', true);
 
-    if (!error && data) {
+    if (outletId && outletId !== 'current-outlet') {
+      query = query.eq('outlet_id', outletId);
+    }
+
+    let { data, error } = await query.maybeSingle();
+
+    // Retry without outlet filter if outlet-prefixed URL was wrong / outdated
+    if ((!data || error) && outletId) {
+      ({ data, error } = await supabase
+        .from('dining_tables')
+        .select('*')
+        .eq('qr_code_token', token)
+        .eq('is_active', true)
+        .maybeSingle());
+    }
+
+    if (error) {
+      return {
+        ok: false,
+        reason: 'cloud_error',
+        message: error.message || 'Could not reach table directory',
+      };
+    }
+
+    if (data) {
       const table = fromRow(data);
-      // Keep staff store in sync if opened on same device later
       const existing = useTableStore.getState().tables.find((t) => t.id === table.id);
       if (!existing) {
         useTableStore.setState((s) => ({ tables: [...s.tables, table] }));
@@ -52,21 +73,60 @@ export async function resolveTableByQr(
           tables: s.tables.map((t) => (t.id === table.id ? { ...t, ...table } : t)),
         }));
       }
-      return table;
+      return { ok: true, table };
     }
-  } catch {
-    /* table may not exist yet */
+  } catch (e: any) {
+    return {
+      ok: false,
+      reason: 'cloud_error',
+      message: e?.message || 'Could not resolve QR',
+    };
   }
 
-  return null;
+  // 2) Local fallback (same browser as staff / offline demo)
+  const localTables = useTableStore.getState().tables;
+  const local =
+    localTables.find((t) => t.qrCodeToken === token && (!outletId || t.outletId === outletId)) ||
+    localTables.find((t) => t.qrCodeToken === token);
+  if (local) return { ok: true, table: local };
+
+  return {
+    ok: false,
+    reason: 'not_found',
+    message: 'This QR is not linked to an active table. Ask staff to print a new QR.',
+  };
+}
+
+/** Public QR lookup — works on guest phones without staff localStorage. */
+export async function resolveTableByQr(
+  qrToken: string,
+  outletId?: string
+): Promise<Table | null> {
+  const result = await resolveTableByQrDetailed(qrToken, outletId);
+  return result.ok ? result.table : null;
 }
 
 /** Upsert a table row so guest QR links resolve on other devices. */
 export async function syncTableForQr(table: Table): Promise<boolean> {
   if (!table.qrCodeToken) return false;
 
+  // Never write placeholder outlet into cloud — guest tickets would vanish from KDS
+  let outletId = table.outletId;
+  if (!outletId || outletId === 'current-outlet' || outletId.startsWith('local')) {
+    try {
+      const { getTenantOutletId } = await import('@/store/useTenantStore');
+      const { useAuthStore } = await import('@/store/useAuthStore');
+      const tenant = getTenantOutletId(useAuthStore.getState().user);
+      if (tenant && tenant !== 'current-outlet' && !tenant.startsWith('local')) {
+        outletId = tenant;
+      }
+    } catch {
+      /* keep original */
+    }
+  }
+
   const row = {
-    outlet_id: table.outletId,
+    outlet_id: outletId,
     table_number: table.tableNumber,
     capacity: table.capacity,
     status: table.status,
@@ -77,7 +137,6 @@ export async function syncTableForQr(table: Table): Promise<boolean> {
   };
 
   try {
-    // Prefer update by id when cloud uuid
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       table.id
     );
@@ -87,10 +146,16 @@ export async function syncTableForQr(table: Table): Promise<boolean> {
         { id: table.id, ...row },
         { onConflict: 'id' }
       );
-      if (!error) return true;
+      if (!error) {
+        if (outletId !== table.outletId) {
+          useTableStore.setState((s) => ({
+            tables: s.tables.map((t) => (t.id === table.id ? { ...t, outletId } : t)),
+          }));
+        }
+        return true;
+      }
     }
 
-    // Upsert by unique qr token
     const { data: existing } = await supabase
       .from('dining_tables')
       .select('id')
@@ -100,20 +165,24 @@ export async function syncTableForQr(table: Table): Promise<boolean> {
     if (existing?.id) {
       const { error } = await supabase.from('dining_tables').update(row).eq('id', existing.id);
       if (!error) {
-        if (existing.id !== table.id) {
-          useTableStore.setState((s) => ({
-            tables: s.tables.map((t) => (t.id === table.id ? { ...t, id: existing.id } : t)),
-          }));
-        }
+        useTableStore.setState((s) => ({
+          tables: s.tables.map((t) =>
+            t.id === table.id || t.id === existing.id
+              ? { ...t, id: existing.id, outletId }
+              : t
+          ),
+        }));
         return true;
       }
     }
 
     const { data, error } = await supabase.from('dining_tables').insert([row]).select('id').single();
     if (error) throw error;
-    if (data?.id && data.id !== table.id) {
+    if (data?.id) {
       useTableStore.setState((s) => ({
-        tables: s.tables.map((t) => (t.id === table.id ? { ...t, id: data.id } : t)),
+        tables: s.tables.map((t) =>
+          t.id === table.id ? { ...t, id: data.id, outletId } : t
+        ),
       }));
     }
     return true;

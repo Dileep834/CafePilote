@@ -1,147 +1,213 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
-import { 
-  ShoppingCart, 
-  Package, 
-  Truck, 
-  ChefHat, 
-  Users, 
-  BarChart3, 
-  Store,
+import {
+  ShoppingCart,
+  Package,
+  Truck,
+  ChefHat,
+  Users,
+  BarChart3,
   Settings,
   Shield,
   Ticket,
   LayoutGrid,
-  Database
+  Map,
+  UtensilsCrossed,
+  Tags,
+  BookOpen,
+  Boxes,
+  Building2,
+  type LucideIcon,
 } from 'lucide-react';
+import { BRAND } from '@/constants';
+import { cn } from '@/lib/utils';
 
-const modules = [
+type ModuleCard = {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  path: string;
+};
+
+type ModuleSection = {
+  id: string;
+  label: string;
+  items: ModuleCard[];
+};
+
+const sections: ModuleSection[] = [
   {
-    title: 'POS (Billing)',
-    description: 'Point of Sale, Orders, Cart, Payments',
-    icon: ShoppingCart,
-    color: 'text-purple-600',
-    bgColor: 'bg-purple-100',
-    path: '/erp/pos'
+    id: 'service',
+    label: 'Front of house',
+    items: [
+      {
+        title: 'POS (Billing)',
+        description: 'Orders, cart, payments & history',
+        icon: ShoppingCart,
+        path: '/erp/pos',
+      },
+      {
+        title: 'Tables',
+        description: 'Seating status, bills & QR',
+        icon: LayoutGrid,
+        path: '/erp/tables',
+      },
+      {
+        title: 'Floor Designer',
+        description: 'Layout, table placement & links',
+        icon: Map,
+        path: '/erp/floor',
+      },
+      {
+        title: 'Kitchen (KDS)',
+        description: 'Tickets and prep status',
+        icon: ChefHat,
+        path: '/erp/kitchen',
+      },
+    ],
   },
   {
-    title: 'Table Management',
-    description: 'Dine-in Tables, Floorplan, QR Menus',
-    icon: LayoutGrid,
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-100',
-    path: '/erp/tables'
+    id: 'menu',
+    label: 'Menu & catalog',
+    items: [
+      {
+        title: 'Products',
+        description: 'Sellable items & prices',
+        icon: UtensilsCrossed,
+        path: '/erp/menu/products',
+      },
+      {
+        title: 'Categories',
+        description: 'Menu groups for POS & QR',
+        icon: Tags,
+        path: '/erp/menu/categories',
+      },
+      {
+        title: 'Recipes',
+        description: 'BOM / recipe costing',
+        icon: BookOpen,
+        path: '/erp/menu/recipes',
+      },
+    ],
   },
   {
-    title: 'Master Data',
-    description: 'Products, Categories, Outlets, Companies',
-    icon: Database,
-    color: 'text-rose-600',
-    bgColor: 'bg-rose-100',
-    path: '/masters/products'
+    id: 'stock',
+    label: 'Inventory & purchase',
+    items: [
+      {
+        title: 'Stock on hand',
+        description: 'Live inventory levels',
+        icon: Boxes,
+        path: '/erp/inventory',
+      },
+      {
+        title: 'Purchase orders',
+        description: 'Ordering from suppliers',
+        icon: Truck,
+        path: '/erp/purchase',
+      },
+      {
+        title: 'Adjustments',
+        description: 'Corrections & transfers',
+        icon: Package,
+        path: '/erp/inventory/adjustments',
+      },
+    ],
   },
   {
-    title: 'Inventory',
-    description: 'Stock Levels, Adjustments, Transfers',
-    icon: Package,
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-100',
-    path: '/erp/inventory'
+    id: 'growth',
+    label: 'Customers & business',
+    items: [
+      {
+        title: 'CRM',
+        description: 'Guests, loyalty, feedback',
+        icon: Users,
+        path: '/erp/crm',
+      },
+      {
+        title: 'Offers & vouchers',
+        description: 'Promo codes & campaigns',
+        icon: Ticket,
+        path: '/erp/vouchers',
+      },
+      {
+        title: 'Reports',
+        description: 'Sales & order analytics',
+        icon: BarChart3,
+        path: '/erp/reports',
+      },
+      {
+        title: 'Outlets / Branches',
+        description: 'Locations & floor plan mapping',
+        icon: Building2,
+        path: '/erp/franchise',
+      },
+    ],
   },
   {
-    title: 'Purchase',
-    description: 'Purchase Orders, Supplier Management',
-    icon: Truck,
-    color: 'text-green-600',
-    bgColor: 'bg-green-100',
-    path: '/erp/purchase'
+    id: 'admin',
+    label: 'Admin',
+    items: [
+      {
+        title: 'Staff & users',
+        description: 'Accounts and access',
+        icon: Shield,
+        path: '/erp/users',
+      },
+      {
+        title: 'Settings',
+        description: 'Receipts, printers, floor plans',
+        icon: Settings,
+        path: '/erp/settings',
+      },
+    ],
   },
-  {
-    title: 'Kitchen (KDS)',
-    description: 'Kitchen Display System, Recipes',
-    icon: ChefHat,
-    color: 'text-orange-600',
-    bgColor: 'bg-orange-100',
-    path: '/erp/kitchen'
-  },
-  {
-    title: 'CRM',
-    description: 'Customer Data, Loyalty, Feedback',
-    icon: Users,
-    color: 'text-pink-600',
-    bgColor: 'bg-pink-100',
-    path: '/erp/crm'
-  },
-  {
-    title: 'Reports',
-    description: 'Sales, Profit, Analytics',
-    icon: BarChart3,
-    color: 'text-teal-600',
-    bgColor: 'bg-teal-100',
-    path: '/erp/reports'
-  },
-  {
-    title: 'Outlets / Branches',
-    description: 'Locations, floor plans & tables per branch',
-    icon: Store,
-    color: 'text-indigo-600',
-    bgColor: 'bg-indigo-100',
-    path: '/erp/franchise'
-  },
-  {
-    title: 'Offers & Vouchers',
-    description: 'Promo Codes, Discounts, Campaigns',
-    icon: Ticket,
-    color: 'text-pink-600',
-    bgColor: 'bg-pink-100',
-    path: '/erp/vouchers'
-  },
-  {
-    title: 'Staff & Users',
-    description: 'Manage Employee Accounts & Access',
-    icon: Shield,
-    color: 'text-amber-600',
-    bgColor: 'bg-amber-100',
-    path: '/erp/users'
-  },
-  {
-    title: 'Settings',
-    description: 'System Config, Receipts, Printers',
-    icon: Settings,
-    color: 'text-slate-600',
-    bgColor: 'bg-slate-100',
-    path: '/erp/settings'
-  }
 ];
 
 export function ERPHome() {
   const navigate = useNavigate();
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto">
+    <div className="flex flex-col gap-8 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Welcome to CafePilots</h1>
-        <p className="text-slate-500 mt-2">Select a module below to get started.</p>
+        <h1 className="text-3xl font-bold tracking-tight" style={{ color: BRAND.navy }}>
+          Welcome to CafePilots
+        </h1>
+        <p className="text-slate-500 mt-2">
+          Modules are grouped by job — service floor, menu, stock, then admin.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-4">
-        {modules.map((mod) => (
-          <Card 
-            key={mod.title}
-            className="cursor-pointer hover:shadow-lg hover:-translate-y-1 transition-all duration-200 border-slate-200"
-            onClick={() => navigate(mod.path)}
-          >
-            <CardContent className="p-6 flex flex-col items-center text-center h-full">
-              <div className={`p-4 rounded-full ${mod.bgColor} mb-4`}>
-                <mod.icon className={`h-8 w-8 ${mod.color}`} />
-              </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-2">{mod.title}</h3>
-              <p className="text-sm text-slate-500 line-clamp-2">{mod.description}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {sections.map((section) => (
+        <section key={section.id} className="space-y-3">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 px-0.5">
+            {section.label}
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {section.items.map((mod) => (
+              <Card
+                key={mod.title}
+                className="cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border-slate-200"
+                onClick={() => navigate(mod.path)}
+              >
+                <CardContent className="p-5 flex flex-col h-full">
+                  <div
+                    className={cn(
+                      'w-11 h-11 rounded-xl flex items-center justify-center mb-3 text-white'
+                    )}
+                    style={{ backgroundColor: BRAND.navy }}
+                  >
+                    <mod.icon className="h-5 w-5" style={{ color: BRAND.orange }} />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 mb-1">{mod.title}</h3>
+                  <p className="text-sm text-slate-500 line-clamp-2">{mod.description}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }

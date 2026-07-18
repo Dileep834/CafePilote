@@ -7,6 +7,7 @@ import DataTable from '../../components/DataTable';
 import type { Product } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
+import { HQ_COMPANY_ID } from '../../constants';
 
 const Products: React.FC = () => {
   const { user } = useAuthStore();
@@ -66,7 +67,8 @@ const Products: React.FC = () => {
       setFormData({ 
         code: `PRD-${Math.floor(1000 + Math.random() * 9000)}`,
         is_active: true,
-        company_id: user?.companyId === 'SYSTEM' ? null : user?.companyId
+        company_id:
+          user?.companyId === 'SYSTEM' || !user?.companyId ? HQ_COMPANY_ID : user?.companyId,
       });
     }
     setOpen(true);

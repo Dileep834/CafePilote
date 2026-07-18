@@ -6,6 +6,7 @@ import DataTable from '../../components/DataTable';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useFeedback } from '../../hooks/useFeedback';
+import { HQ_COMPANY_ID } from '../../constants';
 
 const Outlets: React.FC = () => {
   const { user } = useAuthStore();
@@ -48,7 +49,8 @@ const Outlets: React.FC = () => {
       setFormData({ 
         code: `FRA-${Math.floor(100 + Math.random() * 900)}`,
         is_active: true,
-        company_id: user?.companyId === 'SYSTEM' ? null : user?.companyId
+        company_id:
+          user?.companyId === 'SYSTEM' || !user?.companyId ? HQ_COMPANY_ID : user?.companyId,
       });
     }
     setOpen(true);

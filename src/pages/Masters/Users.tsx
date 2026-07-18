@@ -4,7 +4,7 @@ import type { GridColDef } from '@mui/x-data-grid';
 import { Add, Edit, Delete } from '@mui/icons-material';
 import { v4 as uuidv4 } from 'uuid';
 import DataTable from '../../components/DataTable';
-import { Role } from '../../constants';
+import { Role, HQ_COMPANY_ID } from '../../constants';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 
@@ -63,7 +63,7 @@ const Users: React.FC = () => {
       setFormData({ 
         role: Role.STAFF,
         is_active: true,
-        company_id: user?.companyId === 'SYSTEM' ? null : user?.companyId,
+        company_id: user?.companyId === 'SYSTEM' || !user?.companyId ? HQ_COMPANY_ID : user?.companyId,
         outlet_id: (user?.role === Role.OUTLET_OWNER) ? user?.outletId : ''
       });
     }

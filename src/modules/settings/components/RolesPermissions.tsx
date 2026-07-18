@@ -7,8 +7,8 @@ import type { RoleType } from '@/constants';
 export function RolesPermissions() {
   const { updateRolePermissions, getPermissionsForRole } = usePermissionsStore();
   
-  // Available system roles to configure (excluding Super Admin since it has everything by default)
-  const configurableRoles: RoleType[] = ['Admin', 'Franchise Manager', 'Cashier', 'Kitchen Staff'];
+  // Available system roles to configure (excluding Super Admin — has everything)
+  const configurableRoles: RoleType[] = ['Admin', 'Outlet Owner', 'Staff'];
   const [selectedRole, setSelectedRole] = useState<RoleType>('Admin');
   
   const [currentPermissions, setCurrentPermissions] = useState<string[]>(getPermissionsForRole('Admin'));

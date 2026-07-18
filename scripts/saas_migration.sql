@@ -11,10 +11,15 @@ CREATE TABLE IF NOT EXISTS companies (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2. Insert Default Company (Backbenchers)
+-- 2. Insert default CUSTOMER company (Backbenchers — real tenant, do not rename to HQ)
 -- We use a fixed UUID so we can easily reference it in the backfill queries.
 INSERT INTO companies (id, name, subdomain) 
 VALUES ('c1000000-0000-0000-0000-000000000001', 'Backbenchers Cafeteria', 'backbenchers')
+ON CONFLICT (subdomain) DO NOTHING;
+
+-- Platform owner company (CafePilots HQ) — separate from customer tenants
+INSERT INTO companies (id, name, subdomain) 
+VALUES ('a1000000-0000-4000-8000-000000000001', 'CafePilots HQ', 'cafepilots-hq')
 ON CONFLICT (subdomain) DO NOTHING;
 
 -- 3. Add company_id to existing tables

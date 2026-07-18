@@ -31,25 +31,15 @@ const FloorDesignerPage = React.lazy(() =>
 );
 
 const Login = React.lazy(() => import('../pages/Login'));
-const AdminDashboard = React.lazy(() => import('../pages/Dashboard/AdminDashboard'));
-const OutletDashboard = React.lazy(() => import('../pages/Dashboard/OutletDashboard'));
 const Products = React.lazy(() => import('../pages/Masters/Products'));
 const Categories = React.lazy(() => import('../pages/Masters/Categories'));
-const Outlets = React.lazy(() => import('../pages/Masters/Outlets'));
-const Users = React.lazy(() => import('../pages/Masters/Users'));
 const Companies = React.lazy(() => import('../pages/Masters/Companies'));
-const Suppliers = React.lazy(() => import('../pages/Masters/Suppliers'));
 const Recipes = React.lazy(() => import('../pages/Masters/Recipes'));
 
-const SalesEntry = React.lazy(() => import('../pages/Sales/SalesEntry'));
-
-const CurrentInventory = React.lazy(() => import('../pages/Inventory/CurrentInventory'));
 const DailyStockUpdate = React.lazy(() => import('../pages/Inventory/DailyStockUpdate'));
 const StockAdjustments = React.lazy(() => import('../pages/Inventory/StockAdjustments'));
-const PurchaseOrders = React.lazy(() => import('../pages/Purchase/PurchaseOrders'));
 const WasteEntry = React.lazy(() => import('../pages/Waste/WasteEntry'));
 const InventoryReport = React.lazy(() => import('../pages/Reports/InventoryReport'));
-const SystemSettings = React.lazy(() => import('../pages/Settings/SystemSettings'));
 const NotFound = React.lazy(() => import('../pages/NotFound'));
 
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
@@ -59,19 +49,16 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode,
     return <Navigate to="/login" replace />;
   }
   
+  // Platform owner always passes role gates
+  if (user.role === 'Super Admin') {
+    return <>{children}</>;
+  }
+
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/unauthorized" replace />;
+    return <Navigate to="/erp" replace />;
   }
   
   return <>{children}</>;
-};
-
-const RoleBasedDashboard = () => {
-  const { user } = useAuthStore();
-  if (user?.role === 'Super Admin' || user?.role === 'Admin') {
-    return <AdminDashboard />;
-  }
-  return <OutletDashboard />;
 };
 
 const AppRoutes = () => {
@@ -92,9 +79,28 @@ const AppRoutes = () => {
           <Route index element={<ERPHome />} />
           <Route path="pos" element={<POSDashboard />} />
           <Route path="pos/checkout" element={<CheckoutPage />} />
+
+          {/* Menu & catalog */}
+          <Route path="menu/products" element={<Products />} />
+          <Route path="menu/categories" element={<Categories />} />
+          <Route
+            path="menu/recipes"
+            element={
+              <ProtectedRoute allowedRoles={['Super Admin', 'Admin']}>
+                <Recipes />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="menu" element={<Navigate to="/erp/menu/products" replace />} />
+
+          {/* Inventory & purchase */}
           <Route path="inventory" element={<ERPCurrentInventory />} />
+          <Route path="inventory/daily" element={<DailyStockUpdate />} />
+          <Route path="inventory/adjustments" element={<StockAdjustments />} />
+          <Route path="inventory/waste" element={<WasteEntry />} />
           <Route path="purchase" element={<ERPPurchaseOrders />} />
           <Route path="purchase/suppliers" element={<SuppliersList />} />
+
           <Route path="kitchen" element={<KitchenDisplay />} />
           <Route path="crm" element={<CustomerManagement />} />
           <Route path="reports" element={<OrderHistory />} />
@@ -120,7 +126,28 @@ const AppRoutes = () => {
             }
           />
           <Route path="settings" element={<ERPSystemSettings />} />
+          <Route
+            path="companies"
+            element={
+              <ProtectedRoute allowedRoles={['Super Admin']}>
+                <Companies />
+              </ProtectedRoute>
+            }
+          />
         </Route>
+
+        {/* Keep old Master Data URLs working → ERP menu */}
+        <Route path="/masters/companies" element={<Navigate to="/erp/companies" replace />} />
+        <Route path="/masters/products" element={<Navigate to="/erp/menu/products" replace />} />
+        <Route path="/masters/categories" element={<Navigate to="/erp/menu/categories" replace />} />
+        <Route path="/masters/recipes" element={<Navigate to="/erp/menu/recipes" replace />} />
+        <Route path="/masters/suppliers" element={<Navigate to="/erp/purchase/suppliers" replace />} />
+        <Route path="/masters/outlets" element={<Navigate to="/erp/franchise" replace />} />
+        <Route path="/inventory/daily-update" element={<Navigate to="/erp/inventory/daily" replace />} />
+        <Route path="/inventory/adjustments" element={<Navigate to="/erp/inventory/adjustments" replace />} />
+        <Route path="/inventory/current" element={<Navigate to="/erp/inventory" replace />} />
+        <Route path="/waste" element={<Navigate to="/erp/inventory/waste" replace />} />
+        <Route path="/purchase/orders" element={<Navigate to="/erp/purchase" replace />} />
 
         {/* Legacy MVP Routes */}
         <Route path="/" element={
@@ -128,38 +155,16 @@ const AppRoutes = () => {
             <DashboardLayout />
           </ProtectedRoute>
         }>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<RoleBasedDashboard />} />
+          <Route index element={<Navigate to="/erp" replace />} />
+          <Route path="dashboard" element={<Navigate to="/erp" replace />} />
           
-          <Route path="masters/products" element={<Products />} />
-          <Route path="masters/categories" element={<Categories />} />
-          <Route path="masters/outlets" element={<Outlets />} />
-          <Route path="masters/companies" element={
-            <ProtectedRoute allowedRoles={['Super Admin']}>
-              <Companies />
-            </ProtectedRoute>
-          } />
-          <Route path="masters/suppliers" element={<Suppliers />} />
-          <Route path="masters/recipes" element={
-            <ProtectedRoute allowedRoles={['Super Admin', 'Admin']}>
-              <Recipes />
-            </ProtectedRoute>
-          } />
-          <Route path="sales/entry" element={<SalesEntry />} />
-          <Route path="users" element={<Users />} />
-          
-          {/* Inventory Pages */}
-          <Route path="inventory/current" element={<CurrentInventory />} />
-          <Route path="inventory/daily-update" element={<DailyStockUpdate />} />
-          <Route path="inventory/adjustments" element={<StockAdjustments />} />
-          <Route path="purchase/orders" element={<PurchaseOrders />} />
-          <Route path="waste" element={<WasteEntry />} />
+          <Route path="masters/companies" element={<Navigate to="/erp/companies" replace />} />
+          <Route path="sales/entry" element={<Navigate to="/erp/pos" replace />} />
+          <Route path="users" element={<Navigate to="/erp/users" replace />} />
 
-          {/* Reports & Settings */}
           <Route path="reports" element={<InventoryReport />} />
-          <Route path="settings" element={<SystemSettings />} />
+          <Route path="settings" element={<Navigate to="/erp/settings" replace />} />
 
-          {/* Master Pages */}
           <Route path="*" element={<NotFound />} />
         </Route>
         

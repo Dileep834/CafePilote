@@ -92,6 +92,43 @@ function safeOutletId(outletId: string) {
   return outletId;
 }
 
+/** Prefer real tenant/branch id when table still has placeholder outlet */
+function resolveBillOutletId(tableOutletId: string | undefined | null): string {
+  const fromTable = safeOutletId(tableOutletId || '');
+  if (fromTable) return fromTable;
+  const tenant = safeOutletId(getTenantOutletId(useAuthStore.getState().user));
+  if (tenant) return tenant;
+  return tableOutletId || 'current-outlet';
+}
+
+/** Find an existing open cloud check for this table to avoid duplicate inserts */
+async function findExistingOpenCloudOrder(tableId: string): Promise<string | undefined> {
+  try {
+    const { data, error } = await supabase
+      .from('pos_orders')
+      .select('id')
+      .eq('status', 'open')
+      .eq('table_id', tableId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!error && data?.id) return data.id as string;
+
+    // Legacy: table id only in notes
+    const { data: legacy } = await supabase
+      .from('pos_orders')
+      .select('id, notes')
+      .eq('status', 'open')
+      .ilike('notes', `%table:${tableId}%`)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return legacy?.id as string | undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -197,9 +234,10 @@ async function upsertCloudOpenOrder(bill: TableBill): Promise<string | undefined
   const subtotal = bill.items.reduce((s, i) => s + i.price * i.quantity, 0);
   const tax = Math.round(subtotal * 0.18 * 100) / 100;
   const total = subtotal + tax;
+  const outletId = safeOutletId(resolveBillOutletId(bill.outletId));
 
   const fullPayload = {
-    outlet_id: safeOutletId(bill.outletId),
+    outlet_id: outletId,
     customer_name: `Table ${bill.tableLabel}`,
     table_id: bill.tableId,
     table_number: bill.tableLabel,
@@ -214,7 +252,7 @@ async function upsertCloudOpenOrder(bill: TableBill): Promise<string | undefined
   };
 
   const legacyPayload = {
-    outlet_id: safeOutletId(bill.outletId),
+    outlet_id: outletId,
     customer_name: `Table ${bill.tableLabel}`,
     total_amount: total,
     tax_amount: tax,
@@ -226,6 +264,9 @@ async function upsertCloudOpenOrder(bill: TableBill): Promise<string | undefined
 
   try {
     let orderId = bill.cloudOrderId;
+    if (!orderId) {
+      orderId = await findExistingOpenCloudOrder(bill.tableId);
+    }
 
     if (orderId) {
       let { error } = await supabase.from('pos_orders').update(fullPayload).eq('id', orderId);
@@ -243,14 +284,11 @@ async function upsertCloudOpenOrder(bill: TableBill): Promise<string | undefined
     }
 
     if (orderId) {
-      try {
-        await syncCloudOrderItems(orderId, bill.items);
-      } catch (e) {
-        console.error('Failed to sync open-order line items', e);
-      }
+      await syncCloudOrderItems(orderId, bill.items);
     }
     return orderId;
-  } catch {
+  } catch (e) {
+    console.error('upsertCloudOpenOrder failed', e);
     return undefined;
   }
 }
@@ -280,7 +318,7 @@ async function insertKitchenTicket(params: {
     .join(' · ');
 
   const fullPayload = {
-    outlet_id: safeOutletId(params.outletId),
+    outlet_id: safeOutletId(resolveBillOutletId(params.outletId)),
     customer_name: customerName,
     customer_phone: params.guestEmail || null,
     table_id: params.tableId,
@@ -295,7 +333,7 @@ async function insertKitchenTicket(params: {
   };
 
   const legacyPayload = {
-    outlet_id: safeOutletId(params.outletId),
+    outlet_id: safeOutletId(resolveBillOutletId(params.outletId)),
     customer_name: customerName,
     customer_phone: params.guestEmail || null,
     total_amount: subtotal + tax,
@@ -389,15 +427,25 @@ export const useTableBillStore = create<TableBillState>()(
                 ?.split(/\s|·/)[0] ||
               row.id;
 
-            let items = mapCloudItems(row.pos_order_items, true);
+            // Start unfired; mark fired only when a matching kitchen ticket exists
+            let items = mapCloudItems(row.pos_order_items, false);
             let recoveredFromKitchen = false;
-            // Legacy: open header existed but line items only lived on kitchen tickets
-            if (items.length === 0) {
-              const recovered = await fetchSentItemsForTable(tableId);
-              if (recovered.length) {
-                items = recovered;
-                recoveredFromKitchen = true;
-              }
+            const sentItems = await fetchSentItemsForTable(tableId);
+            if (items.length === 0 && sentItems.length) {
+              items = sentItems;
+              recoveredFromKitchen = true;
+            } else if (sentItems.length > 0 && items.length > 0) {
+              items = items.map((item) => ({
+                ...item,
+                fired: sentItems.some(
+                  (s) =>
+                    (s.productId && s.productId === item.productId) ||
+                    (s.name === item.name && s.price === item.price)
+                ),
+              }));
+            } else if (row.order_source === 'qr' && items.length > 0 && sentItems.length === 0) {
+              // QR lines on open check with no kitchen ticket — staff can re-send
+              items = items.map((item) => ({ ...item, fired: false }));
             }
 
             const bill: TableBill = {
@@ -469,8 +517,12 @@ export const useTableBillStore = create<TableBillState>()(
               void syncCloudOrderItems(bill.cloudOrderId, bill.items).catch(() => undefined);
             }
           }
-        } catch {
-          set({ isHydrating: false });
+        } catch (e) {
+          console.error('hydrateOpenBills failed', e);
+          set({
+            isHydrating: false,
+            lastError: e instanceof Error ? e.message : 'Could not refresh open bills',
+          });
         }
       },
 
@@ -493,12 +545,7 @@ export const useTableBillStore = create<TableBillState>()(
         const primary = allTables.find((t) => t.id === billTableId) || table;
         const label = group.length > 1 ? getMergeLabel(group) : primary.tableNumber;
         const tenantOutlet = getTenantOutletId(useAuthStore.getState().user);
-        const outletId =
-          safeOutletId(primary.outletId) ||
-          safeOutletId(tenantOutlet) ||
-          primary.outletId ||
-          tenantOutlet ||
-          'current-outlet';
+        const outletId = resolveBillOutletId(primary.outletId || tenantOutlet);
 
         const bill: TableBill = {
           id: `bill-${Date.now()}`,
@@ -522,12 +569,7 @@ export const useTableBillStore = create<TableBillState>()(
           void useTableStore.getState().updateTableStatus(billTableId, 'occupied');
         }
 
-        void upsertCloudOpenOrder(bill).then((cloudId) => {
-          if (!cloudId) return;
-          set((s) => ({
-            bills: s.bills.map((b) => (b.id === bill.id ? { ...b, cloudOrderId: cloudId } : b)),
-          }));
-        });
+        // Cloud open order is created once in addItemsToTable / sync — avoids duplicate opens.
 
         return bill;
       },
@@ -535,9 +577,11 @@ export const useTableBillStore = create<TableBillState>()(
       addItemsToTable: async (table, allTables, items, source = 'pos', options) => {
         const fireKitchen = options?.fireKitchen !== false;
         const bill = get().ensureOpenBill(table, allTables, source);
+        const outletId = resolveBillOutletId(bill.outletId || table.outletId);
         const nextItems = mergeItems(bill.items, items);
         let updated: TableBill = {
           ...bill,
+          outletId,
           items: nextItems,
           source: bill.items.length === 0 ? source : bill.source,
           updatedAt: nowIso(),
@@ -549,7 +593,12 @@ export const useTableBillStore = create<TableBillState>()(
         }));
 
         const cloudId = await upsertCloudOpenOrder(updated);
-        if (cloudId) {
+        if (!cloudId) {
+          const msg =
+            'Could not save the open bill to the server. Check connection / table billing schema.';
+          set({ lastError: msg });
+          if (source === 'qr') throw new Error(msg);
+        } else {
           updated = { ...updated, cloudOrderId: cloudId };
           set((s) => ({
             bills: s.bills.map((b) => (b.id === updated.id ? updated : b)),
@@ -561,10 +610,16 @@ export const useTableBillStore = create<TableBillState>()(
 
         if (fireKitchen) {
           const justAdded = mergeItems([], items);
-          await get().fireKitchenTicket(updated.tableId, justAdded, source, {
+          const ok = await get().fireKitchenTicket(updated.tableId, justAdded, source, {
             name: options?.guestName,
             email: options?.guestEmail,
           });
+          if (!ok) {
+            const msg =
+              get().lastError ||
+              'Order saved on the check, but kitchen did not receive it. Ask staff to send again.';
+            if (source === 'qr') throw new Error(msg);
+          }
         }
 
         return get().getOpenBill(updated.tableId) || updated;
