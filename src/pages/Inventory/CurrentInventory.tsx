@@ -10,6 +10,7 @@ import * as XLSX from 'xlsx';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useFeedback } from '../../hooks/useFeedback';
+import { getScopedCompanyId, getOutletIdsForCompany } from '../../lib/tenantScope';
 
 type ViewMode = 'list' | 'card';
 
@@ -25,7 +26,10 @@ const CurrentInventory: React.FC = () => {
 
   const fetchOutlets = async () => {
     try {
-      const { data, error } = await supabase.from('outlets').select('id, name');
+      const companyId = getScopedCompanyId(user);
+      let query = supabase.from('outlets').select('id, name');
+      if (companyId) query = query.eq('company_id', companyId);
+      const { data, error } = await query;
       if (error) throw error;
       if (data) setOutlets(data);
     } catch (error) {
@@ -36,18 +40,24 @@ const CurrentInventory: React.FC = () => {
   const fetchInventory = useCallback(async () => {
     try {
       setLoading(true);
+      const companyId = getScopedCompanyId(user);
       let query = supabase
         .from('products')
         .select('id, code, name, category_id, unit, min_stock, max_stock, is_active, categories(name)')
         .order('name');
+      if (companyId) query = query.eq('company_id', companyId);
 
       const { data, error } = await query;
       if (error) throw error;
 
       if (data) {
+        const companyOutletIds = getOutletIdsForCompany(companyId);
         let invQuery = supabase.from('inventory').select('product_id, current_quantity');
         if (selectedOutlet && selectedOutlet !== 'all') {
           invQuery = invQuery.eq('outlet_id', selectedOutlet);
+        } else if (companyOutletIds.length > 0) {
+          invQuery = invQuery.in('outlet_id', companyOutletIds);
+        }
         }
 
         const { data: invData, error: invErr } = await invQuery;

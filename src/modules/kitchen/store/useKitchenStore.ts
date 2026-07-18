@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
+import { getTenantOutletId } from '@/store/useTenantStore';
+import { isSuperAdmin } from '@/lib/access';
 
 export type KitchenStatus = 'pending' | 'preparing' | 'ready' | 'delivered';
 
@@ -92,8 +94,16 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
         .neq('status', 'held')
         .order('created_at', { ascending: true });
 
-      if (user?.outletId) {
-        query = query.or(`outlet_id.eq.${user.outletId},outlet_id.is.null`);
+      // Scope to active branch — never pull other companies via null outlet_id
+      const outletId = getTenantOutletId(user);
+      if (outletId && outletId !== 'current-outlet' && !outletId.startsWith('local')) {
+        query = query.eq('outlet_id', outletId);
+      } else if (user?.outletId) {
+        query = query.eq('outlet_id', user.outletId);
+      } else if (!isSuperAdmin(user)) {
+        // No outlet context → empty kitchen (avoid global leak)
+        set({ orders: [], isLoading: false });
+        return;
       }
 
       let { data, error } = await query;
@@ -104,8 +114,10 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
           .select(selectLegacy)
           .neq('kitchen_status', 'delivered')
           .order('created_at', { ascending: true });
-        if (user?.outletId) {
-          legacy = legacy.or(`outlet_id.eq.${user.outletId},outlet_id.is.null`);
+        if (outletId && outletId !== 'current-outlet' && !outletId.startsWith('local')) {
+          legacy = legacy.eq('outlet_id', outletId);
+        } else if (user?.outletId) {
+          legacy = legacy.eq('outlet_id', user.outletId);
         }
         ({ data, error } = await legacy);
         if (error) throw error;
@@ -146,7 +158,13 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
     const { user } = useAuthStore.getState();
     get().unsubscribeFromOrders();
 
-    const filterStr = user?.outletId ? `outlet_id=eq.${user.outletId}` : undefined;
+    const outletId = getTenantOutletId(user);
+    const filterStr =
+      outletId && outletId !== 'current-outlet' && !outletId.startsWith('local')
+        ? `outlet_id=eq.${outletId}`
+        : user?.outletId
+          ? `outlet_id=eq.${user.outletId}`
+          : undefined;
 
     realtimeSubscription = supabase
       .channel('kds_orders_channel')

@@ -403,9 +403,12 @@ export const useTableBillStore = create<TableBillState>()(
             .eq('status', 'open')
             .order('updated_at', { ascending: false });
 
-          // Include null outlet_id rows (QR guests often used placeholder outlet ids)
+          // Strict outlet scope — never pull other tenants via null outlet_id
           if (outlet) {
-            query = query.or(`outlet_id.eq.${outlet},outlet_id.is.null`);
+            query = query.eq('outlet_id', outlet);
+          } else {
+            set({ isHydrating: false });
+            return;
           }
 
           const { data, error } = await query;

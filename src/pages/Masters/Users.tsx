@@ -7,6 +7,8 @@ import DataTable from '../../components/DataTable';
 import { Role, HQ_COMPANY_ID } from '../../constants';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
+import { getScopedCompanyId } from '../../lib/tenantScope';
+import { isSuperAdmin } from '../../lib/access';
 
 const Users: React.FC = () => {
   const { user } = useAuthStore();
@@ -27,9 +29,11 @@ const Users: React.FC = () => {
   const fetchUsers = async () => {
     setLoading(true);
     try {
+      const companyId = getScopedCompanyId(user);
       let query = supabase.from('users').select(`*, outlet:outlets(name)`).order('name');
-      if (user?.role !== 'Super Admin' && user?.companyId) {
-        query = query.eq('company_id', user.companyId).neq('role', 'Super Admin');
+      if (companyId) {
+        query = query.eq('company_id', companyId);
+        if (!isSuperAdmin(user)) query = query.neq('role', 'Super Admin');
       }
       const { data, error } = await query;
       if (error) throw error;
@@ -45,10 +49,9 @@ const Users: React.FC = () => {
 
   const fetchOutlets = async () => {
     try {
+      const companyId = getScopedCompanyId(user);
       let query = supabase.from('outlets').select('id, name');
-      if (user?.role !== 'Super Admin' && user?.companyId) {
-        query = query.eq('company_id', user.companyId);
-      }
+      if (companyId) query = query.eq('company_id', companyId);
       const { data } = await query;
       if (data) setOutlets(data);
     } catch (error) {
@@ -63,7 +66,7 @@ const Users: React.FC = () => {
       setFormData({ 
         role: Role.STAFF,
         is_active: true,
-        company_id: user?.companyId === 'SYSTEM' || !user?.companyId ? HQ_COMPANY_ID : user?.companyId,
+        company_id: getScopedCompanyId(user) || HQ_COMPANY_ID,
         outlet_id: (user?.role === Role.OUTLET_OWNER) ? user?.outletId : ''
       });
     }

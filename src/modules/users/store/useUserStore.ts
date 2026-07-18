@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import type { RoleType } from '@/constants';
 import type { Outlet } from '@/types';
+import { useAuthStore } from '@/store/useAuthStore';
+import { getScopedCompanyId } from '@/lib/tenantScope';
+import { isSuperAdmin } from '@/lib/access';
 
 export interface UserProfile {
   id: string;
@@ -11,7 +14,7 @@ export interface UserProfile {
   outlet_id?: string;
   is_active: boolean;
   created_at?: string;
-  
+
   // Joined relation
   outlet?: { name: string };
 }
@@ -29,7 +32,7 @@ interface UserState {
   deleteUser: (id: string) => Promise<void>;
 }
 
-export const useUserStore = create<UserState>((set, get) => ({
+export const useUserStore = create<UserState>((set) => ({
   users: [],
   outlets: [],
   isLoading: false,
@@ -38,14 +41,24 @@ export const useUserStore = create<UserState>((set, get) => ({
   fetchUsers: async () => {
     set({ isLoading: true, error: null });
     try {
-      const { data, error } = await supabase
+      const user = useAuthStore.getState().user;
+      const companyId = getScopedCompanyId(user);
+      let query = supabase
         .from('users')
-        .select(`
+        .select(
+          `
           id, name, email, role, outlet_id, is_active, created_at,
           outlet:outlets(name)
-        `)
+        `
+        )
         .order('created_at', { ascending: false });
-      
+      if (companyId) {
+        query = query.eq('company_id', companyId);
+        if (!isSuperAdmin(user)) query = query.neq('role', 'Super Admin');
+      }
+
+      const { data, error } = await query;
+
       if (error) throw error;
       set({ users: data as any[], isLoading: false });
     } catch (err: any) {
@@ -55,12 +68,13 @@ export const useUserStore = create<UserState>((set, get) => ({
 
   fetchOutlets: async () => {
     try {
-      const { data, error } = await supabase
-        .from('outlets')
-        .select('*')
-        .eq('is_active', true)
-        .order('name');
-      
+      const user = useAuthStore.getState().user;
+      const companyId = getScopedCompanyId(user);
+      let query = supabase.from('outlets').select('*').eq('is_active', true).order('name');
+      if (companyId) query = query.eq('company_id', companyId);
+
+      const { data, error } = await query;
+
       if (error) throw error;
       set({ outlets: data as Outlet[] });
     } catch (err: any) {
@@ -68,23 +82,28 @@ export const useUserStore = create<UserState>((set, get) => ({
     }
   },
 
-  addUser: async (userData, password) => {
+  addUser: async (userData) => {
     try {
-      // In a real app, you would create the Auth user via Supabase Auth Admin API
-      // Since this is a client-side demo, we just insert into the 'users' table.
+      const authUser = useAuthStore.getState().user;
+      const companyId = getScopedCompanyId(authUser);
       const { data, error } = await supabase
         .from('users')
-        .insert([{
-          name: userData.name,
-          email: userData.email,
-          role: userData.role,
-          outlet_id: userData.outlet_id || null,
-          is_active: true
-        }])
-        .select(`
+        .insert([
+          {
+            name: userData.name,
+            email: userData.email,
+            role: userData.role,
+            outlet_id: userData.outlet_id || null,
+            is_active: true,
+            company_id: companyId,
+          },
+        ])
+        .select(
+          `
           id, name, email, role, outlet_id, is_active, created_at,
           outlet:outlets(name)
-        `)
+        `
+        )
         .single();
 
       if (error) throw error;
@@ -106,7 +125,9 @@ export const useUserStore = create<UserState>((set, get) => ({
       if (error) throw error;
 
       set((state) => ({
-        users: state.users.map(u => u.id === id ? { ...u, is_active: !currentStatus } : u)
+        users: state.users.map((u) =>
+          u.id === id ? { ...u, is_active: !currentStatus } : u
+        ),
       }));
     } catch (err: any) {
       set({ error: err.message });
@@ -116,19 +137,16 @@ export const useUserStore = create<UserState>((set, get) => ({
 
   deleteUser: async (id) => {
     try {
-      const { error } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', id);
+      const { error } = await supabase.from('users').delete().eq('id', id);
 
       if (error) throw error;
 
       set((state) => ({
-        users: state.users.filter(u => u.id !== id)
+        users: state.users.filter((u) => u.id !== id),
       }));
     } catch (err: any) {
       set({ error: err.message });
       throw err;
     }
-  }
+  },
 }));

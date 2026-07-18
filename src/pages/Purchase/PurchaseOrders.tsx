@@ -6,6 +6,8 @@ import { Add, Delete, Save } from '@mui/icons-material';
 import DataTable from '../../components/DataTable';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
+import { getScopedCompanyId, getOutletIdsForCompany } from '../../lib/tenantScope';
+import { getTenantOutletId } from '../../store/useTenantStore';
 
 const PurchaseOrders: React.FC = () => {
   const { user } = useAuthStore();
@@ -30,9 +32,16 @@ const PurchaseOrders: React.FC = () => {
   const fetchPOs = async () => {
     setLoading(true);
     try {
+      const companyId = getScopedCompanyId(user);
+      const companyOutletIds = getOutletIdsForCompany(companyId);
+      const activeOutlet = getTenantOutletId(user);
       let query = supabase.from('purchase_orders').select('*').order('date', { ascending: false });
-      if (user?.role !== 'Super Admin' && user?.companyId) {
-        query = query.eq('outlet_id', user.companyId); // Assuming outlet_id maps to companyId for this demo
+      if (user?.outletId) {
+        query = query.eq('outlet_id', user.outletId);
+      } else if (activeOutlet && activeOutlet !== 'current-outlet') {
+        query = query.eq('outlet_id', activeOutlet);
+      } else if (companyOutletIds.length > 0) {
+        query = query.in('outlet_id', companyOutletIds);
       }
       const { data, error } = await query;
       if (error) throw error;
@@ -46,10 +55,9 @@ const PurchaseOrders: React.FC = () => {
 
   const fetchProducts = async () => {
     try {
+      const companyId = getScopedCompanyId(user);
       let query = supabase.from('products').select('id, name, purchase_price, unit').eq('is_active', true).order('name');
-      if (user?.role !== 'Super Admin' && user?.companyId) {
-        query = query.eq('company_id', user.companyId);
-      }
+      if (companyId) query = query.eq('company_id', companyId);
       const { data, error } = await query;
       if (error) throw error;
       if (data) setProducts(data);

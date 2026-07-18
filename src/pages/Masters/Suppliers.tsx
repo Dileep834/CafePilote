@@ -5,6 +5,7 @@ import { Add, Edit, Delete } from '@mui/icons-material';
 import DataTable from '../../components/DataTable';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
+import { getScopedCompanyId } from '../../lib/tenantScope';
 
 const Suppliers: React.FC = () => {
   const { user } = useAuthStore();
@@ -16,18 +17,15 @@ const Suppliers: React.FC = () => {
   const [formData, setFormData] = useState<any>({ is_active: true });
 
   useEffect(() => {
-    if (user?.companyId) {
-      fetchSuppliers();
-    }
+    fetchSuppliers();
   }, [user]);
 
   const fetchSuppliers = async () => {
     setLoading(true);
     try {
+      const companyId = getScopedCompanyId(user);
       let query = supabase.from('suppliers').select('*').order('name', { ascending: true });
-      if (user?.role !== 'Super Admin' && user?.companyId) {
-        query = query.eq('company_id', user.companyId);
-      }
+      if (companyId) query = query.eq('company_id', companyId);
       const { data, error } = await query;
         
       if (error) throw error;
@@ -51,7 +49,8 @@ const Suppliers: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!user?.companyId) return;
+    const companyId = getScopedCompanyId(user);
+    if (!companyId) return;
     setSaving(true);
     try {
       const payload = {
@@ -61,7 +60,7 @@ const Suppliers: React.FC = () => {
         phone: formData.phone,
         address: formData.address,
         is_active: formData.is_active,
-        company_id: user.companyId
+        company_id: companyId,
       };
 
       if (formData.id) {

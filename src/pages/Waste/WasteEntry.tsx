@@ -6,7 +6,7 @@ import { Add } from '@mui/icons-material';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { getTenantOutletId } from '../../store/useTenantStore';
-import { isSuperAdmin } from '../../lib/access';
+import { getScopedCompanyId } from '../../lib/tenantScope';
 
 const WasteEntry: React.FC = () => {
   const { user } = useAuthStore();
@@ -30,12 +30,9 @@ const WasteEntry: React.FC = () => {
   }, [user]);
 
   const fetchProducts = async () => {
+    const companyId = getScopedCompanyId(user);
     let query = supabase.from('products').select('id, name, unit').eq('is_active', true).order('name');
-    
-    // Super Admin sees all products; others stay company-scoped
-    if (!isSuperAdmin(user) && user?.companyId) {
-      query = query.eq('company_id', user.companyId);
-    }
+    if (companyId) query = query.eq('company_id', companyId);
     
     const { data, error } = await query;
     if (error) console.error(error);

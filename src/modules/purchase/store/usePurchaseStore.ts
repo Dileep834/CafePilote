@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
+import { getScopedCompanyId, getOutletIdsForCompany } from '@/lib/tenantScope';
+import { getTenantOutletId } from '@/store/useTenantStore';
 
 export interface Supplier {
   id: string;
@@ -61,7 +63,11 @@ export const usePurchaseStore = create<PurchaseState>((set, get) => ({
   fetchSuppliers: async () => {
     set({ isLoading: true, error: null });
     try {
-      const { data, error } = await supabase.from('suppliers').select('*').order('name');
+      const user = useAuthStore.getState().user;
+      const companyId = getScopedCompanyId(user);
+      let query = supabase.from('suppliers').select('*').order('name');
+      if (companyId) query = query.eq('company_id', companyId);
+      const { data, error } = await query;
       if (error) throw error;
       set({ suppliers: data as Supplier[], isLoading: false });
     } catch (err: any) {
@@ -71,7 +77,13 @@ export const usePurchaseStore = create<PurchaseState>((set, get) => ({
 
   addSupplier: async (supplier) => {
     try {
-      const { data, error } = await supabase.from('suppliers').insert([supplier]).select().single();
+      const user = useAuthStore.getState().user;
+      const companyId = getScopedCompanyId(user);
+      const { data, error } = await supabase
+        .from('suppliers')
+        .insert([{ ...supplier, company_id: companyId }])
+        .select()
+        .single();
       if (error) throw error;
       set((state) => ({ suppliers: [...state.suppliers, data as Supplier] }));
     } catch (err: any) {
@@ -98,8 +110,16 @@ export const usePurchaseStore = create<PurchaseState>((set, get) => ({
         `)
         .order('created_at', { ascending: false });
 
+      const companyId = getScopedCompanyId(user);
+      const companyOutletIds = getOutletIdsForCompany(companyId);
+      const activeOutlet = getTenantOutletId(user);
+
       if (user?.outletId) {
         query = query.eq('outlet_id', user.outletId);
+      } else if (activeOutlet && activeOutlet !== 'current-outlet') {
+        query = query.eq('outlet_id', activeOutlet);
+      } else if (companyOutletIds.length > 0) {
+        query = query.in('outlet_id', companyOutletIds);
       }
 
       const { data, error } = await query;

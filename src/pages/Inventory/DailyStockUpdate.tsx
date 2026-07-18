@@ -12,6 +12,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useFeedback } from '../../hooks/useFeedback';
 import { FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 import { InventoryStatus } from '../../constants';
+import { getScopedCompanyId } from '../../lib/tenantScope';
 
 interface StockRow extends DailyInventory {
   productName: string;
@@ -185,7 +186,10 @@ const DailyStockUpdate: React.FC = () => {
 
   const fetchOutlets = async () => {
     try {
-      const { data, error } = await supabase.from('outlets').select('id, name').eq('is_active', true);
+      const companyId = getScopedCompanyId(user);
+      let query = supabase.from('outlets').select('id, name').eq('is_active', true);
+      if (companyId) query = query.eq('company_id', companyId);
+      const { data, error } = await query;
       if (error) throw error;
       if (data && data.length > 0) {
         setOutlets(data);
@@ -202,10 +206,9 @@ const DailyStockUpdate: React.FC = () => {
     try {
       setLoading(true);
       setDraftRestoredAt(null);
+      const companyId = getScopedCompanyId(user);
       let pQuery = supabase.from('products').select('*, categories(name)').eq('is_active', true).order('name');
-      if (user?.role !== 'Super Admin' && user?.companyId) {
-        pQuery = pQuery.eq('company_id', user.companyId);
-      }
+      if (companyId) pQuery = pQuery.eq('company_id', companyId);
       const { data: productsData, error: pErr } = await pQuery;
       if (pErr) throw pErr;
 

@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase';
 import { usePOSStore } from '../store/usePOSStore';
 import { usePOSFavoritesStore } from '../store/usePOSFavoritesStore';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useTenantStore } from '@/store/useTenantStore';
+import { getScopedCompanyId } from '@/lib/tenantScope';
 import { Card } from '@/components/ui/card';
 import { formatCurrency } from '@/utils/format';
 import { cn } from '@/lib/utils';
@@ -28,14 +30,19 @@ import 'swiper/css';
 import 'swiper/css/free-mode';
 import 'swiper/css/navigation';
 
-const fetchProducts = async () => {
-  const { data, error } = await supabase
+const fetchProducts = async (companyId: string) => {
+  let query = supabase
     .from('products')
     .select('*, categories(name)')
     .eq('is_active', true)
     .eq('item_type', 'ready_product')
     .order('name');
 
+  if (companyId) {
+    query = query.eq('company_id', companyId);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
   return data;
 };
@@ -103,7 +110,10 @@ export function ProductGrid({ favoritesOnly = false }: ProductGridProps) {
   const byUser = usePOSFavoritesStore((s) => s.byUser);
   const isFavorite = usePOSFavoritesStore((s) => s.isFavorite);
   const toggleFavorite = usePOSFavoritesStore((s) => s.toggleFavorite);
-  const userKey = useAuthStore((s) => s.user?.id || s.user?.email || 'local-staff');
+  const user = useAuthStore((s) => s.user);
+  const activeOutletId = useTenantStore((s) => s.activeOutletId);
+  const companyId = getScopedCompanyId(user);
+  const userKey = user?.id || user?.email || 'local-staff';
   const favList = byUser[userKey] || [];
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedDiet, setSelectedDiet] = useState<string>('All');
@@ -111,8 +121,8 @@ export function ProductGrid({ favoritesOnly = false }: ProductGridProps) {
   const diets = ['All', 'Veg', 'Non-Veg', 'Egg', 'Jain'];
 
   const { data: products, isLoading, error } = useQuery({
-    queryKey: ['pos-products'],
-    queryFn: fetchProducts,
+    queryKey: ['pos-products', companyId, activeOutletId],
+    queryFn: () => fetchProducts(companyId),
   });
 
   const handleProductClick = (product: any) => {

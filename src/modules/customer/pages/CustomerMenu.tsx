@@ -182,27 +182,54 @@ export function CustomerMenu() {
   // Register table context as soon as QR resolves so login can write guest_sessions
   useEffect(() => {
     if (!table) return;
-    useGuestAuthStore.getState().setSessionContext({
-      outletId: table.outletId,
-      tableId: table.id,
-      tableNumber: table.tableNumber,
-    });
+    const publishCtx = async () => {
+      let companyId: string | null = null;
+      if (table.outletId && table.outletId !== 'current-outlet') {
+        const { data: outletRow } = await supabase
+          .from('outlets')
+          .select('company_id')
+          .eq('id', table.outletId)
+          .maybeSingle();
+        companyId = outletRow?.company_id ? String(outletRow.company_id) : null;
+      }
+      const ctx = {
+        outletId: table.outletId,
+        tableId: table.id,
+        tableNumber: table.tableNumber,
+        companyId,
+      };
+      useGuestAuthStore.getState().setSessionContext(ctx);
+      if (useGuestAuthStore.getState().guest) {
+        void useGuestAuthStore.getState().registerPresence(ctx);
+      }
+    };
+    void publishCtx();
   }, [table]);
 
   // When guest is signed in with a table, publish / refresh presence
   useEffect(() => {
     if (!guest || !table) return;
-    void useGuestAuthStore.getState().registerPresence({
-      outletId: table.outletId,
-      tableId: table.id,
-      tableNumber: table.tableNumber,
-    });
-    const timer = window.setInterval(() => {
-      void useGuestAuthStore.getState().registerPresence({
+    const tick = async () => {
+      const ctx = useGuestAuthStore.getState().sessionContext || {
         outletId: table.outletId,
         tableId: table.id,
         tableNumber: table.tableNumber,
-      });
+      };
+      // Ensure company_id is set for CRM isolation
+      if (!ctx.companyId && table.outletId) {
+        const { data: outletRow } = await supabase
+          .from('outlets')
+          .select('company_id')
+          .eq('id', table.outletId)
+          .maybeSingle();
+        ctx.companyId = outletRow?.company_id ? String(outletRow.company_id) : null;
+        useGuestAuthStore.getState().setSessionContext(ctx);
+      }
+      void useGuestAuthStore.getState().registerPresence(ctx);
+    };
+    void tick();
+    const timer = window.setInterval(() => {
+      void tick();
     }, 45000);
     return () => window.clearInterval(timer);
   }, [guest?.id, table?.id, table?.outletId, table?.tableNumber]);
@@ -259,20 +286,36 @@ export function CustomerMenu() {
     queryKey: ['public-products', table?.outletId || outletId],
     enabled: !!table && !!guest,
     queryFn: async () => {
+      const oid = table?.outletId || outletId;
+      let companyId: string | null = null;
+      if (oid && oid !== 'current-outlet') {
+        const { data: outletRow } = await supabase
+          .from('outlets')
+          .select('company_id')
+          .eq('id', oid)
+          .maybeSingle();
+        companyId = outletRow?.company_id ? String(outletRow.company_id) : null;
+      }
+
       // Prefer POS-aligned catalog (ready_product); fall back to all active sellables
-      let { data, error } = await supabase
+      let query = supabase
         .from('products')
         .select(`*, categories (name)`)
         .eq('is_active', true)
         .eq('item_type', 'ready_product')
         .order('name');
+      if (companyId) query = query.eq('company_id', companyId);
+
+      let { data, error } = await query;
 
       if (error || !data?.length) {
-        ({ data, error } = await supabase
+        let fallback = supabase
           .from('products')
           .select(`*, categories (name)`)
           .eq('is_active', true)
-          .order('name'));
+          .order('name');
+        if (companyId) fallback = fallback.eq('company_id', companyId);
+        ({ data, error } = await fallback);
       }
 
       if (error) throw error;

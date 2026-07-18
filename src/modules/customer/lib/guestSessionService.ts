@@ -24,14 +24,15 @@ export type GuestSessionContext = {
 };
 
 /** Upsert CRM customer row so guest appears in Customer Directory */
-export async function upsertCustomerFromGuest(guest: GuestUser): Promise<string | null> {
+export async function upsertCustomerFromGuest(
+  guest: GuestUser,
+  companyId?: string | null
+): Promise<string | null> {
   try {
     const email = guest.email.trim().toLowerCase();
-    const { data: existing } = await supabase
-      .from('customers')
-      .select('id')
-      .ilike('email', email)
-      .maybeSingle();
+    let existingQ = supabase.from('customers').select('id, company_id').ilike('email', email);
+    if (companyId) existingQ = existingQ.eq('company_id', companyId);
+    const { data: existing } = await existingQ.maybeSingle();
 
     if (existing?.id) {
       await supabase
@@ -40,6 +41,7 @@ export async function upsertCustomerFromGuest(guest: GuestUser): Promise<string 
           name: guest.name || email,
           is_active: true,
           updated_at: new Date().toISOString(),
+          ...(companyId ? { company_id: companyId } : {}),
         })
         .eq('id', existing.id);
       return existing.id as string;
@@ -55,6 +57,7 @@ export async function upsertCustomerFromGuest(guest: GuestUser): Promise<string 
           loyalty_points: 0,
           total_spend: 0,
           is_active: true,
+          ...(companyId ? { company_id: companyId } : {}),
         },
       ])
       .select('id')
@@ -74,7 +77,7 @@ export async function startGuestSession(
   ctx: GuestSessionContext
 ): Promise<string | null> {
   try {
-    await upsertCustomerFromGuest(guest);
+    await upsertCustomerFromGuest(guest, ctx.companyId);
 
     const email = guest.email.trim().toLowerCase();
     const now = new Date().toISOString();

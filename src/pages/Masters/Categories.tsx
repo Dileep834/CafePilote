@@ -6,6 +6,7 @@ import DataTable from '../../components/DataTable';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useFeedback } from '../../hooks/useFeedback';
+import { getScopedCompanyId } from '../../lib/tenantScope';
 import { HQ_COMPANY_ID } from '../../constants';
 
 const Categories: React.FC = () => {
@@ -26,11 +27,9 @@ const Categories: React.FC = () => {
   const fetchCategories = async () => {
     setLoading(true);
     try {
+      const companyId = getScopedCompanyId(user);
       let query = supabase.from('categories').select('*').order('name');
-      
-      if (user?.role !== 'Super Admin' && user?.companyId) {
-        query = query.eq('company_id', user.companyId);
-      }
+      if (companyId) query = query.eq('company_id', companyId);
       
       const { data, error } = await query;
       if (error) throw error;
@@ -47,8 +46,7 @@ const Categories: React.FC = () => {
       setFormData(category);
     } else {
       setFormData({ 
-        company_id:
-          user?.companyId === 'SYSTEM' || !user?.companyId ? HQ_COMPANY_ID : user?.companyId,
+        company_id: getScopedCompanyId(user) || HQ_COMPANY_ID,
       });
     }
     setOpen(true);

@@ -6,6 +6,7 @@ import DataTable from '../../components/DataTable';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
+import { getScopedCompanyId } from '../../lib/tenantScope';
 
 const Recipes: React.FC = () => {
   const { user } = useAuthStore();
@@ -24,18 +25,15 @@ const Recipes: React.FC = () => {
   const [currentRecipeId, setCurrentRecipeId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user?.companyId) {
-      fetchProducts();
-      loadRecipes();
-    }
+    fetchProducts();
+    loadRecipes();
   }, [user]);
 
   const fetchProducts = async () => {
     try {
+      const companyId = getScopedCompanyId(user);
       let query = supabase.from('products').select('*').order('name');
-      if (user?.role !== 'Super Admin' && user?.companyId) {
-        query = query.eq('company_id', user.companyId);
-      }
+      if (companyId) query = query.eq('company_id', companyId);
       const { data, error } = await query;
       if (error) throw error;
       if (data) setProducts(data);

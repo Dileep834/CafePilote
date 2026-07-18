@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
 import dayjs from 'dayjs';
+import { isSuperAdmin } from '@/lib/access';
+import { getScopedCompanyId, getOutletIdsForCompany } from '@/lib/tenantScope';
+import { getTenantOutletId } from '@/store/useTenantStore';
 
 export interface OrderItem {
   id: string;
@@ -62,15 +65,17 @@ export const useReportStore = create<ReportState>((set, get) => ({
   fetchData: async () => {
     const { user } = useAuthStore.getState();
     const { selectedOutletId, dateRange } = get();
+    const companyId = getScopedCompanyId(user);
+    const companyOutletIds = getOutletIdsForCompany(companyId);
     
     set({ isLoading: true, error: null });
     try {
-      // 1. Fetch Outlets for Super Admins
-      if (user?.role === 'Super Admin' || user?.role === 'Admin') {
-        const { data: outletsData } = await supabase.from('outlets').select('id, name').order('name');
-        if (outletsData) {
-          set({ outlets: outletsData });
-        }
+      // Outlets scoped to active company (SA included — switch branch to change company)
+      if (isSuperAdmin(user) || user?.role === 'Admin' || user?.role === 'Outlet Owner') {
+        let oq = supabase.from('outlets').select('id, name, company_id').order('name');
+        if (companyId) oq = oq.eq('company_id', companyId);
+        const { data: outletsData } = await oq;
+        if (outletsData) set({ outlets: outletsData });
       }
 
       // 2. Build Orders Query
@@ -99,16 +104,26 @@ export const useReportStore = create<ReportState>((set, get) => ({
         .eq('status', 'completed')
         .order('created_at', { ascending: false });
 
-      // Apply Outlet Filter
+      // Apply Outlet Filter — never leak across companies for non–Super Admin
       if (selectedOutletId !== 'ALL') {
-        query = query.eq('outlet_id', selectedOutletId);
-      } else if (
-        user?.outletId &&
-        user.role !== 'Super Admin' &&
-        user.role !== 'Admin'
-      ) {
-        // Staff locked to assigned outlet
+        // Admin/Staff: only allow outlets in their company
+        if (
+          !isSuperAdmin(user) &&
+          companyOutletIds.length > 0 &&
+          !companyOutletIds.includes(selectedOutletId)
+        ) {
+          query = query.eq('outlet_id', '__none__');
+        } else {
+          query = query.eq('outlet_id', selectedOutletId);
+        }
+      } else if (user?.outletId && user.role !== 'Super Admin' && user.role !== 'Admin') {
         query = query.eq('outlet_id', user.outletId);
+      } else if (companyOutletIds.length > 0) {
+        // Active company only (includes Super Admin on a branch)
+        query = query.in('outlet_id', companyOutletIds);
+      } else if (!isSuperAdmin(user)) {
+        const active = getTenantOutletId(user);
+        if (active && active !== 'current-outlet') query = query.eq('outlet_id', active);
       }
       
       // Apply Date Filter

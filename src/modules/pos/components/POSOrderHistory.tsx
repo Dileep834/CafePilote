@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
 import { getTenantOutletId, useTenantStore } from '@/store/useTenantStore';
 import { usePOSStore } from '../store/usePOSStore';
+import { getScopedCompanyId } from '@/lib/tenantScope';
 import { formatCurrency } from '@/utils/format';
 import { BRAND } from '@/constants';
 import { cn } from '@/lib/utils';
@@ -132,7 +133,11 @@ function HistoryBody({
   }, [range, branchOutletId]);
 
   const reorder = async (order: HistoryOrder) => {
-    const { data: products } = await supabase.from('products').select('*').eq('is_active', true);
+    const { user } = useAuthStore.getState();
+    const companyId = getScopedCompanyId(user);
+    let pq = supabase.from('products').select('*').eq('is_active', true);
+    if (companyId) pq = pq.eq('company_id', companyId);
+    const { data: products } = await pq;
 
     const byId = new Map((products || []).map((p: any) => [p.id, p]));
     const byName = new Map(

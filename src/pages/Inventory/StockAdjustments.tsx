@@ -5,6 +5,7 @@ import { DataGrid } from '@mui/x-data-grid';
 import { Add } from '@mui/icons-material';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
+import { getScopedCompanyId } from '../../lib/tenantScope';
 
 const StockAdjustments: React.FC = () => {
   const { user } = useAuthStore();
@@ -26,10 +27,9 @@ const StockAdjustments: React.FC = () => {
   }, [user]);
 
   const fetchProducts = async () => {
+    const companyId = getScopedCompanyId(user);
     let query = supabase.from('products').select('id, name, unit').eq('is_active', true).order('name');
-    if (user?.role !== 'Super Admin' && user?.companyId) {
-      query = query.eq('company_id', user.companyId);
-    }
+    if (companyId) query = query.eq('company_id', companyId);
     const { data } = await query;
     if (data) setProducts(data);
   };

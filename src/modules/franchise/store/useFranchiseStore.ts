@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { checkOutletLimit } from '@/lib/planLimits';
 import { useTenantStore } from '@/store/useTenantStore';
 import { useAuthStore } from '@/store/useAuthStore';
+import { getScopedCompanyId } from '@/lib/tenantScope';
 import { isSuperAdmin } from '@/lib/access';
 
 export interface OutletRow {
@@ -37,17 +38,13 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
   fetchOutlets: async (companyId) => {
     set({ isLoading: true, error: null });
     const user = useAuthStore.getState().user;
-    const cid = companyId || useTenantStore.getState().companyId;
+    const cid = companyId || getScopedCompanyId(user);
     try {
-      const query = supabase.from('outlets').select('*').order('name');
+      let query = supabase.from('outlets').select('*').order('name');
+      if (cid) query = query.eq('company_id', cid);
       const { data, error } = await query;
       if (error) throw error;
-      let rows = (data || []) as OutletRow[];
-      // Super Admin (platform owner) sees every branch; others stay company-scoped
-      if (cid && !isSuperAdmin(user)) {
-        rows = rows.filter((r) => !r.company_id || r.company_id === cid);
-      }
-      set({ outlets: rows, isLoading: false });
+      set({ outlets: (data || []) as OutletRow[], isLoading: false });
     } catch (err: any) {
       set({ error: err.message, isLoading: false });
     }
@@ -57,7 +54,7 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
     set({ error: null });
     const tenant = useTenantStore.getState();
     const user = useAuthStore.getState().user;
-    const companyId = outlet.companyId || tenant.companyId || undefined;
+    const companyId = outlet.companyId || getScopedCompanyId(user) || tenant.companyId || undefined;
     const planId = tenant.planId;
     const current = get().outlets.filter((o) => o.is_active).length;
     // Platform owner is not limited by subscription plan caps

@@ -4,6 +4,7 @@ import { Delete, ShoppingCart, PrecisionManufacturing } from '@mui/icons-materia
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useFeedback } from '../../hooks/useFeedback';
+import { getScopedCompanyId } from '../../lib/tenantScope';
 import { v4 as uuidv4 } from 'uuid';
 
 const SalesEntry: React.FC = () => {
@@ -21,20 +22,17 @@ const SalesEntry: React.FC = () => {
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
-    if (user?.companyId) {
-      fetchProducts();
-      fetchRecipes();
-      fetchSalesHistory();
-    }
+    fetchProducts();
+    fetchRecipes();
+    fetchSalesHistory();
   }, [user]);
 
   const fetchProducts = async () => {
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .eq('company_id', user?.companyId)
-        .order('name');
+      const companyId = getScopedCompanyId(user);
+      let query = supabase.from('products').select('*').order('name');
+      if (companyId) query = query.eq('company_id', companyId);
+      const { data, error } = await query;
       if (error) throw error;
       if (data) setProducts(data);
     } catch (err) {
