@@ -1,6 +1,6 @@
-# CafePilot ERP Master IDE Prompt
+# CafePilots Master IDE Prompt
 
-Build CafePilot ERP as a production-ready, modular ERP system.
+Build CafePilots as a production-ready, modular ERP system.
 
 Requirements: - React 19 + Vite + TypeScript - TailwindCSS + shadcn/ui -
 Responsive (mobile, tablet, desktop) - Detachable modules -

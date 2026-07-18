@@ -136,7 +136,7 @@ export function ThermalReceipt({
       {/* Footer */}
       <div className="text-center pb-8">
         <p className="font-bold">{settings.receiptFooterMessage}</p>
-        <p className="mt-2 text-[0.8em]">Powered by CafePilot</p>
+        <p className="mt-2 text-[0.8em]">Powered by CafePilots</p>
       </div>
     </div>
   );

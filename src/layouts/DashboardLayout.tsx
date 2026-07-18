@@ -45,7 +45,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useThemeContext } from '../contexts/ThemeContext';
-import { APP_NAME } from '../constants';
+import { APP_NAME, BRAND } from '../constants';
 import { CafePilotsLogo } from '../components/CafePilotsLogo';
 
 const drawerWidth = 260;
@@ -132,20 +132,8 @@ const DashboardLayout: React.FC = () => {
 
   const drawer = (
     <div>
-      <Toolbar sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 2, gap: 1 }}>
-        <CafePilotsLogo size={42} />
-        <Typography 
-          variant="h6" 
-          component="div" 
-          sx={{ 
-            fontWeight: 800, 
-            letterSpacing: '0.5px',
-            fontSize: '1.25rem'
-          }}
-        >
-          <span style={{ color: 'inherit' }}>Cafe</span>
-          <span style={{ color: '#FF7A00' }}>Pilots</span>
-        </Typography>
+      <Toolbar sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 2 }}>
+        <CafePilotsLogo size={40} withWordmark withDivider />
       </Toolbar>
       <Divider />
       <List sx={{ px: 2, pt: 2 }}>
@@ -219,7 +207,7 @@ const DashboardLayout: React.FC = () => {
             alignItems: 'center',
             gap: 0.5,
             fontWeight: 700,
-            color: '#FF7A00',
+            color: BRAND.orange,
             textDecoration: 'none',
             letterSpacing: '0.3px',
             transition: 'opacity 0.2s',

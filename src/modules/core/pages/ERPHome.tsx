@@ -121,7 +121,7 @@ export function ERPHome() {
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Welcome to CafePilot ERP</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Welcome to CafePilots</h1>
         <p className="text-slate-500 mt-2">Select a module below to get started.</p>
       </div>
 

@@ -1,6 +1,6 @@
-# CafePilot - Operations User Guide
+# CafePilots - Operations User Guide
 
-Welcome to the CafePilot platform! This guide explains how to use the core features of the system depending on your role.
+Welcome to the CafePilots platform! This guide explains how to use the core features of the system depending on your role.
 
 ## 1. Roles and Security Levels
 *   **Super Admin / Brand Admin**: Has full access to everything. Can view master lists across all franchises, create new companies, manage recipes, and view system settings.

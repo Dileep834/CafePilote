@@ -13,6 +13,9 @@ export interface KitchenOrderItem {
 export interface KitchenOrder {
   id: string;
   customer_name: string | null;
+  table_number: string | null;
+  order_source: string | null;
+  status: string | null;
   kitchen_status: KitchenStatus;
   created_at: string;
   items: KitchenOrderItem[];
@@ -30,6 +33,19 @@ interface KitchenState {
 
 let realtimeSubscription: any = null;
 
+function mapRows(data: any[]): KitchenOrder[] {
+  return data.map((row) => ({
+    id: row.id,
+    customer_name: row.customer_name,
+    table_number: row.table_number || null,
+    order_source: row.order_source || null,
+    status: row.status || null,
+    kitchen_status: row.kitchen_status,
+    created_at: row.created_at,
+    items: row.items || [],
+  }));
+}
+
 export const useKitchenStore = create<KitchenState>((set, get) => ({
   orders: [],
   isLoading: false,
@@ -40,12 +56,13 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      // Fetch orders that are not delivered yet
-      let query = supabase
-        .from('pos_orders')
-        .select(`
+      // Prefer full select with table fields; fall back if columns missing
+      const selectFull = `
           id,
           customer_name,
+          table_number,
+          order_source,
+          status,
           kitchen_status,
           created_at,
           items:pos_order_items (
@@ -53,20 +70,48 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
             product_name,
             quantity
           )
-        `)
+        `;
+      const selectLegacy = `
+          id,
+          customer_name,
+          status,
+          kitchen_status,
+          created_at,
+          items:pos_order_items (
+            id,
+            product_name,
+            quantity
+          )
+        `;
+
+      let query = supabase
+        .from('pos_orders')
+        .select(selectFull)
         .neq('kitchen_status', 'delivered')
+        .neq('status', 'open')
+        .neq('status', 'held')
         .order('created_at', { ascending: true });
 
-      // Only filter by outlet if the user is assigned to one
       if (user?.outletId) {
         query = query.eq('outlet_id', user.outletId);
       }
 
-      const { data, error } = await query;
+      let { data, error } = await query;
 
-      if (error) throw error;
-      
-      set({ orders: data as unknown as KitchenOrder[], isLoading: false });
+      if (error) {
+        let legacy = supabase
+          .from('pos_orders')
+          .select(selectLegacy)
+          .neq('kitchen_status', 'delivered')
+          .order('created_at', { ascending: true });
+        if (user?.outletId) legacy = legacy.eq('outlet_id', user.outletId);
+        ({ data, error } = await legacy);
+        if (error) throw error;
+        // Filter open/held client-side
+        data = (data || []).filter((r: any) => r.status !== 'open' && r.status !== 'held');
+      }
+
+      set({ orders: mapRows(data || []), isLoading: false });
     } catch (err: any) {
       console.error('Error fetching kitchen orders:', err);
       set({ error: err.message, isLoading: false });
@@ -75,12 +120,10 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
 
   updateOrderStatus: async (orderId: string, status: KitchenStatus) => {
     try {
-      // Optimistic update
       set((state) => ({
-        orders: state.orders.map(order => 
-          order.id === orderId ? { ...order, kitchen_status: status } : order
-        ).filter(order => status !== 'delivered' || order.id !== orderId) 
-        // If it's delivered, optionally remove it from the KDS board
+        orders: state.orders
+          .map((order) => (order.id === orderId ? { ...order, kitchen_status: status } : order))
+          .filter((order) => status !== 'delivered' || order.id !== orderId),
       }));
 
       const { error } = await supabase
@@ -89,7 +132,6 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
         .eq('id', orderId);
 
       if (error) {
-        // Revert on error
         get().fetchOrders();
         throw error;
       }
@@ -100,8 +142,6 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
 
   subscribeToOrders: () => {
     const { user } = useAuthStore.getState();
-
-    // Unsubscribe if already subscribed
     get().unsubscribeFromOrders();
 
     const filterStr = user?.outletId ? `outlet_id=eq.${user.outletId}` : undefined;
@@ -111,14 +151,12 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
       .on(
         'postgres_changes',
         {
-          event: '*', // Listen to INSERT, UPDATE, DELETE
+          event: '*',
           schema: 'public',
           table: 'pos_orders',
           filter: filterStr,
         },
-        (_payload) => {
-          // When an order changes, just refetch everything to get the joined items easily
-          // For a massive app, we'd manually merge the payload, but refetching is safer and cleaner for MVP
+        () => {
           get().fetchOrders();
         }
       )
@@ -130,5 +168,5 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
       supabase.removeChannel(realtimeSubscription);
       realtimeSubscription = null;
     }
-  }
+  },
 }));

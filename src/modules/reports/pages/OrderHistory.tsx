@@ -163,7 +163,16 @@ export function OrderHistory() {
                           </td>
                         )}
                         <td className="px-6 py-4 text-sm font-medium text-slate-700">
-                          {order.customer_name || <span className="text-slate-400 italic">Walk-in</span>}
+                          {order.table_number ? (
+                            <span className="font-bold text-brand-navy">Table {order.table_number}</span>
+                          ) : order.customer_name ? (
+                            order.customer_name
+                          ) : (
+                            <span className="text-slate-400 italic">Walk-in</span>
+                          )}
+                          {order.order_source === 'qr' && (
+                            <span className="ml-2 text-[10px] font-bold uppercase text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded">QR</span>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-sm font-black text-slate-900 text-right">
                           {formatCurrency(order.total_amount)}

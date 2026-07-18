@@ -5,6 +5,7 @@ import AppRoutes from './routes';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ConfigErrorScreen } from './components/ConfigErrorScreen';
 import { missingSupabaseConfig, supabaseConfigError } from './lib/supabase';
+import { APP_DOMAIN } from './constants';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,7 +25,7 @@ function App() {
           supabaseConfigError ||
           'Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel (or your host), then redeploy so Vite can bake them into the build.'
         }
-        details="Project: github.com/Dileep834/CafePilote — env vars must exist at build time for production."
+        details={`Domain: ${APP_DOMAIN} — env vars must exist at build time for production (repo: Dileep834/CafePilote).`}
       />
     );
   }

@@ -15,9 +15,12 @@ export interface POSOrder {
   id: string;
   created_at: string;
   customer_name: string | null;
+  table_number?: string | null;
+  order_source?: string | null;
   total_amount: number;
   payment_method: string;
   kitchen_status: string;
+  status?: string;
   outlet_id: string | null;
   outlets?: { name: string } | null;
   items: OrderItem[];
@@ -77,6 +80,9 @@ export const useReportStore = create<ReportState>((set, get) => ({
           id,
           created_at,
           customer_name,
+          table_number,
+          order_source,
+          status,
           total_amount,
           payment_method,
           kitchen_status,
@@ -90,6 +96,7 @@ export const useReportStore = create<ReportState>((set, get) => ({
             total_price
           )
         `)
+        .eq('status', 'completed')
         .order('created_at', { ascending: false });
 
       // Apply Outlet Filter
@@ -112,7 +119,29 @@ export const useReportStore = create<ReportState>((set, get) => ({
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        // Fallback without new columns
+        let fallback = supabase
+          .from('pos_orders')
+          .select(`
+            id, created_at, customer_name, total_amount, payment_method, kitchen_status, outlet_id,
+            outlets (name),
+            items:pos_order_items ( id, product_name, quantity, unit_price, total_price )
+          `)
+          .order('created_at', { ascending: false });
+        if (user?.outletId) fallback = fallback.eq('outlet_id', user.outletId);
+        else if (selectedOutletId !== 'ALL') fallback = fallback.eq('outlet_id', selectedOutletId);
+        if (dateRange === 'today') fallback = fallback.gte('created_at', today);
+        else if (dateRange === '7days') fallback = fallback.gte('created_at', dayjs().subtract(7, 'day').startOf('day').toISOString());
+        else if (dateRange === '30days') fallback = fallback.gte('created_at', dayjs().subtract(30, 'day').startOf('day').toISOString());
+        const fb = await fallback;
+        if (fb.error) throw fb.error;
+        set({
+          orders: (fb.data || []).filter((o: any) => o.status !== 'open' && o.status !== 'held' && o.status !== 'sent') as any,
+          isLoading: false,
+        });
+        return;
+      }
       
       set({ orders: data as unknown as POSOrder[], isLoading: false });
     } catch (err: any) {

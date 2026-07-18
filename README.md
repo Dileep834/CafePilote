@@ -1,6 +1,6 @@
-# CafePilot
+# CafePilots
 
-CafePilot is a modern, enterprise-grade Cafe Management and Point of Sale (POS) application designed specifically for franchises like Backbenchers Cafeteria.
+CafePilots is a modern, enterprise-grade cafe management and Point of Sale (POS) platform — tagline: **Run Every Café Smarter.**
 
 It features strict Role-Based Access Control, live multi-franchise inventory tracking, automated Bill of Materials (BOM) stock deductions via a POS interface, and centralized supplier and user management.
 

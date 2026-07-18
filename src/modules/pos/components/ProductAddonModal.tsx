@@ -123,7 +123,7 @@ export function ProductAddonModal({ isOpen, onClose, product, allProducts }: Pro
               </span>
             </div>
             <h2 className="text-2xl font-bold leading-tight drop-shadow-md">{product.name}</h2>
-            <div className="text-xl font-bold text-purple-300 drop-shadow-md mt-1">{formatCurrency(safePrice(product))}</div>
+            <div className="text-xl font-bold text-brand-orange-light drop-shadow-md mt-1">{formatCurrency(safePrice(product))}</div>
           </div>
         </div>
 
@@ -145,12 +145,12 @@ export function ProductAddonModal({ isOpen, onClose, product, allProducts }: Pro
                       className={cn(
                         "flex flex-col bg-white rounded-2xl p-3 border-2 transition-all cursor-pointer relative group",
                         isSelected 
-                          ? "border-purple-600 bg-purple-50/30 shadow-[0_4px_15px_rgba(147,51,234,0.15)]" 
-                          : "border-transparent shadow-sm hover:border-purple-200"
+                          ? "border-brand-orange bg-orange-50/30 shadow-[0_4px_15px_rgba(255,106,0,0.18)]" 
+                          : "border-transparent shadow-sm hover:border-brand-orange/40"
                       )}
                     >
                       {isSelected && (
-                        <div className="absolute top-2 right-2 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center shadow-md z-10">
+                        <div className="absolute top-2 right-2 w-6 h-6 bg-brand-orange text-white rounded-full flex items-center justify-center shadow-md z-10">
                           <Check className="w-3.5 h-3.5" />
                         </div>
                       )}
@@ -172,9 +172,9 @@ export function ProductAddonModal({ isOpen, onClose, product, allProducts }: Pro
                       
                       <h4 className="font-bold text-slate-700 text-sm leading-tight mb-1 line-clamp-2">{addon.name}</h4>
                       <div className="mt-auto flex items-center justify-between">
-                        <span className="font-bold text-purple-600">{formatCurrency(safePrice(addon))}</span>
+                        <span className="font-bold text-brand-orange">{formatCurrency(safePrice(addon))}</span>
                         {!isSelected && (
-                          <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-purple-100 group-hover:text-purple-600 transition-colors">
+                          <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-orange-100 group-hover:text-brand-orange transition-colors">
                             <Plus className="w-3.5 h-3.5" />
                           </div>
                         )}
@@ -191,7 +191,7 @@ export function ProductAddonModal({ isOpen, onClose, product, allProducts }: Pro
         {/* Footer Fixed Action Area */}
         <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
           <Button 
-            className="w-full h-14 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl shadow-[0_8px_25px_rgba(147,51,234,0.25)] text-lg font-bold flex items-center justify-center gap-3 transition-transform active:scale-95"
+            className="w-full h-14 bg-brand-orange hover:bg-[#e55f00] text-white rounded-2xl shadow-[0_8px_25px_rgba(147,51,234,0.25)] text-lg font-bold flex items-center justify-center gap-3 transition-transform active:scale-95"
             onClick={handleAddToOrder}
           >
             <ShoppingBag className="w-5 h-5" />

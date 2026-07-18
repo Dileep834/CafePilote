@@ -8,6 +8,14 @@ export default {
   theme: {
     extend: {
       colors: {
+        brand: {
+          navy: '#0D1B2A',
+          steel: '#1B263B',
+          orange: '#FF6A00',
+          'orange-light': '#FFB347',
+          cream: '#F5E6D3',
+          gray: '#F3F3F8',
+        },
         border: "oklch(var(--border) / <alpha-value>)",
         input: "oklch(var(--input) / <alpha-value>)",
         ring: "oklch(var(--ring) / <alpha-value>)",
@@ -44,6 +52,7 @@ export default {
       },
       fontFamily: {
         sans: ['Poppins', 'system-ui', 'sans-serif'],
+        heading: ['Poppins', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         lg: "var(--radius)",

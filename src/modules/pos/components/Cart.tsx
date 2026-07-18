@@ -1,27 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { Minus, Plus, Trash2, ShoppingCart, Clock, ArrowRight } from 'lucide-react';
+import { Minus, Plus, Trash2, ShoppingCart, Clock, ArrowRight, ChefHat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { usePOSStore } from '../store/usePOSStore';
+import { TableBillBanner } from './TableBillBanner';
+import { useTableBillStore } from '@/modules/tables/store/useTableBillStore';
 import { formatCurrency } from '@/utils/format';
 import { useNavigate } from 'react-router-dom';
 
 export function Cart() {
   const { 
     cart, removeItem, updateQuantity, clearCart, discountType, discountValue,
-    heldOrders, holdCurrentOrder, resumeOrder, fetchHeldOrders, discardHeldOrder
+    heldOrders, holdCurrentOrder, resumeOrder, fetchHeldOrders, discardHeldOrder,
+    activeTableId, activeTableLabel, syncActiveTableBill, fireActiveTableKitchen,
   } = usePOSStore();
+  const getOpenBill = useTableBillStore((s) => s.getOpenBill);
+  const getUnfiredItems = useTableBillStore((s) => s.getUnfiredItems);
+  const lastError = useTableBillStore((s) => s.lastError);
   const navigate = useNavigate();
 
   const [editingQtyFor, setEditingQtyFor] = useState<string | null>(null);
   const [manualQty, setManualQty] = useState('');
   const [isHoldModalOpen, setIsHoldModalOpen] = useState(false);
+  const [firing, setFiring] = useState(false);
+  const [fireMsg, setFireMsg] = useState<string | null>(null);
 
   useEffect(() => {
     fetchHeldOrders();
   }, [fetchHeldOrders]);
 
-
+  const openBill = activeTableId ? getOpenBill(activeTableId) : undefined;
+  const unfiredCount = openBill ? getUnfiredItems(openBill).length : 0;
 
   const handleOpenQtyModal = (id: string, currentQty: number) => {
     setEditingQtyFor(id);
@@ -40,22 +49,39 @@ export function Cart() {
     setEditingQtyFor(null);
   };
 
+  const handleSendKitchen = async () => {
+    setFiring(true);
+    setFireMsg(null);
+    syncActiveTableBill();
+    const ok = await fireActiveTableKitchen();
+    setFiring(false);
+    setFireMsg(ok ? 'Sent to kitchen' : lastError || 'Send failed');
+    if (ok) setTimeout(() => setFireMsg(null), 2000);
+  };
+
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const discountAmount = discountType === 'percentage' ? (subtotal * discountValue) / 100 : discountValue;
   const discountedSubtotal = Math.max(0, subtotal - discountAmount);
-  const tax = discountedSubtotal * 0.18; // 18% hardcoded for now, can be dynamic later
+  const tax = discountedSubtotal * 0.18;
   const total = discountedSubtotal + tax;
 
   return (
     <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
       <div className="p-5 bg-white border-b border-slate-100 flex flex-col gap-3 shrink-0 shadow-[0_2px_10px_rgba(0,0,0,0.02)] z-10">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-black text-slate-800 tracking-tight">Current Order</h2>
+          <h2 className="text-lg font-bold text-brand-navy tracking-tight">
+            {activeTableLabel ? `Table ${activeTableLabel}` : 'Current Order'}
+          </h2>
           <div className="flex gap-2">
             {cart.length > 0 && (
               <>
-                <Button variant="outline" size="sm" onClick={() => holdCurrentOrder('Held ' + new Date().toLocaleTimeString())} className="h-8 px-3 rounded-full text-xs font-bold uppercase tracking-wider text-amber-600 border-amber-200 hover:bg-amber-50 hover:text-amber-700">
-                  Hold
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => holdCurrentOrder('Held ' + new Date().toLocaleTimeString())}
+                  className="h-8 px-3 rounded-full text-xs font-bold uppercase tracking-wider text-amber-600 border-amber-200 hover:bg-amber-50 hover:text-amber-700"
+                >
+                  {activeTableLabel ? 'Park' : 'Hold'}
                 </Button>
                 <Button variant="ghost" size="sm" onClick={clearCart} className="text-red-500 hover:text-red-600 hover:bg-red-50 h-8 px-3 rounded-full text-xs font-bold uppercase tracking-wider">
                   Clear All
@@ -64,7 +90,10 @@ export function Cart() {
             )}
           </div>
         </div>
-        {heldOrders.length > 0 && (
+
+        <TableBillBanner />
+
+        {heldOrders.length > 0 && !activeTableLabel && (
           <Button 
             variant="secondary" 
             className="w-full bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
@@ -134,7 +163,7 @@ export function Cart() {
           <span className="text-slate-700">{formatCurrency(subtotal)}</span>
         </div>
         {discountAmount > 0 && (
-          <div className="flex justify-between text-sm font-bold text-pink-600">
+          <div className="flex justify-between text-sm font-bold text-brand-orange">
             <span>Discount</span>
             <span>-{formatCurrency(discountAmount)}</span>
           </div>
@@ -144,16 +173,50 @@ export function Cart() {
           <span className="text-slate-700">{formatCurrency(tax)}</span>
         </div>
         <div className="flex justify-between mt-1 pt-3 border-t border-slate-100">
-          <span className="font-black text-slate-800 uppercase tracking-widest text-sm">Total</span>
-          <span className="font-black text-2xl text-purple-700 drop-shadow-sm">{formatCurrency(total)}</span>
+          <span className="font-bold text-brand-navy uppercase tracking-wider text-sm">Total</span>
+          <span className="font-bold text-2xl text-brand-orange">{formatCurrency(total)}</span>
         </div>
-        <Button 
-          className="w-full h-14 rounded-2xl text-lg font-black mt-3 bg-purple-600 hover:bg-purple-700 text-white shadow-[0_8px_30px_rgba(147,51,234,0.3)] hover:shadow-[0_8px_40px_rgba(147,51,234,0.4)] hover:-translate-y-0.5 transition-all duration-300" 
-          disabled={cart.length === 0}
-          onClick={() => navigate('/erp/pos/checkout')}
-        >
-          Checkout
-        </Button>
+        {fireMsg && (
+          <p className={`text-xs font-bold text-center ${fireMsg.includes('Sent') ? 'text-emerald-600' : 'text-red-600'}`}>
+            {fireMsg}
+          </p>
+        )}
+        {activeTableId ? (
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-12 rounded-2xl font-bold border-slate-300"
+              disabled={cart.length === 0 || firing}
+              onClick={handleSendKitchen}
+            >
+              <ChefHat className="w-4 h-4 mr-1.5" />
+              {firing ? 'Sending…' : unfiredCount > 0 ? `Kitchen (${unfiredCount})` : 'Kitchen'}
+            </Button>
+            <Button
+              className="h-12 rounded-2xl text-base font-bold bg-brand-orange hover:bg-[#e55f00] text-white shadow-md"
+              disabled={cart.length === 0}
+              onClick={() => {
+                syncActiveTableBill();
+                navigate('/erp/pos/checkout');
+              }}
+            >
+              Pay bill
+              <ArrowRight className="w-4 h-4 ml-1" />
+            </Button>
+          </div>
+        ) : (
+          <Button 
+            className="w-full h-14 rounded-2xl text-lg font-bold mt-3 bg-brand-orange hover:bg-[#e55f00] text-white shadow-[0_8px_30px_rgba(255,106,0,0.28)] hover:shadow-[0_8px_40px_rgba(255,106,0,0.35)] hover:-translate-y-0.5 transition-all duration-300" 
+            disabled={cart.length === 0}
+            onClick={() => {
+              syncActiveTableBill();
+              navigate('/erp/pos/checkout');
+            }}
+          >
+            Checkout
+          </Button>
+        )}
       </div>
 
       {/* Manual Quantity Modal */}
@@ -166,7 +229,7 @@ export function Cart() {
             <input 
               type="number" 
               autoFocus
-              className="w-32 h-16 text-center text-3xl font-black border-2 border-slate-200 rounded-xl focus:border-purple-600 focus:ring-4 focus:ring-purple-600/20 outline-none transition-all"
+              className="w-32 h-16 text-center text-3xl font-black border-2 border-slate-200 rounded-xl focus:border-brand-orange focus:ring-4 focus:ring-brand-orange/20 outline-none transition-all"
               value={manualQty}
               onChange={(e) => setManualQty(e.target.value)}
               onKeyDown={(e) => {
@@ -185,7 +248,7 @@ export function Cart() {
                 Cancel
               </Button>
               <Button 
-                className="flex-1 h-12 bg-purple-600 hover:bg-purple-700 text-white font-bold"
+                className="flex-1 h-12 bg-brand-orange hover:bg-[#e55f00] text-white font-bold"
                 onClick={handleSaveQty}
               >
                 Update
@@ -211,7 +274,7 @@ export function Cart() {
                     <div>
                       <h4 className="font-bold text-slate-800">{order.notes || 'Held Order'}</h4>
                       <p className="text-sm text-slate-500">{new Date(order.created_at).toLocaleTimeString()} • {order.items.length} items</p>
-                      <p className="text-sm font-bold text-purple-700">{formatCurrency(order.total_amount)}</p>
+                      <p className="text-sm font-bold text-brand-orange">{formatCurrency(order.total_amount)}</p>
                     </div>
                     <div className="flex gap-2">
                       <Button 
@@ -227,7 +290,7 @@ export function Cart() {
                           resumeOrder(order.id);
                           setIsHoldModalOpen(false);
                         }}
-                        className="bg-purple-600 hover:bg-purple-700 text-white font-bold"
+                        className="bg-brand-orange hover:bg-[#e55f00] text-white font-bold"
                       >
                         Resume <ArrowRight className="w-4 h-4 ml-2" />
                       </Button>

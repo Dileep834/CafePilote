@@ -37,10 +37,17 @@ export function KitchenDisplay() {
           currentStatus === 'pending' ? "bg-amber-500/10 border-amber-500/20" : 
           currentStatus === 'preparing' ? "bg-blue-500/10 border-blue-500/20" : "bg-green-500/10 border-green-500/20"
         )}>
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-white text-lg">#{order.id.substring(0, 5).toUpperCase()}</span>
-            {order.customer_name && (
-              <span className="text-slate-300 text-sm bg-slate-700/50 px-2 py-0.5 rounded-full">{order.customer_name}</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-bold text-white text-lg shrink-0">#{order.id.substring(0, 5).toUpperCase()}</span>
+            {(order.table_number || order.customer_name) && (
+              <span className="text-amber-200 text-sm bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded-full truncate font-semibold">
+                {order.table_number ? `Table ${order.table_number}` : order.customer_name}
+              </span>
+            )}
+            {order.order_source === 'qr' && (
+              <span className="text-[10px] font-bold uppercase tracking-wider text-sky-300 bg-sky-500/20 px-1.5 py-0.5 rounded">
+                QR
+              </span>
             )}
           </div>
           <div className={cn(

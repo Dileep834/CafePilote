@@ -14,7 +14,7 @@ export function Receipt() {
   return (
     <div id="printable-receipt" className="hidden print:block w-[80mm] p-4 bg-white text-black font-mono text-sm mx-auto">
       <div className="text-center mb-6">
-        <h1 className="text-xl font-bold mb-1">CafePilote</h1>
+        <h1 className="text-xl font-bold mb-1">CafePilots</h1>
         <p className="text-xs">123 Coffee Street, Food City</p>
         <p className="text-xs">Phone: +91 98765 43210</p>
         <div className="mt-4 border-t border-b border-dashed border-black py-2">

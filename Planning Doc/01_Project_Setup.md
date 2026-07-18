@@ -1,4 +1,4 @@
-# CafePilot ERP - Project Setup
+# CafePilots - Project Setup
 
 ## Goal
 

@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box, Button, Typography, Accordion, AccordionSummary, AccordionDetails,
   Chip, TextField, InputAdornment, useTheme, ToggleButtonGroup, ToggleButton,
-  Card, CardContent, Tooltip
+  Card, CardContent, Tooltip, Alert
 } from '@mui/material';
 import { Save, ExpandMore, Search, Download, ViewList, GridView } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
@@ -21,6 +21,90 @@ interface StockRow extends DailyInventory {
 
 type ViewMode = 'list' | 'card';
 
+interface DraftEntry {
+  product_id: string;
+  purchase: number;
+  consumption: number;
+  waste: number;
+  closingStock: number;
+}
+
+interface DailyStockDraft {
+  outletId: string;
+  date: string;
+  savedAt: string;
+  entries: DraftEntry[];
+}
+
+const DRAFT_PREFIX = 'cafepilots_daily_stock_draft:';
+const DRAFT_SAVE_MS = 400;
+
+/** Local calendar date (avoids UTC midnight shifting the working day). */
+function getLocalDateStr(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function draftKey(outletId: string, dateStr: string) {
+  return `${DRAFT_PREFIX}${outletId}:${dateStr}`;
+}
+
+function loadDraft(outletId: string, dateStr: string): DailyStockDraft | null {
+  try {
+    const raw = localStorage.getItem(draftKey(outletId, dateStr));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as DailyStockDraft;
+    if (!parsed?.outletId || !parsed?.date || !Array.isArray(parsed.entries)) return null;
+    if (parsed.outletId !== outletId || parsed.date !== dateStr) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveDraft(outletId: string, dateStr: string, rows: StockRow[]) {
+  const draft: DailyStockDraft = {
+    outletId,
+    date: dateStr,
+    savedAt: new Date().toISOString(),
+    entries: rows
+      .filter((r) => r.purchase > 0 || r.consumption > 0 || r.waste > 0)
+      .map((r) => ({
+        product_id: r.product_id,
+        purchase: r.purchase,
+        consumption: r.consumption,
+        waste: r.waste,
+        closingStock: r.closingStock,
+      })),
+  };
+  localStorage.setItem(draftKey(outletId, dateStr), JSON.stringify(draft));
+}
+
+function clearDraft(outletId: string, dateStr: string) {
+  localStorage.removeItem(draftKey(outletId, dateStr));
+}
+
+function applyDraftToRows(rows: StockRow[], draft: DailyStockDraft): StockRow[] {
+  const byProduct = new Map(draft.entries.map((e) => [e.product_id, e]));
+  return rows.map((row) => {
+    const entry = byProduct.get(row.product_id);
+    if (!entry) return row;
+    return {
+      ...row,
+      purchase: entry.purchase,
+      consumption: entry.consumption,
+      waste: entry.waste,
+      closingStock:
+        Number(row.openingStock) +
+        Number(entry.purchase) -
+        Number(entry.consumption) -
+        Number(entry.waste),
+      status: InventoryStatus.IN_PROGRESS,
+    };
+  });
+}
 
 const DailyStockUpdate: React.FC = () => {
   const { user } = useAuthStore();
@@ -32,7 +116,56 @@ const DailyStockUpdate: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [draftRestoredAt, setDraftRestoredAt] = useState<string | null>(null);
+  const [lastDraftSavedAt, setLastDraftSavedAt] = useState<string | null>(null);
   const { showFeedback, FeedbackComponent } = useFeedback();
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rowsRef = useRef<StockRow[]>([]);
+  const outletRef = useRef(selectedOutlet);
+  const dirtyRef = useRef(false);
+
+  rowsRef.current = rows;
+  outletRef.current = selectedOutlet;
+  dirtyRef.current = hasUnsavedChanges;
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  // Persist latest draft when leaving the page (in-app navigation / unmount)
+  useEffect(() => {
+    return () => {
+      if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+      if (dirtyRef.current && outletRef.current) {
+        saveDraft(outletRef.current, getLocalDateStr(), rowsRef.current);
+      }
+    };
+  }, []);
+
+  const scheduleDraftSave = useCallback((nextRows: StockRow[], outletId: string) => {
+    if (!outletId) return;
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = setTimeout(() => {
+      const dateStr = getLocalDateStr();
+      saveDraft(outletId, dateStr, nextRows);
+      setLastDraftSavedAt(new Date().toLocaleTimeString());
+    }, DRAFT_SAVE_MS);
+  }, []);
+
+  const handleRowChange = useCallback((updatedRow: StockRow) => {
+    setRows((prev) => {
+      const next = prev.map((r) => (r.id === updatedRow.id ? updatedRow : r));
+      scheduleDraftSave(next, outletRef.current);
+      return next;
+    });
+    setHasUnsavedChanges(true);
+  }, [scheduleDraftSave]);
 
   useEffect(() => {
     if (user?.role === 'Super Admin' || user?.role === 'Admin') {
@@ -68,6 +201,7 @@ const DailyStockUpdate: React.FC = () => {
   const fetchDailyData = async (outletId: string) => {
     try {
       setLoading(true);
+      setDraftRestoredAt(null);
       let pQuery = supabase.from('products').select('*, categories(name)').eq('is_active', true).order('name');
       if (user?.role !== 'Super Admin' && user?.companyId) {
         pQuery = pQuery.eq('company_id', user.companyId);
@@ -75,7 +209,7 @@ const DailyStockUpdate: React.FC = () => {
       const { data: productsData, error: pErr } = await pQuery;
       if (pErr) throw pErr;
 
-      let invMap: Record<string, number> = {};
+      const invMap: Record<string, number> = {};
       if (outletId) {
         const { data: invData } = await supabase.from('inventory').select('product_id, current_quantity').eq('outlet_id', outletId);
         if (invData) {
@@ -83,8 +217,8 @@ const DailyStockUpdate: React.FC = () => {
         }
       }
 
-      const dateStr = new Date().toISOString().split('T')[0];
-      let dailyMap: Record<string, any> = {};
+      const dateStr = getLocalDateStr();
+      const dailyMap: Record<string, any> = {};
       if (outletId) {
         const { data: dailyData } = await supabase.from('daily_stock').select('*').eq('outlet_id', outletId).eq('date', dateStr);
         if (dailyData) {
@@ -93,7 +227,7 @@ const DailyStockUpdate: React.FC = () => {
       }
 
       if (productsData) {
-        const mappedRows = productsData.map(p => {
+        let mappedRows = productsData.map(p => {
           const daily = dailyMap[p.id];
           const opening = daily ? Number(daily.opening_stock) : (invMap[p.id] || 0);
           const pur = daily ? Number(daily.purchase) : 0;
@@ -112,10 +246,22 @@ const DailyStockUpdate: React.FC = () => {
             consumption: con,
             waste: was,
             closingStock: clos,
-            status: daily ? daily.status : InventoryStatus.DRAFT,
+            status: daily ? daily.status : InventoryStatus.IN_PROGRESS,
             date: dateStr
           };
         });
+
+        const draft = loadDraft(outletId, dateStr);
+        if (draft && draft.entries.length > 0) {
+          mappedRows = applyDraftToRows(mappedRows, draft);
+          setHasUnsavedChanges(true);
+          setDraftRestoredAt(new Date(draft.savedAt).toLocaleString());
+          setLastDraftSavedAt(new Date(draft.savedAt).toLocaleTimeString());
+        } else {
+          setHasUnsavedChanges(false);
+          setLastDraftSavedAt(null);
+        }
+
         setRows(mappedRows);
       }
     } catch (error) {
@@ -124,6 +270,20 @@ const DailyStockUpdate: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleOutletChange = (nextOutlet: string) => {
+    if (nextOutlet === selectedOutlet) return;
+    if (hasUnsavedChanges) {
+      const ok = window.confirm(
+        'You have unsaved daily stock entries for this outlet. Switch outlet? Your draft for the current outlet stays on this device.'
+      );
+      if (!ok) return;
+      if (selectedOutlet) {
+        saveDraft(selectedOutlet, getLocalDateStr(), rowsRef.current);
+      }
+    }
+    setSelectedOutlet(nextOutlet);
   };
 
   const exportToExcel = () => {
@@ -142,8 +302,20 @@ const DailyStockUpdate: React.FC = () => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Daily Stock');
 
-    const dateStr = new Date().toISOString().split('T')[0];
+    const dateStr = getLocalDateStr();
     XLSX.writeFile(workbook, `Daily_Stock_Update_${dateStr}.xlsx`);
+  };
+
+  const handleSaveDraft = () => {
+    if (!selectedOutlet) {
+      showFeedback('Please select an outlet first.', 'error');
+      return;
+    }
+    const dateStr = getLocalDateStr();
+    saveDraft(selectedOutlet, dateStr, rows);
+    setLastDraftSavedAt(new Date().toLocaleTimeString());
+    setHasUnsavedChanges(true);
+    showFeedback('Draft saved on this device. You can continue later without losing entries.', 'success');
   };
 
   const handleSubmit = async () => {
@@ -154,7 +326,7 @@ const DailyStockUpdate: React.FC = () => {
 
     setSubmitting(true);
     try {
-      const dateStr = new Date().toISOString().split('T')[0];
+      const dateStr = getLocalDateStr();
 
       const payloads = rows
         .filter(r => r.purchase > 0 || r.consumption > 0 || r.waste > 0 || r.closingStock > 0)
@@ -194,11 +366,18 @@ const DailyStockUpdate: React.FC = () => {
 
       if (invErr) throw invErr;
 
+      clearDraft(selectedOutlet, dateStr);
       setHasUnsavedChanges(false);
+      setDraftRestoredAt(null);
+      setLastDraftSavedAt(null);
       showFeedback("Inventory submitted successfully!", "success");
     } catch (err: any) {
       console.error("Error submitting inventory", err);
-      showFeedback('Failed to submit inventory: ' + err.message, "error");
+      if (selectedOutlet) {
+        saveDraft(selectedOutlet, getLocalDateStr(), rowsRef.current);
+        setLastDraftSavedAt(new Date().toLocaleTimeString());
+      }
+      showFeedback('Failed to submit inventory: ' + err.message + ' Your entries were kept as a local draft.', "error");
     } finally {
       setSubmitting(false);
     }
@@ -206,13 +385,23 @@ const DailyStockUpdate: React.FC = () => {
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* ── Header ── */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 2 }}>
         <Typography variant="h5" sx={{ fontWeight: 'bold', fontSize: { xs: '1.1rem', sm: '1.5rem' } }}>
           Daily Stock Update – {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
         </Typography>
 
-        {/* Controls row */}
+        {draftRestoredAt && (
+          <Alert severity="info" onClose={() => setDraftRestoredAt(null)}>
+            Restored unsaved draft from {draftRestoredAt}. Submit when ready, or keep editing — changes auto-save on this device.
+          </Alert>
+        )}
+
+        {hasUnsavedChanges && lastDraftSavedAt && !draftRestoredAt && (
+          <Typography variant="caption" color="text.secondary">
+            Draft auto-saved locally at {lastDraftSavedAt}
+          </Typography>
+        )}
+
         <Box sx={{ display: 'flex', flexWrap: 'nowrap', gap: 1.5, alignItems: 'center' }}>
           {(user?.role === 'Super Admin' || user?.role === 'Admin') && (
             <FormControl
@@ -224,7 +413,7 @@ const DailyStockUpdate: React.FC = () => {
                 labelId="outlet-select-label"
                 value={selectedOutlet}
                 label="Select Outlet"
-                onChange={(e: any) => setSelectedOutlet(e.target.value as string)}
+                onChange={(e: any) => handleOutletChange(e.target.value as string)}
               >
                 {outlets.map((f) => (
                   <MenuItem key={f.id} value={f.id}>{f.name}</MenuItem>
@@ -244,6 +433,17 @@ const DailyStockUpdate: React.FC = () => {
           </Button>
 
           <Button
+            variant="outlined"
+            color="secondary"
+            startIcon={<Save />}
+            onClick={handleSaveDraft}
+            disabled={!hasUnsavedChanges && !lastDraftSavedAt}
+            sx={{ whiteSpace: 'nowrap', display: { xs: 'none', sm: 'inline-flex' } }}
+          >
+            Save Draft
+          </Button>
+
+          <Button
             variant="contained"
             color="primary"
             startIcon={<Save />}
@@ -254,7 +454,6 @@ const DailyStockUpdate: React.FC = () => {
             {submitting ? 'Submitting…' : 'Submit Inventory'}
           </Button>
 
-          {/* View toggle — always visible, pinned to right */}
           <ToggleButtonGroup
             value={viewMode}
             exclusive
@@ -268,7 +467,6 @@ const DailyStockUpdate: React.FC = () => {
         </Box>
       </Box>
 
-      {/* ── Search ── */}
       <Box sx={{ mb: 2 }}>
         <TextField
           fullWidth
@@ -314,18 +512,12 @@ const DailyStockUpdate: React.FC = () => {
                 {viewMode === 'list' ? (
                   <StockTable
                     catRows={catRows}
-                    onRowChange={(updatedRow) => {
-                      setRows(prev => prev.map(r => r.id === updatedRow.id ? updatedRow : r));
-                      setHasUnsavedChanges(true);
-                    }}
+                    onRowChange={handleRowChange}
                   />
                 ) : (
                   <StockCardGrid
                     catRows={catRows}
-                    onRowChange={(updatedRow) => {
-                      setRows(prev => prev.map(r => r.id === updatedRow.id ? updatedRow : r));
-                      setHasUnsavedChanges(true);
-                    }}
+                    onRowChange={handleRowChange}
                   />
                 )}
               </AccordionDetails>
@@ -336,7 +528,6 @@ const DailyStockUpdate: React.FC = () => {
 
       {FeedbackComponent}
 
-      {/* ── Sticky bottom bar (mobile only) ── */}
       <Box
         sx={{
           display: { xs: 'flex', sm: 'none' },
@@ -356,13 +547,14 @@ const DailyStockUpdate: React.FC = () => {
       >
         <Button
           variant="outlined"
-          color="primary"
-          startIcon={<Download />}
-          onClick={exportToExcel}
+          color="secondary"
+          startIcon={<Save />}
+          onClick={handleSaveDraft}
+          disabled={!hasUnsavedChanges && !lastDraftSavedAt}
           fullWidth
           sx={{ whiteSpace: 'nowrap' }}
         >
-          Export
+          Draft
         </Button>
         <Button
           variant="contained"
@@ -373,12 +565,13 @@ const DailyStockUpdate: React.FC = () => {
           fullWidth
           sx={{ whiteSpace: 'nowrap' }}
         >
-          {submitting ? 'Submitting…' : 'Submit Inventory'}
+          {submitting ? 'Submitting…' : 'Submit'}
         </Button>
       </Box>
     </Box>
   );
 };
+
 
 // ────────────────────────────────────────────
 // Sticky-column table sub-component
@@ -494,7 +687,7 @@ const StockTable: React.FC<StockTableProps> = ({ catRows, onRowChange }) => {
                     onChange={(e) => handleChange(row, 'waste', e.target.value)}
                   />
                 </td>
-                <td style={{ ...cell, textAlign: 'right', fontWeight: 'bold', color: '#FF7A00' }}>
+                <td style={{ ...cell, textAlign: 'right', fontWeight: 'bold', color: '#FF6A00' }}>
                   {row.closingStock}
                 </td>
               </tr>
@@ -506,7 +699,6 @@ const StockTable: React.FC<StockTableProps> = ({ catRows, onRowChange }) => {
   );
 };
 
-export default DailyStockUpdate;
 
 // ────────────────────────────────────────────────────────────
 // Card Grid view for Daily Stock Update
@@ -632,7 +824,7 @@ const StockCardGrid: React.FC<StockCardGridProps> = ({ catRows, onRowChange }) =
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Closing</Typography>
-              <Typography variant="h6" sx={{ fontWeight: 800, color: '#FF7A00', fontSize: '1.1rem' }}>
+              <Typography variant="h6" sx={{ fontWeight: 800, color: '#FF6A00', fontSize: '1.1rem' }}>
                 {row.closingStock}
               </Typography>
             </Box>
@@ -642,3 +834,5 @@ const StockCardGrid: React.FC<StockCardGridProps> = ({ catRows, onRowChange }) =
     </Box>
   );
 };
+
+export default DailyStockUpdate;

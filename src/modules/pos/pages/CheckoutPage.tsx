@@ -29,7 +29,9 @@ export function CheckoutPage() {
     processCheckout,
     discountType,
     discountValue,
-    setDiscount
+    setDiscount,
+    lastOrder,
+    activeTableLabel,
   } = usePOSStore();
 
   const { validateVoucher } = useVoucherStore();
@@ -126,26 +128,43 @@ export function CheckoutPage() {
   };
 
   if (isSuccess) {
+    const receiptCart = lastOrder?.cart || cart;
+    const receiptTotal = lastOrder?.totalAmount ?? total;
+    const receiptTax = lastOrder?.taxAmount ?? tax;
+    const receiptDiscount = lastOrder?.discountAmount ?? discountAmount;
+    const receiptTendered = parseFloat(lastOrder?.tenderedAmount || tenderedAmount) || 0;
+    const receiptChange = lastOrder?.changeDue ?? changeDue;
+    const receiptMethod = lastOrder?.paymentMethod || paymentMethod;
+    const receiptName = lastOrder?.customer?.name || customerName;
+    const receiptPhone = lastOrder?.customer?.phone || customerPhone;
+    const receiptTable = lastOrder?.tableLabel;
+
     return (
       <div className="flex flex-col items-center justify-center h-screen w-full bg-slate-50 p-6 -m-4 sm:-m-6 lg:-m-8 relative">
         <ThermalReceipt 
-          orderId={Math.random().toString(36).substr(2, 9).toUpperCase()}
-          items={cart}
-          totalAmount={total}
-          taxAmount={tax}
-          discountAmount={discountAmount}
-          tenderedAmount={tenderedNumeric}
-          changeDue={changeDue}
-          paymentMethod={paymentMethod}
-          customerName={customerName}
-          customerPhone={customerPhone}
+          orderId={(lastOrder?.id || Math.random().toString(36).substr(2, 9)).toString().slice(0, 8).toUpperCase()}
+          items={receiptCart}
+          totalAmount={receiptTotal}
+          taxAmount={receiptTax}
+          discountAmount={receiptDiscount}
+          tenderedAmount={receiptTendered}
+          changeDue={receiptChange}
+          paymentMethod={receiptMethod}
+          customerName={receiptTable ? `Table ${receiptTable}` : receiptName}
+          customerPhone={receiptPhone}
         />
         <div className="bg-white p-12 rounded-3xl shadow-xl flex flex-col items-center text-center max-w-md w-full border border-slate-100 z-10 print:hidden">
           <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-6">
             <CheckCircle2 className="w-12 h-12 text-green-600" />
           </div>
           <h1 className="text-3xl font-black text-slate-900 mb-2">Order Complete!</h1>
-          <p className="text-slate-500 mb-8">The transaction was processed successfully.</p>
+          <p className="text-slate-500 mb-2">The transaction was processed successfully.</p>
+          {receiptTable && (
+            <p className="text-sm font-bold text-brand-orange mb-6">
+              Table {receiptTable} moved to cleaning
+            </p>
+          )}
+          {!receiptTable && <div className="mb-6" />}
           
           <div className="w-full space-y-3">
             <Button 
@@ -197,13 +216,18 @@ export function CheckoutPage() {
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <h1 className="text-xl font-bold text-slate-800 tracking-tight">Checkout</h1>
+          <div>
+            <h1 className="text-xl font-bold text-slate-800 tracking-tight">Checkout</h1>
+            {activeTableLabel && (
+              <p className="text-xs font-bold text-brand-orange mt-0.5">Table {activeTableLabel}</p>
+            )}
+          </div>
         </div>
 
         {/* Total Summary Header */}
         <div className="px-4 xl:px-8 pt-8 pb-6 flex flex-col items-center justify-center text-center w-full overflow-hidden">
           <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Total Amount</span>
-          <div className="text-3xl sm:text-4xl lg:text-5xl font-black text-purple-700 tracking-tighter drop-shadow-sm truncate max-w-full px-2">
+          <div className="text-3xl sm:text-4xl lg:text-5xl font-black text-brand-orange tracking-tighter drop-shadow-sm truncate max-w-full px-2">
             {formatCurrency(total)}
           </div>
         </div>
@@ -214,7 +238,7 @@ export function CheckoutPage() {
             {cart.map((item) => (
               <div key={item.id} className="flex justify-between items-center py-2.5 border-b border-slate-100 last:border-0 group">
                 <div className="flex flex-col">
-                  <span className="font-semibold text-slate-700 group-hover:text-purple-700 transition-colors">{item.name}</span>
+                  <span className="font-semibold text-slate-700 group-hover:text-brand-orange transition-colors">{item.name}</span>
                   <span className="text-xs font-medium text-slate-400">{item.quantity} x {formatCurrency(item.price)}</span>
                 </div>
                 <span className="font-bold text-slate-900">{formatCurrency(item.price * item.quantity)}</span>
@@ -230,7 +254,7 @@ export function CheckoutPage() {
             <span className="text-slate-700">{formatCurrency(subtotal)}</span>
           </div>
           {discountAmount > 0 && (
-            <div className="flex justify-between text-sm font-bold text-pink-600">
+            <div className="flex justify-between text-sm font-bold text-brand-orange">
               <span>Discount</span>
               <span>-{formatCurrency(discountAmount)}</span>
             </div>
@@ -251,21 +275,21 @@ export function CheckoutPage() {
             <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Customer <span className="font-normal text-slate-400 lowercase">(optional)</span></h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="relative group">
-                <User className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400 group-focus-within:text-purple-600 transition-colors" />
+                <User className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400 group-focus-within:text-brand-orange transition-colors" />
                 <Input 
                   type="text" 
                   placeholder="Full Name" 
-                  className="pl-10 h-10 bg-slate-50/50 border-slate-200 focus-visible:ring-purple-600 shadow-none rounded-xl"
+                  className="pl-10 h-10 bg-slate-50/50 border-slate-200 focus-visible:ring-brand-orange shadow-none rounded-xl"
                   value={customerName}
                   onChange={(e) => setCustomerDetails(e.target.value, customerPhone)}
                 />
               </div>
               <div className="relative group">
-                <Phone className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400 group-focus-within:text-purple-600 transition-colors" />
+                <Phone className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400 group-focus-within:text-brand-orange transition-colors" />
                 <Input 
                   type="tel" 
                   placeholder="Phone Number" 
-                  className="pl-10 h-10 bg-slate-50/50 border-slate-200 focus-visible:ring-purple-600 shadow-none rounded-xl"
+                  className="pl-10 h-10 bg-slate-50/50 border-slate-200 focus-visible:ring-brand-orange shadow-none rounded-xl"
                   value={customerPhone}
                   onChange={(e) => setCustomerDetails(customerName, e.target.value)}
                 />
@@ -278,11 +302,11 @@ export function CheckoutPage() {
             <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Promo Code</h2>
             <div className="flex gap-2 relative">
               <div className="relative flex-1 group">
-                <Ticket className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400 group-focus-within:text-pink-600 transition-colors" />
+                <Ticket className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400 group-focus-within:text-brand-orange transition-colors" />
                 <Input 
                   type="text" 
                   placeholder="Enter Code" 
-                  className={`pl-10 h-10 bg-slate-50/50 uppercase border-slate-200 focus-visible:ring-pink-600 shadow-none rounded-xl ${promoError ? 'border-red-300 focus-visible:ring-red-500' : ''}`}
+                  className={`pl-10 h-10 bg-slate-50/50 uppercase border-slate-200 focus-visible:ring-brand-orange shadow-none rounded-xl ${promoError ? 'border-red-300 focus-visible:ring-red-500' : ''}`}
                   value={promoCode}
                   onChange={(e) => {
                     setPromoCode(e.target.value);
@@ -321,11 +345,11 @@ export function CheckoutPage() {
                     className={cn(
                       "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg transition-all duration-300",
                       isActive 
-                        ? "bg-white text-purple-700 shadow-[0_2px_10px_rgba(0,0,0,0.06)] font-bold scale-[1.02]" 
+                        ? "bg-white text-brand-orange shadow-[0_2px_10px_rgba(0,0,0,0.06)] font-bold scale-[1.02]" 
                         : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 font-medium"
                     )}
                   >
-                    <Icon className={cn("w-4 h-4", isActive ? "text-purple-600" : "text-slate-400")} />
+                    <Icon className={cn("w-4 h-4", isActive ? "text-brand-orange" : "text-slate-400")} />
                     <span>{method.label}</span>
                   </button>
                 )
@@ -353,10 +377,10 @@ export function CheckoutPage() {
 
                 {/* Quick Cash Buttons */}
                 <div className="grid grid-cols-2 gap-2 shrink-0">
-                  <Button variant="outline" className="h-10 text-sm font-bold border-slate-200 rounded-lg hover:bg-slate-50 hover:text-purple-700 transition-colors shadow-none" onClick={() => handleQuickAmount(total)}>Exact Amount</Button>
-                  <Button variant="outline" className="h-10 text-sm font-bold border-slate-200 rounded-lg hover:bg-slate-50 hover:text-purple-700 transition-colors shadow-none" onClick={() => handleQuickAmount(100)}>₹100</Button>
-                  <Button variant="outline" className="h-10 text-sm font-bold border-slate-200 rounded-lg hover:bg-slate-50 hover:text-purple-700 transition-colors shadow-none" onClick={() => handleQuickAmount(500)}>₹500</Button>
-                  <Button variant="outline" className="h-10 text-sm font-bold border-slate-200 rounded-lg hover:bg-slate-50 hover:text-purple-700 transition-colors shadow-none" onClick={() => handleQuickAmount(2000)}>₹2000</Button>
+                  <Button variant="outline" className="h-10 text-sm font-bold border-slate-200 rounded-lg hover:bg-slate-50 hover:text-brand-orange transition-colors shadow-none" onClick={() => handleQuickAmount(total)}>Exact Amount</Button>
+                  <Button variant="outline" className="h-10 text-sm font-bold border-slate-200 rounded-lg hover:bg-slate-50 hover:text-brand-orange transition-colors shadow-none" onClick={() => handleQuickAmount(100)}>₹100</Button>
+                  <Button variant="outline" className="h-10 text-sm font-bold border-slate-200 rounded-lg hover:bg-slate-50 hover:text-brand-orange transition-colors shadow-none" onClick={() => handleQuickAmount(500)}>₹500</Button>
+                  <Button variant="outline" className="h-10 text-sm font-bold border-slate-200 rounded-lg hover:bg-slate-50 hover:text-brand-orange transition-colors shadow-none" onClick={() => handleQuickAmount(2000)}>₹2000</Button>
                 </div>
 
                 {/* Change Due Highlight */}
@@ -407,7 +431,7 @@ export function CheckoutPage() {
           {paymentMethod !== 'cash' && (
             <div className="flex-1 flex flex-col items-center justify-center bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-200 text-slate-500 min-h-0 py-12">
               <div className="w-20 h-20 bg-white shadow-sm rounded-full flex items-center justify-center mb-6">
-                {paymentMethod === 'card' ? <CreditCard className="w-8 h-8 text-purple-500" /> : <Smartphone className="w-8 h-8 text-purple-500" />}
+                {paymentMethod === 'card' ? <CreditCard className="w-8 h-8 text-brand-orange" /> : <Smartphone className="w-8 h-8 text-brand-orange" />}
               </div>
               <h3 className="text-xl font-bold text-slate-800 mb-2">Process {paymentMethod.toUpperCase()} Payment</h3>
               <p className="text-center text-slate-500 max-w-sm">Please use your external terminal to collect <span className="font-bold text-slate-900">{formatCurrency(total)}</span>. Once successful, click below to complete the order.</p>

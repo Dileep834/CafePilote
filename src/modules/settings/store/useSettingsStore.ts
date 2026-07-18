@@ -19,7 +19,7 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       printerSize: '80mm', // default
-      cafeName: 'CafePilot',
+      cafeName: 'CafePilots',
       cafeAddress: '123 Main Street',
       cafePhone: '555-0199',
       taxNumber: 'TAX-12345678',

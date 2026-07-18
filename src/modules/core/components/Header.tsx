@@ -6,12 +6,16 @@ import { Sidebar } from './Sidebar';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { CafePilotsLogo } from '@/components/CafePilotsLogo';
+import { BRAND } from '@/constants';
+import { cn } from '@/lib/utils';
 
 interface HeaderProps {
   onToggleSidebar?: () => void;
+  isSidebarOpen?: boolean;
 }
 
-export function Header({ onToggleSidebar }: HeaderProps) {
+export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const { logout } = useAuthStore();
   const navigate = useNavigate();
@@ -31,10 +35,10 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b bg-white px-4 shadow-sm sm:px-6">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 min-w-0">
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
           <SheetTrigger render={
-            <Button variant="ghost" size="icon" className="lg:hidden">
+            <Button variant="ghost" size="icon" className="lg:hidden shrink-0">
               <Menu className="h-5 w-5" />
               <span className="sr-only">Toggle navigation menu</span>
             </Button>
@@ -43,19 +47,24 @@ export function Header({ onToggleSidebar }: HeaderProps) {
             <Sidebar onNavigate={() => setMobileMenuOpen(false)} />
           </SheetContent>
         </Sheet>
-        
-        {/* Desktop Toggle */}
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="hidden lg:flex text-slate-500 hover:bg-slate-100"
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden lg:flex shrink-0 text-slate-500 hover:bg-slate-100"
           onClick={onToggleSidebar}
         >
           <Menu className="h-5 w-5" />
+          <span className="sr-only">Toggle sidebar</span>
         </Button>
+
+        {/* Logo when sidebar closed (desktop) or always on mobile */}
+        <div className={cn('min-w-0', isSidebarOpen ? 'lg:hidden' : 'lg:flex')}>
+          <CafePilotsLogo size={32} withWordmark withDivider />
+        </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4 shrink-0">
         <Button variant="ghost" size="icon" className="text-slate-500">
           <Bell className="h-5 w-5" />
           <span className="sr-only">View notifications</span>
@@ -64,7 +73,10 @@ export function Header({ onToggleSidebar }: HeaderProps) {
           <LogOut className="h-5 w-5" />
           <span className="sr-only">Logout</span>
         </Button>
-        <div className="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center text-xs font-bold text-purple-700 lg:hidden">
+        <div
+          className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold text-white lg:hidden"
+          style={{ backgroundColor: BRAND.orange }}
+        >
           AD
         </div>
       </div>

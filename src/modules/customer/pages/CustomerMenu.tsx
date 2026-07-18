@@ -1,187 +1,567 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useCustomerOrderStore } from '../store/useCustomerOrderStore';
-import { useTableStore } from '@/modules/tables/store/useTableStore';
+import { useGuestAuthStore } from '../store/useGuestAuthStore';
+import { resolveTableByQr } from '@/modules/tables/lib/resolveTableByQr';
 import { formatCurrency } from '@/utils/format';
-import { Button } from '@/components/ui/button';
-import { ChevronLeft, Coffee, Plus, Minus, ShoppingBag, UtensilsCrossed, Leaf, Drumstick, Droplet, ChefHat } from 'lucide-react';
+import { CafePilotsLogo } from '@/components/CafePilotsLogo';
+import { APP_TAGLINE, BRAND } from '@/constants';
+import {
+  Plus,
+  ShoppingBag,
+  UtensilsCrossed,
+  Leaf,
+  Drumstick,
+  Droplet,
+  Loader2,
+  Clock3,
+  LogOut,
+  ChevronLeft,
+  ChevronRight,
+  LayoutGrid,
+  List,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CustomerCartModal } from './CustomerCartModal';
+import { GuestLogin } from './GuestLogin';
+import { GuestOrderStatus } from './GuestOrderStatus';
+import type { Table } from '@/types';
+import { Swiper, SwiperSlide } from 'swiper/react';
+import type { Swiper as SwiperInstance } from 'swiper';
+import { FreeMode } from 'swiper/modules';
+import 'swiper/css';
+import 'swiper/css/free-mode';
+
+function safePrice(p: any) {
+  return Number(p.selling_price || p.sellingPrice || 0);
+}
+
+function dietaryIcon(pref: string) {
+  const p = (pref || 'veg').toLowerCase();
+  if (p === 'veg') return <Leaf className="w-3.5 h-3.5 text-green-600" />;
+  if (p === 'non-veg') return <Drumstick className="w-3.5 h-3.5 text-red-500" />;
+  if (p === 'jain') return <Droplet className="w-3.5 h-3.5" style={{ color: BRAND.orange }} />;
+  if (p === 'egg') return <Leaf className="w-3.5 h-3.5 text-amber-500" />;
+  return null;
+}
+
+function ProductListCard({ product, onAdd }: { product: any; onAdd: () => void }) {
+  return (
+    <div className="bg-white rounded-2xl p-3 flex gap-3 border border-black/[0.04] shadow-[0_4px_16px_rgba(13,27,42,0.04)]">
+      <div
+        className="w-24 h-24 rounded-xl overflow-hidden shrink-0 relative"
+        style={{ backgroundColor: BRAND.cream }}
+      >
+        {product.image_url ? (
+          <img
+            src={product.image_url}
+            alt={product.name}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center" style={{ color: BRAND.steel }}>
+            <UtensilsCrossed className="w-7 h-7 opacity-30" />
+          </div>
+        )}
+        <div className="absolute top-1.5 left-1.5 bg-white/95 rounded-md p-0.5 shadow-sm">
+          {dietaryIcon(product.dietary_preference)}
+        </div>
+      </div>
+      <div className="flex flex-col flex-1 min-w-0 py-0.5">
+        <h3 className="font-bold leading-snug mb-0.5" style={{ color: BRAND.navy }}>
+          {product.name}
+        </h3>
+        <p className="text-xs text-slate-500 line-clamp-2 mb-2">{product.categories?.name || 'Menu'}</p>
+        <div className="mt-auto flex items-center justify-between gap-2">
+          <span className="font-extrabold text-lg" style={{ color: BRAND.orange }}>
+            {formatCurrency(safePrice(product))}
+          </span>
+          <button
+            type="button"
+            onClick={onAdd}
+            aria-label={`Add ${product.name}`}
+            className="w-9 h-9 rounded-full flex items-center justify-center text-white active:scale-95 shadow-md"
+            style={{ backgroundColor: BRAND.orange, boxShadow: `0 6px 16px ${BRAND.orange}40` }}
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProductGridCard({ product, onAdd }: { product: any; onAdd: () => void }) {
+  return (
+    <div className="bg-white rounded-2xl p-2.5 flex flex-col border border-black/[0.04] shadow-[0_4px_16px_rgba(13,27,42,0.04)]">
+      <div
+        className="relative w-full aspect-square rounded-xl overflow-hidden mb-2"
+        style={{ backgroundColor: BRAND.cream }}
+      >
+        {product.image_url ? (
+          <img
+            src={product.image_url}
+            alt={product.name}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center" style={{ color: BRAND.steel }}>
+            <UtensilsCrossed className="w-8 h-8 opacity-30" />
+          </div>
+        )}
+        <div className="absolute top-1.5 left-1.5 bg-white/95 rounded-md p-0.5 shadow-sm">
+          {dietaryIcon(product.dietary_preference)}
+        </div>
+      </div>
+      <h3 className="font-bold text-[12px] leading-snug line-clamp-2 min-h-[2.4em]" style={{ color: BRAND.navy }}>
+        {product.name}
+      </h3>
+      <p className="text-[10px] text-slate-500 truncate mt-0.5 mb-2">{product.categories?.name || 'Menu'}</p>
+      <div className="mt-auto flex items-center justify-between gap-1">
+        <span className="font-extrabold text-sm tabular-nums" style={{ color: BRAND.orange }}>
+          {formatCurrency(safePrice(product))}
+        </span>
+        <button
+          type="button"
+          onClick={onAdd}
+          aria-label={`Add ${product.name}`}
+          className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-white active:scale-95 shadow-md"
+          style={{ backgroundColor: BRAND.orange, boxShadow: `0 6px 16px ${BRAND.orange}40` }}
+        >
+          <Plus className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function CustomerMenu() {
   const { outletId, qrToken } = useParams();
-  const navigate = useNavigate();
-  
-  // Stores
-  const { tables } = useTableStore();
   const { setSession, addItem, getItemCount, getCartTotal } = useCustomerOrderStore();
-  
-  // Local state
+  const { guest, isReady, initFromSupabase, signOut } = useGuestAuthStore();
+
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [table, setTable] = useState<Table | null>(null);
+  const [resolving, setResolving] = useState(true);
+  const [resolveError, setResolveError] = useState<string | null>(null);
+  const [view, setView] = useState<'menu' | 'status'>('menu');
+  const [authGateOpen, setAuthGateOpen] = useState(true);
+  const [layoutMode, setLayoutMode] = useState<'list' | 'grid'>(() => {
+    try {
+      const saved = localStorage.getItem('cafepilots-guest-menu-layout');
+      return saved === 'grid' ? 'grid' : 'list';
+    } catch {
+      return 'list';
+    }
+  });
+  const pageSwiperRef = useRef<SwiperInstance | null>(null);
+  const chipSwiperRef = useRef<SwiperInstance | null>(null);
 
-  // Validate QR Token and get Table info
-  const table = tables.find(t => t.qrCodeToken === qrToken && t.outletId === outletId);
+  const setLayout = (mode: 'list' | 'grid') => {
+    setLayoutMode(mode);
+    try {
+      localStorage.setItem('cafepilots-guest-menu-layout', mode);
+    } catch {
+      /* ignore */
+    }
+  };
 
   useEffect(() => {
-    if (outletId && qrToken) {
-      setSession(outletId, qrToken);
+    void initFromSupabase();
+  }, [initFromSupabase]);
+
+  useEffect(() => {
+    if (guest) setAuthGateOpen(false);
+  }, [guest]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function resolve() {
+      if (!qrToken) {
+        setResolving(false);
+        setResolveError('Missing QR token');
+        return;
+      }
+      setResolving(true);
+      setResolveError(null);
+      try {
+        const found = await resolveTableByQr(qrToken, outletId);
+        if (cancelled) return;
+        if (!found) {
+          setTable(null);
+          setResolveError('invalid');
+        } else {
+          setTable(found);
+          setSession(found.outletId, found.qrCodeToken || qrToken);
+        }
+      } catch {
+        if (!cancelled) {
+          setTable(null);
+          setResolveError('error');
+        }
+      } finally {
+        if (!cancelled) setResolving(false);
+      }
     }
+    void resolve();
+    return () => {
+      cancelled = true;
+    };
   }, [outletId, qrToken, setSession]);
 
-  // Fetch Products
+  const redirectTo = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    return window.location.href.split('#')[0];
+  }, []);
+
+  const onSignedIn = useCallback(() => {
+    setAuthGateOpen(false);
+  }, []);
+
   const { data: products, isLoading } = useQuery({
-    queryKey: ['public-products', outletId],
+    queryKey: ['public-products', table?.outletId || outletId],
+    enabled: !!table && !!guest,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('products')
-        .select(`
-          *,
-          categories (name)
-        `)
+        .select(`*, categories (name)`)
         .eq('is_active', true)
         .order('name');
-      
+
       if (error) throw error;
-      return data;
-    }
+      return data ?? [];
+    },
   });
 
-  if (!table) {
+  const menuProducts = useMemo(() => {
+    return (products ?? []).filter((p: any) => {
+      const price = Number(p.selling_price ?? p.sellingPrice ?? 0);
+      const type = (p.item_type || '').toLowerCase();
+      const isReady =
+        !type ||
+        type === 'ready_product' ||
+        type === 'finished' ||
+        type === 'menu' ||
+        type === 'sellable';
+      const isRaw = type === 'raw_material' || type === 'raw';
+      return !isRaw && isReady && price > 0;
+    });
+  }, [products]);
+
+  const categories = useMemo(() => {
+    const names = Array.from(
+      new Set(menuProducts.map((p: any) => p.categories?.name).filter(Boolean))
+    ) as string[];
+    return ['All', ...names];
+  }, [menuProducts]);
+
+  const productsByCategory = useMemo(() => {
+    const map: Record<string, any[]> = { All: menuProducts };
+    for (const cat of categories) {
+      if (cat === 'All') continue;
+      map[cat] = menuProducts.filter((p: any) => p.categories?.name === cat);
+    }
+    return map;
+  }, [menuProducts, categories]);
+
+  const activeIndex = Math.max(0, categories.indexOf(activeCategory));
+
+  const goToCategory = useCallback(
+    (cat: string, index?: number) => {
+      setActiveCategory(cat);
+      const idx = index ?? categories.indexOf(cat);
+      if (idx >= 0) {
+        pageSwiperRef.current?.slideTo(idx);
+        chipSwiperRef.current?.slideTo(Math.max(0, idx - 1));
+      }
+    },
+    [categories]
+  );
+
+  if (resolving || !isReady) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-        <UtensilsCrossed className="w-16 h-16 text-slate-300 mb-4" />
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">Invalid QR Code</h2>
-        <p className="text-slate-500">Please scan the QR code on your table again, or ask a staff member for assistance.</p>
+      <div
+        className="flex flex-col items-center justify-center h-full p-8 text-center gap-3"
+        style={{ background: `linear-gradient(180deg, ${BRAND.gray} 0%, #fff 100%)` }}
+      >
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: BRAND.orange }} />
+        <p className="text-sm font-semibold text-slate-500">Opening your table…</p>
       </div>
     );
   }
 
-  // Categories extraction
-  const categories = ['All', ...Array.from(new Set(products?.map((p: any) => p.categories?.name).filter(Boolean)))];
-  
-  const filteredProducts = activeCategory === 'All' 
-    ? products 
-    : products?.filter((p: any) => p.categories?.name === activeCategory);
+  if (!table) {
+    return (
+      <div
+        className="flex flex-col items-center justify-center h-full p-8 text-center"
+        style={{ background: `linear-gradient(180deg, ${BRAND.gray} 0%, #fff 100%)` }}
+      >
+        <div
+          className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+          style={{ backgroundColor: BRAND.navy }}
+        >
+          <UtensilsCrossed className="w-8 h-8 text-white/80" />
+        </div>
+        <h2 className="text-2xl font-bold mb-2" style={{ color: BRAND.navy }}>
+          {resolveError === 'error' ? 'Could not open menu' : 'Invalid QR Code'}
+        </h2>
+        <p className="text-slate-500 max-w-xs">
+          Ask staff to regenerate the table QR from the floor board.
+        </p>
+      </div>
+    );
+  }
 
-  const safePrice = (p: any) => p.selling_price || p.sellingPrice || 0;
+  if (!guest || authGateOpen) {
+    return <GuestLogin table={table} redirectTo={redirectTo} onSignedIn={onSignedIn} />;
+  }
 
-  const getDietaryIcon = (pref: string) => {
-    const p = (pref || 'veg').toLowerCase();
-    if (p === 'veg') return <Leaf className="w-3.5 h-3.5 text-green-600" />;
-    if (p === 'non-veg') return <Drumstick className="w-3.5 h-3.5 text-red-500" />;
-    if (p === 'jain') return <Droplet className="w-3.5 h-3.5 text-orange-500" />;
-    if (p === 'egg') return <Leaf className="w-3.5 h-3.5 text-yellow-500" />;
-    return null;
-  };
+  if (view === 'status') {
+    return <GuestOrderStatus table={table} onBack={() => setView('menu')} />;
+  }
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 relative pb-24">
-      
-      {/* Header */}
-      <div className="bg-white px-5 pt-12 pb-4 shadow-sm sticky top-0 z-40">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">CafePilot</h1>
-            <p className="text-sm font-medium text-slate-500">Ordering for <span className="text-purple-600 font-bold">{table.tableNumber}</span></p>
+    <div className="flex flex-col h-full min-h-0 overflow-hidden relative" style={{ backgroundColor: BRAND.gray }}>
+      {/* Fixed header — does not scroll */}
+      <div className="shrink-0 bg-white px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-3 z-40 border-b border-black/5 shadow-[0_8px_24px_rgba(13,27,42,0.06)]">
+        <div className="flex items-center justify-between mb-2 gap-2">
+          <div className="min-w-0">
+            <CafePilotsLogo size={36} withWordmark withDivider />
+            <p className="text-xs text-slate-500 mt-1.5">
+              Hi{' '}
+              <span className="font-bold" style={{ color: BRAND.navy }}>
+                {guest.name.split(' ')[0]}
+              </span>
+              {' · '}
+              Ordering for{' '}
+              <span className="font-bold" style={{ color: BRAND.orange }}>
+                {table.tableNumber}
+              </span>
+            </p>
           </div>
-          <div className="w-12 h-12 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center">
-            <Coffee className="w-6 h-6" />
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setView('status')}
+              className="h-9 px-3 rounded-full text-[11px] font-bold uppercase tracking-wide flex items-center gap-1.5 border border-slate-200 bg-white text-slate-700"
+            >
+              <Clock3 className="w-3.5 h-3.5" style={{ color: BRAND.orange }} />
+              Status
+            </button>
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              className="w-9 h-9 rounded-full flex items-center justify-center border border-slate-200 bg-white text-slate-500"
+              aria-label="Sign out"
+              title="Sign out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 
-        {/* Categories (Horizontal Scroll) */}
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-5 px-5 pb-2">
-          {categories.map((cat: any) => (
+        <p className="text-[11px] text-slate-400 mb-2.5">{APP_TAGLINE}</p>
+
+        {/* Category chips + layout toggle */}
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => pageSwiperRef.current?.slidePrev()}
+            className="guest-cat-prev shrink-0 w-8 h-8 rounded-full border border-slate-200 bg-white text-slate-500 flex items-center justify-center disabled:opacity-30 shadow-sm"
+            aria-label="Previous category"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          <Swiper
+            slidesPerView="auto"
+            spaceBetween={8}
+            freeMode
+            onSwiper={(sw) => {
+              chipSwiperRef.current = sw;
+            }}
+            modules={[FreeMode]}
+            className="w-full min-w-0 !overflow-hidden"
+          >
+            {categories.map((cat, idx) => {
+              const active = activeCategory === cat;
+              return (
+                <SwiperSlide key={cat} className="!w-auto">
+                  <button
+                    type="button"
+                    onClick={() => goToCategory(cat, idx)}
+                    className={cn(
+                      'px-3.5 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all border',
+                      active
+                        ? 'text-white shadow-md border-transparent'
+                        : 'bg-white text-slate-600 border-slate-200'
+                    )}
+                    style={active ? { backgroundColor: BRAND.navy } : undefined}
+                  >
+                    {cat}
+                  </button>
+                </SwiperSlide>
+              );
+            })}
+          </Swiper>
+
+          <button
+            type="button"
+            onClick={() => pageSwiperRef.current?.slideNext()}
+            className="guest-cat-next shrink-0 w-8 h-8 rounded-full border border-slate-200 bg-white text-slate-500 flex items-center justify-center disabled:opacity-30 shadow-sm"
+            aria-label="Next category"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+
+          <div className="shrink-0 flex items-center rounded-full border border-slate-200 bg-slate-50 p-0.5 ml-0.5">
             <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
+              type="button"
+              onClick={() => setLayout('list')}
               className={cn(
-                "px-5 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all",
-                activeCategory === cat 
-                  ? "bg-slate-900 text-white shadow-md" 
-                  : "bg-slate-100 text-slate-600 border border-slate-200"
+                'w-8 h-8 rounded-full flex items-center justify-center transition-colors',
+                layoutMode === 'list' ? 'bg-white text-[#0D1B2A] shadow-sm' : 'text-slate-400'
               )}
+              aria-label="List view"
+              aria-pressed={layoutMode === 'list'}
             >
-              {cat}
+              <List className="w-4 h-4" />
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => setLayout('grid')}
+              className={cn(
+                'w-8 h-8 rounded-full flex items-center justify-center transition-colors',
+                layoutMode === 'grid' ? 'bg-white text-[#0D1B2A] shadow-sm' : 'text-slate-400'
+              )}
+              aria-label="Grid view"
+              aria-pressed={layoutMode === 'grid'}
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Menu List */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      {/* Full-screen category pages — swipe left/right */}
+      <div className="flex-1 min-h-0 relative">
         {isLoading ? (
-          <div className="flex justify-center p-10"><span className="animate-pulse">Loading menu...</span></div>
+          <div className="flex justify-center p-10 text-slate-400 animate-pulse">Loading menu…</div>
         ) : (
-          filteredProducts?.map((product: any) => (
-            <div key={product.id} className="bg-white rounded-2xl p-3 shadow-sm border border-slate-100 flex gap-4">
-              
-              <div className="w-28 h-28 rounded-xl bg-slate-100 overflow-hidden shrink-0 relative">
-                {product.image_url ? (
-                  <img 
-                    src={product.image_url} 
-                    alt={product.name}
-                    className="w-full h-full object-cover"
-                    onError={(e) => e.currentTarget.style.display = 'none'}
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-slate-300">
-                    <UtensilsCrossed className="w-8 h-8 opacity-40" />
+          <Swiper
+            className="h-full w-full guest-menu-page-swiper"
+            style={{ height: '100%' }}
+            initialSlide={activeIndex}
+            onSwiper={(sw) => {
+              pageSwiperRef.current = sw;
+            }}
+            onSlideChange={(sw) => {
+              const cat = categories[sw.activeIndex];
+              if (cat) {
+                setActiveCategory(cat);
+                chipSwiperRef.current?.slideTo(Math.max(0, sw.activeIndex - 1));
+              }
+            }}
+            resistanceRatio={0.65}
+          >
+            {categories.map((cat) => {
+              const items = productsByCategory[cat] || [];
+              return (
+                <SwiperSlide key={cat} className="!h-full overflow-hidden">
+                  <div className="h-full overflow-y-auto overscroll-contain px-4 py-4 pb-28">
+                    {items.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+                        <ShoppingBag className="w-12 h-12 mb-3 opacity-30" style={{ color: BRAND.navy }} />
+                        <p className="font-semibold" style={{ color: BRAND.navy }}>
+                          No items in {cat}
+                        </p>
+                        <p className="text-sm text-slate-500 mt-1">Swipe to another category</p>
+                      </div>
+                    ) : layoutMode === 'list' ? (
+                      <div className="space-y-3">
+                        {items.map((product: any) => (
+                          <ProductListCard
+                            key={product.id}
+                            product={product}
+                            onAdd={() => addItem(product)}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2.5">
+                        {items.map((product: any) => (
+                          <ProductGridCard
+                            key={product.id}
+                            product={product}
+                            onAdd={() => addItem(product)}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
+                </SwiperSlide>
+              );
+            })}
+          </Swiper>
+        )}
+
+        {/* Page dots */}
+        {categories.length > 1 && (
+          <div className="pointer-events-none absolute bottom-[5.5rem] left-0 right-0 flex justify-center gap-1.5 z-20">
+            {categories.map((cat, i) => (
+              <span
+                key={cat}
+                className={cn(
+                  'h-1.5 rounded-full transition-all',
+                  i === activeIndex ? 'w-4 bg-[#FF6A00]' : 'w-1.5 bg-slate-300'
                 )}
-                <div className="absolute top-1.5 left-1.5 bg-white rounded p-0.5 shadow-sm">
-                  {getDietaryIcon(product.dietary_preference)}
-                </div>
-              </div>
-
-              <div className="flex flex-col flex-1 py-1">
-                <h3 className="font-bold text-slate-800 leading-tight mb-1">{product.name}</h3>
-                <p className="text-xs text-slate-500 line-clamp-2 mb-2 leading-relaxed opacity-80">
-                  {product.categories?.name}
-                </p>
-                <div className="mt-auto flex items-center justify-between">
-                  <span className="font-black text-purple-700">{formatCurrency(safePrice(product))}</span>
-                  
-                  <button 
-                    onClick={() => addItem(product)}
-                    className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold hover:bg-purple-600 hover:text-white transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-            </div>
-          ))
+              />
+            ))}
+          </div>
         )}
       </div>
 
-      {/* Sticky Cart Button */}
       {getItemCount() > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 max-w-md mx-auto z-50">
-          <Button 
+        <div className="absolute bottom-0 left-0 right-0 p-4 z-50 pointer-events-none">
+          <button
+            type="button"
             onClick={() => setIsCartOpen(true)}
-            className="w-full h-14 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl shadow-[0_10px_30px_rgba(147,51,234,0.3)] flex items-center justify-between px-6 animate-in slide-in-from-bottom-5"
+            className="pointer-events-auto w-full h-14 text-white rounded-2xl flex items-center justify-between px-5 transition-transform active:scale-[0.99]"
+            style={{
+              backgroundColor: BRAND.navy,
+              boxShadow: `0 12px 28px ${BRAND.navy}40`,
+            }}
           >
             <div className="flex items-center gap-3">
-              <div className="bg-white/20 w-8 h-8 rounded-full flex items-center justify-center font-bold">
+              <div
+                className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm"
+                style={{ backgroundColor: BRAND.orange }}
+              >
                 {getItemCount()}
               </div>
-              <span className="font-bold text-lg">View Order</span>
+              <span className="font-bold text-base">View Order</span>
             </div>
-            <span className="font-black text-xl">{formatCurrency(getCartTotal())}</span>
-          </Button>
+            <span className="font-extrabold text-lg" style={{ color: BRAND.orangeLight }}>
+              {formatCurrency(getCartTotal())}
+            </span>
+          </button>
         </div>
       )}
 
-      {/* Cart Modal */}
-      <CustomerCartModal 
-        isOpen={isCartOpen} 
-        onClose={() => setIsCartOpen(false)} 
+      <CustomerCartModal
+        isOpen={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
         table={table}
+        onViewStatus={() => setView('status')}
       />
     </div>
   );

@@ -1,5 +1,5 @@
 @import "tw-animate-css";
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap');
 @import "@fontsource-variable/geist";
 @tailwind base;
 @tailwind components;
@@ -11,9 +11,9 @@
   --bg: #fff;
   --border: #e5e4e7;
   --code-bg: #f4f3ec;
-  --accent: #FF7A00;
-  --accent-bg: rgba(255, 122, 0, 0.1);
-  --accent-border: rgba(255, 122, 0, 0.5);
+  --accent: #FF6A00;
+  --accent-bg: rgba(255, 106, 0, 0.1);
+  --accent-border: rgba(255, 106, 0, 0.5);
   --social-bg: rgba(244, 243, 236, 0.5);
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
@@ -22,19 +22,14 @@
   --heading: 'Poppins', system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
   color-scheme: light dark;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  /* Crisp HD text on Windows/desktop (avoid soft antialiased glyphs) */
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -185,7 +180,31 @@ code {
   }
   html {
     @apply font-sans h-full w-full m-0;
+    /* Keep glyphs sharp even when parents use GPU transforms */
+    -webkit-font-smoothing: auto;
+    -moz-osx-font-smoothing: auto;
+    text-rendering: geometricPrecision;
   }
+}
+
+/* POS / dense UI: prevent transform layers from softening text */
+.pos-crisp-text,
+.pos-crisp-text * {
+  -webkit-font-smoothing: auto !important;
+  -moz-osx-font-smoothing: auto !important;
+  text-rendering: geometricPrecision;
+}
+
+.pos-crisp-text .swiper-wrapper {
+  /* Avoid fractional translate blur on category chips */
+  transform: translate3d(0, 0, 0) !important;
+}
+
+/* Guest menu: full-height category pages with vertical scroll inside slides */
+.guest-menu-page-swiper,
+.guest-menu-page-swiper .swiper-wrapper,
+.guest-menu-page-swiper .swiper-slide {
+  height: 100%;
 }
 
 @media print {

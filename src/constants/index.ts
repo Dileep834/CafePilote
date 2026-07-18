@@ -18,7 +18,17 @@ export const InventoryStatus = {
 
 export type InventoryStatusType = typeof InventoryStatus[keyof typeof InventoryStatus];
 
+/** Official product brand — always "CafePilots" (with an s). */
 export const APP_NAME = 'CafePilots';
-export const APP_LOGO = 'https://cafepilote.com/wp-content/uploads/2024/01/cafe-pilot-logo-1.png'; // Using a placeholder/real logo
-// We will use a generic cafe logo or text if this URL is dead, but let's try a common logo or just use an icon in the UI.
-// Actually, let's use a nice dynamic logo in the Login page directly instead of a broken URL.
+export const APP_TAGLINE = 'Run Every Café Smarter.';
+export const APP_DOMAIN = 'cafepilots.com';
+
+/** Brand board palette */
+export const BRAND = {
+  navy: '#0D1B2A',
+  steel: '#1B263B',
+  orange: '#FF6A00',
+  orangeLight: '#FFB347',
+  cream: '#F5E6D3',
+  gray: '#F3F3F8',
+} as const;

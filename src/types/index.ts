@@ -77,6 +77,10 @@ export interface Table {
   type: TableType;
   qrCodeToken?: string;
   currentOrderId?: string;
+  /** Shared id when tables are combined for one party */
+  mergeGroupId?: string;
+  /** Primary floor table for the merge (holds QR / order focus) */
+  mergePrimaryId?: string;
 }
 
 export type OrderStatus = 'pending_approval' | 'in_kitchen' | 'ready' | 'served' | 'completed' | 'cancelled';

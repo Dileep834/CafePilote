@@ -40,7 +40,24 @@ export const CustomThemeProvider: React.FC<{ children: React.ReactNode }> = ({ c
     <ThemeContext.Provider value={{ mode, toggleTheme }}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <GlobalStyles styles={{ html: { fontSize: `${viewScale}% !important` } }} />
+        <GlobalStyles
+          styles={{
+            html: {
+              // Only scale when intentionally changed; keep 100% for sharp rem text
+              ...(viewScale !== 100
+                ? { fontSize: `${Math.round(viewScale)}%` }
+                : { fontSize: '100%' }),
+              WebkitFontSmoothing: 'auto',
+              MozOsxFontSmoothing: 'auto',
+              textRendering: 'geometricPrecision',
+            },
+            body: {
+              fontFamily: '"Poppins", system-ui, sans-serif',
+              WebkitFontSmoothing: 'auto',
+              MozOsxFontSmoothing: 'auto',
+            },
+          }}
+        />
         {children}
       </ThemeProvider>
     </ThemeContext.Provider>

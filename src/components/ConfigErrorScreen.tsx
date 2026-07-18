@@ -21,7 +21,7 @@ export const ConfigErrorScreen: React.FC<ConfigErrorScreenProps> = ({
         justifyContent: 'center',
         padding: '24px',
         fontFamily: 'system-ui, -apple-system, Segoe UI, sans-serif',
-        background: 'linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
+        background: 'linear-gradient(160deg, #0D1B2A 0%, #1B263B 50%, #0D1B2A 100%)',
         color: '#f8fafc',
         boxSizing: 'border-box',
       }}
@@ -32,13 +32,16 @@ export const ConfigErrorScreen: React.FC<ConfigErrorScreenProps> = ({
           width: '100%',
           padding: '32px',
           borderRadius: 16,
-          background: 'rgba(15, 23, 42, 0.85)',
-          border: '1px solid rgba(255, 122, 0, 0.35)',
+          background: 'rgba(13, 27, 42, 0.9)',
+          border: '1px solid rgba(255, 106, 0, 0.35)',
           boxShadow: '0 24px 48px rgba(0,0,0,0.35)',
         }}
       >
-        <div style={{ color: '#FF7A00', fontWeight: 800, fontSize: 14, letterSpacing: 1, marginBottom: 8 }}>
-          CAFEPILOTS
+        <div style={{ color: '#FF6A00', fontWeight: 800, fontSize: 14, letterSpacing: 1, marginBottom: 12 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+            {/* Keep brand text consistent */}
+            CafePilots
+          </span>
         </div>
         <h1 style={{ margin: '0 0 12px', fontSize: 22, fontWeight: 700 }}>{title}</h1>
         <p style={{ margin: '0 0 16px', lineHeight: 1.5, color: '#cbd5e1' }}>{message}</p>
@@ -64,7 +67,7 @@ export const ConfigErrorScreen: React.FC<ConfigErrorScreenProps> = ({
           onClick={() => window.location.reload()}
           style={{
             padding: '10px 18px',
-            background: '#FF7A00',
+            background: '#FF6A00',
             color: '#fff',
             border: 'none',
             borderRadius: 8,

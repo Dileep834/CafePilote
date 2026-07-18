@@ -16,7 +16,7 @@ import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { CafePilotsLogo } from '../components/CafePilotsLogo';
 import { useAuthStore } from '../store/useAuthStore';
 import { supabase } from '../lib/supabase';
-import { Role, APP_NAME } from '../constants';
+import { APP_NAME, APP_TAGLINE } from '../constants';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -97,29 +97,16 @@ const Login: React.FC = () => {
   return (
     <Box>
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 4 }}>
-        <Box sx={{ mb: 1 }}>
-          <CafePilotsLogo size={90} />
+        <Box sx={{ mb: 2 }}>
+          <CafePilotsLogo size={56} withWordmark withDivider />
         </Box>
-        <Typography 
-          variant="h4" 
-          component="h1" 
-          gutterBottom 
-          sx={{ 
-            fontWeight: 800, 
-            letterSpacing: '0.5px',
-            textShadow: (theme) => theme.palette.mode === 'light' ? 'none' : '0 2px 4px rgba(0,0,0,0.5)'
-          }}
-        >
-          <span style={{ color: 'inherit' }}>Cafe</span>
-          <span style={{ color: '#FF7A00' }}>Pilots</span>
-        </Typography>
         <Typography 
           variant="body2" 
           sx={{ 
             color: (theme) => theme.palette.mode === 'light' ? 'text.secondary' : 'rgba(255,255,255,0.7)' 
           }}
         >
-          Inventory & Operations Management
+          {APP_TAGLINE}
         </Typography>
       </Box>
 

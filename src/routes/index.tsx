@@ -142,6 +142,8 @@ const AppRoutes = () => {
         
         {/* Customer Public Routes */}
         <Route path="/menu" element={<CustomerMenuLayout />}>
+          {/* Token-only link must be declared before :outletId/:qrToken */}
+          <Route path="t/:qrToken" element={<CustomerMenu />} />
           <Route path=":outletId/:qrToken" element={<CustomerMenu />} />
         </Route>
 
