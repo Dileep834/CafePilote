@@ -9,7 +9,6 @@ export type PlanLimits = {
   maxFloorsPerOutlet: number;
   maxTablesPerOutlet: number;
   floorDesigner: boolean;
-  devicePreview: boolean;
 };
 
 export const PLAN_LIMITS: Record<SubscriptionPlanId, PlanLimits> = {
@@ -20,7 +19,6 @@ export const PLAN_LIMITS: Record<SubscriptionPlanId, PlanLimits> = {
     maxFloorsPerOutlet: 2,
     maxTablesPerOutlet: 20,
     floorDesigner: true,
-    devicePreview: false,
   },
   growth: {
     id: 'growth',
@@ -29,7 +27,6 @@ export const PLAN_LIMITS: Record<SubscriptionPlanId, PlanLimits> = {
     maxFloorsPerOutlet: 5,
     maxTablesPerOutlet: 60,
     floorDesigner: true,
-    devicePreview: true,
   },
   enterprise: {
     id: 'enterprise',
@@ -38,7 +35,6 @@ export const PLAN_LIMITS: Record<SubscriptionPlanId, PlanLimits> = {
     maxFloorsPerOutlet: 999,
     maxTablesPerOutlet: 999,
     floorDesigner: true,
-    devicePreview: true,
   },
 };
 

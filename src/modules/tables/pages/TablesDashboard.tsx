@@ -4,6 +4,7 @@ import {
   getMergeGroup,
   getMergeLabel,
   getNextStatusAction,
+  isClearBlockedByOpenBill,
   isMergePrimary,
   useTableStore,
   type TableFormInput,
@@ -197,6 +198,11 @@ export function TablesDashboard() {
     : selected?.capacity || 0;
   const selectedBill = selected ? getOpenBillForTable(selected, outletTables) : undefined;
   const selectedBillTotal = selectedBill ? getBillTotal(selectedBill) : 0;
+  const hasOpenBillItems = !!(selectedBill && selectedBill.items.length > 0);
+  const clearBlocked =
+    !!selected &&
+    isClearBlockedByOpenBill(selected.status, hasOpenBillItems) &&
+    (nextAction?.next === 'cleaning' || nextAction?.next === 'available');
 
   const goToTableBill = (table: Table, checkout = false) => {
     openTableOnPOS(table);
@@ -254,9 +260,21 @@ export function TablesDashboard() {
 
   const applyStatus = async (status: TableStatus) => {
     if (!selected) return;
+    if (
+      (status === 'cleaning' || status === 'available') &&
+      hasOpenBillItems
+    ) {
+      window.alert('Pay the open bill before clearing this table.');
+      return;
+    }
     setBusy(true);
-    await updateTableStatus(selected.id, status);
+    const ok = await updateTableStatus(selected.id, status);
     setBusy(false);
+    if (!ok) {
+      window.alert(
+        useTableStore.getState().lastError || 'Pay the open bill before clearing this table.'
+      );
+    }
   };
 
   const handleDelete = async () => {
@@ -562,11 +580,15 @@ export function TablesDashboard() {
                     Recommended next
                   </p>
                   <p className="text-white font-bold text-lg">{nextAction.label}</p>
-                  <p className="text-white/70 text-sm mt-1 mb-4">{nextAction.hint}</p>
+                  <p className="text-white/70 text-sm mt-1 mb-4">
+                    {clearBlocked
+                      ? 'Open bill still unpaid — take payment before clearing.'
+                      : nextAction.hint}
+                  </p>
                   <Button
-                    disabled={busy}
+                    disabled={busy || clearBlocked}
                     onClick={() => applyStatus(nextAction.next)}
-                    className="w-full h-12 rounded-xl font-bold text-white"
+                    className="w-full h-12 rounded-xl font-bold text-white disabled:opacity-50"
                     style={{ backgroundColor: BRAND.orange }}
                   >
                     {nextAction.label}
@@ -732,22 +754,32 @@ export function TablesDashboard() {
                     Or set status
                   </p>
                   <div className="grid grid-cols-2 gap-2">
-                    {(Object.keys(STATUS_META) as TableStatus[]).map((status) => (
-                      <button
-                        key={status}
-                        type="button"
-                        disabled={busy || selected.status === status}
-                        onClick={() => applyStatus(status)}
-                        className={cn(
-                          'h-11 rounded-xl text-sm font-bold border capitalize transition-all disabled:opacity-50',
-                          selected.status === status
-                            ? 'bg-[#0D1B2A] text-white border-[#0D1B2A]'
-                            : cn('bg-white hover:shadow-sm', STATUS_META[status].chip)
-                        )}
-                      >
-                        {STATUS_META[status].label}
-                      </button>
-                    ))}
+                    {(Object.keys(STATUS_META) as TableStatus[]).map((status) => {
+                      const blockedByBill =
+                        hasOpenBillItems &&
+                        (status === 'cleaning' || status === 'available');
+                      return (
+                        <button
+                          key={status}
+                          type="button"
+                          disabled={busy || selected.status === status || blockedByBill}
+                          onClick={() => applyStatus(status)}
+                          title={
+                            blockedByBill
+                              ? 'Pay the open bill before clearing this table'
+                              : undefined
+                          }
+                          className={cn(
+                            'h-11 rounded-xl text-sm font-bold border capitalize transition-all disabled:opacity-50',
+                            selected.status === status
+                              ? 'bg-[#0D1B2A] text-white border-[#0D1B2A]'
+                              : cn('bg-white hover:shadow-sm', STATUS_META[status].chip)
+                          )}
+                        >
+                          {STATUS_META[status].label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 

@@ -114,6 +114,15 @@ export function getNextStatusAction(status: TableStatus): {
   }
 }
 
+/** True when Clear / Ready must wait until the open check is paid */
+export function isClearBlockedByOpenBill(
+  status: TableStatus,
+  hasOpenBillItems: boolean
+): boolean {
+  if (!hasOpenBillItems) return false;
+  return status === 'occupied' || status === 'cleaning' || status === 'reserved';
+}
+
 export function getMergeGroup(tables: Table[], table: Table): Table[] {
   if (!table.mergeGroupId) return [table];
   return tables
@@ -233,6 +242,17 @@ export const useTableStore = create<TableState>()(
         const prev = get().tables.find((t) => t.id === id);
         if (!prev) return false;
 
+        if (patch.status === 'available' || patch.status === 'cleaning') {
+          const { useTableBillStore } = await import('./useTableBillStore');
+          const bill = useTableBillStore.getState().getOpenBillForTable(prev, get().tables);
+          if (bill && bill.items.length > 0) {
+            set({
+              lastError: `Pay the open bill on ${prev.tableNumber} before clearing this table.`,
+            });
+            return false;
+          }
+        }
+
         if (patch.tableNumber) {
           const number = patch.tableNumber.trim().toUpperCase();
           patch = { ...patch, tableNumber: number };
@@ -264,6 +284,19 @@ export const useTableStore = create<TableState>()(
         const clearOrder = status === 'available' || status === 'cleaning';
         const prev = get().tables.find((t) => t.id === id);
         if (!prev) return false;
+
+        if (clearOrder) {
+          const { useTableBillStore } = await import('./useTableBillStore');
+          const bill = useTableBillStore.getState().getOpenBillForTable(prev, get().tables);
+          if (bill && bill.items.length > 0) {
+            set({
+              lastError: `Pay the open bill on ${prev.tableNumber} before clearing this table.`,
+            });
+            return false;
+          }
+        }
+
+        set({ lastError: null });
 
         const groupIds = prev.mergeGroupId
           ? get()

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
+import { getTenantOutletId } from '@/store/useTenantStore';
 import { useTableBillStore, type TableBillItem } from '@/modules/tables/store/useTableBillStore';
 import { useTableStore } from '@/modules/tables/store/useTableStore';
 import type { Table } from '@/types';
@@ -60,6 +61,7 @@ interface POSState {
   attachTable: (table: Table, allTables: Table[]) => void;
   detachTable: () => void;
   loadTableBill: (table: Table, allTables: Table[]) => void;
+  reloadActiveTableBill: () => void;
   syncActiveTableBill: () => void;
   fireActiveTableKitchen: () => Promise<boolean>;
 
@@ -184,6 +186,30 @@ export const usePOSStore = create<POSState>((set, get) => ({
       customerName: `Table ${bill.tableLabel}`,
       discountValue: 0,
       tenderedAmount: '',
+    });
+  },
+
+  /** Refresh cart from cloud/local open bill without creating a new check */
+  reloadActiveTableBill: () => {
+    const { activeTableId, cart } = get();
+    if (!activeTableId) return;
+    const bill = useTableBillStore.getState().getOpenBill(activeTableId);
+    if (!bill) return;
+    const cartQty = cart.reduce((s, i) => s + i.quantity, 0);
+    const billQty = bill.items.reduce((s, i) => s + i.quantity, 0);
+    // Only pull when the open check has something the cart is missing (QR guest sync)
+    if (billQty <= cartQty) return;
+    set({
+      cart: bill.items.map((item) => ({
+        id: item.id,
+        productId: item.productId,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        notes: item.notes,
+      })),
+      activeTableLabel: bill.tableLabel,
+      customerName: `Table ${bill.tableLabel}`,
     });
   },
 
@@ -468,7 +494,11 @@ export const usePOSStore = create<POSState>((set, get) => ({
   },
 }));
 
-export function openTableOnPOS(table: Table) {
+export async function openTableOnPOS(table: Table) {
   const allTables = useTableStore.getState().tables;
+  const user = useAuthStore.getState().user;
+  const outletId = getTenantOutletId(user) || table.outletId;
+  // Pull QR guest lines before painting the cart (staff localStorage may be empty)
+  await useTableBillStore.getState().hydrateOpenBills(outletId);
   usePOSStore.getState().loadTableBill(table, allTables);
 }

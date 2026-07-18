@@ -13,8 +13,6 @@ import { FloorTabs } from '../components/FloorTabs';
 import { FloorCanvas } from '../components/FloorCanvas';
 import { FloorContextMenu } from '../components/FloorContextMenu';
 import { FloorMiniMap } from '../components/FloorMiniMap';
-import { DeviceFrame } from '../components/DeviceFrame';
-import { DevicePreviewToggle } from '../components/DevicePreviewToggle';
 import { MobileOpsTableList } from '../components/MobileOpsTableList';
 import { TableQrPrintModal } from '@/modules/tables/components/TableQrPrintModal';
 import { PlaceTableModal } from '../components/PlaceTableModal';
@@ -23,6 +21,7 @@ import { getCatalogItem } from '../lib/catalog';
 import type { ObjectKind } from '../types';
 import { BRAND } from '@/constants';
 import type { Table } from '@/types';
+import { cn } from '@/lib/utils';
 
 type Props = {
   /**
@@ -53,18 +52,6 @@ export function FloorDesignerPage({ variant = 'designer' }: Props) {
   const mode = useFloorStore((s) => s.mode);
   const setMode = useFloorStore((s) => s.setMode);
   const setTool = useFloorStore((s) => s.setTool);
-  const devicePreview = useFloorStore((s) => s.devicePreview);
-  const setDevicePreview = useFloorStore((s) => s.setDevicePreview);
-  const planLimits = useTenantStore((s) => s.plan());
-
-  const setDevice = (d: typeof devicePreview) => {
-    if (!planLimits.devicePreview && d !== 'desktop') {
-      alert(`${planLimits.label} plan: Desktop only. Upgrade for Tablet/Mobile preview.`);
-      setDevicePreview('desktop');
-      return;
-    }
-    setDevicePreview(d);
-  };
   const addFromCatalog = useFloorStore((s) => s.addFromCatalog);
   const activeFloorId = useFloorStore((s) => s.activeFloorId);
   const pendingPlace = useFloorStore((s) => s.pendingPlace);
@@ -191,8 +178,6 @@ export function FloorDesignerPage({ variant = 'designer' }: Props) {
     else void addFromCatalog(item, worldX, worldY);
   };
 
-  const showMobileList = isOps && devicePreview === 'mobile';
-
   return (
     <div
       className={
@@ -209,10 +194,9 @@ export function FloorDesignerPage({ variant = 'designer' }: Props) {
               Floor Designer
             </h1>
             <p className="text-xs text-slate-500">
-              Page-style floor layout · {mode === 'preview' ? 'Live preview' : 'Edit mode'}
+              Floor layout · {mode === 'preview' ? 'Live preview' : 'Edit mode'}
             </p>
           </div>
-          <DevicePreviewToggle value={devicePreview} onChange={setDevice} size="sm" />
         </div>
       )}
 
@@ -226,10 +210,7 @@ export function FloorDesignerPage({ variant = 'designer' }: Props) {
 
       {isOps && (
         <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-slate-200 bg-white/90 flex-wrap">
-          <p className="text-xs text-slate-500 flex-1 min-w-[120px]">
-            Live floor · Desktop / Tablet / Mobile preview
-          </p>
-          <DevicePreviewToggle value={devicePreview} onChange={setDevice} size="sm" />
+          <p className="text-xs text-slate-500 flex-1 min-w-[120px]">Live floor</p>
           <FloorToolbar
             containerRef={containerRef}
             onGenerateQr={() => void handleGenerateQr()}
@@ -240,46 +221,59 @@ export function FloorDesignerPage({ variant = 'designer' }: Props) {
       )}
 
       <div className="flex-1 min-h-0 flex">
-        {!isOps && devicePreview === 'desktop' && <FloorSidebar />}
+        {/* Catalog sidebar: desktop only */}
+        {!isOps && (
+          <div className="hidden lg:flex shrink-0">
+            <FloorSidebar />
+          </div>
+        )}
 
         <div className="relative flex-1 min-w-0 min-h-0 overflow-hidden">
-          <DeviceFrame device={devicePreview}>
-            <div
-              ref={containerRef}
-              className="relative h-full w-full min-h-0 overflow-hidden"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={handleCanvasDrop}
-            >
-              {isLoading ? (
-                <div className="h-full flex items-center justify-center text-slate-400 animate-pulse">
-                  Loading floors…
-                </div>
-              ) : showMobileList ? (
-                <MobileOpsTableList />
-              ) : (
-                <>
+          <div
+            ref={containerRef}
+            className="relative h-full w-full min-h-0 overflow-hidden"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleCanvasDrop}
+          >
+            {isLoading ? (
+              <div className="h-full flex items-center justify-center text-slate-400 animate-pulse">
+                Loading floors…
+              </div>
+            ) : (
+              <>
+                {/* Ops phones: compact table list; canvas from tablet up */}
+                {isOps && (
+                  <div className="md:hidden h-full">
+                    <MobileOpsTableList />
+                  </div>
+                )}
+                <div className={cn('h-full w-full', isOps && 'hidden md:block')}>
                   <FloorCanvas containerRef={containerRef} />
-                  {devicePreview === 'desktop' && <FloorMiniMap />}
-                </>
-              )}
-              {lastError && (
-                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium px-3 py-2">
-                  {lastError}
+                  <div className="hidden lg:block">
+                    <FloorMiniMap />
+                  </div>
                 </div>
-              )}
-            </div>
-          </DeviceFrame>
+              </>
+            )}
+            {lastError && (
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium px-3 py-2">
+                {lastError}
+              </div>
+            )}
+          </div>
         </div>
 
-        {devicePreview !== 'mobile' &&
-          (isOps ? (
+        {/* Side panel: tablet+ */}
+        <div className="hidden md:flex shrink-0">
+          {isOps ? (
             <FloorOpsPanel
               onPrintQr={() => void handleGenerateQr()}
               onEditLayout={() => navigate('/erp/floor')}
             />
           ) : (
             <FloorPropertiesPanel onPrintQr={() => void handleGenerateQr()} />
-          ))}
+          )}
+        </div>
       </div>
 
       <FloorTabs opsMode={isOps} />

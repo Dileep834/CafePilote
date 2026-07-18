@@ -38,7 +38,6 @@ import {
   LayoutTemplate,
   Link2,
 } from 'lucide-react';
-import { DevicePreviewToggle } from './DevicePreviewToggle';
 
 type Props = {
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -77,8 +76,6 @@ export function FloorToolbar({
   const alignSelected = useFloorStore((s) => s.alignSelected);
   const loadSampleLayout = useFloorStore((s) => s.loadSampleLayout);
   const repairTableLinks = useFloorStore((s) => s.repairTableLinks);
-  const devicePreview = useFloorStore((s) => s.devicePreview);
-  const setDevicePreview = useFloorStore((s) => s.setDevicePreview);
   const historyPast = useFloorStore((s) => s.historyPast);
   const historyFuture = useFloorStore((s) => s.historyFuture);
 
@@ -415,8 +412,6 @@ export function FloorToolbar({
       />
 
       <div className="flex-1" />
-
-      <DevicePreviewToggle value={devicePreview} onChange={setDevicePreview} size="sm" />
 
       {mode === 'design' && tool === 'pan' && (
         <span className="text-[11px] font-bold text-[#0D1B2A] px-2 py-1 rounded-lg bg-slate-100">

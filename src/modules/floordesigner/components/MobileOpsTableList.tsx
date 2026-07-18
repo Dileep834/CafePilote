@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { BRAND } from '@/constants';
 import { useFloorStore } from '../store/floorStore';
-import { useTableStore, getNextStatusAction } from '@/modules/tables/store/useTableStore';
+import { useTableStore, getNextStatusAction, isClearBlockedByOpenBill } from '@/modules/tables/store/useTableStore';
 import { useTableBillStore } from '@/modules/tables/store/useTableBillStore';
 import { TABLE_STATUS_COLORS, toCanvasStatus } from '../types';
 import { openTableOnPOS } from '@/modules/pos/store/usePOSStore';
@@ -46,7 +46,7 @@ export function MobileOpsTableList() {
   return (
     <div className="h-full overflow-y-auto p-3 space-y-2 bg-[#F3F3F8]">
       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1 mb-1">
-        Tables · mobile list
+        Tables
       </p>
       {rows.map(({ obj, table }) => {
         const bill = getOpenBillForTable(table, tables);
@@ -55,6 +55,9 @@ export function MobileOpsTableList() {
         });
         const next = getNextStatusAction(table.status);
         const selected = selectedIds.includes(obj.id);
+        const clearBlocked =
+          isClearBlockedByOpenBill(table.status, !!(bill && bill.items.length > 0)) &&
+          (next.next === 'cleaning' || next.next === 'available');
 
         return (
           <button
@@ -85,14 +88,29 @@ export function MobileOpsTableList() {
             <div className="mt-2 flex gap-2">
               <button
                 type="button"
-                className="flex-1 h-8 rounded-xl text-[11px] font-bold text-white"
+                disabled={clearBlocked}
+                className="flex-1 h-8 rounded-xl text-[11px] font-bold text-white disabled:opacity-50"
                 style={{ backgroundColor: BRAND.orange }}
+                title={
+                  clearBlocked ? 'Pay the open bill before clearing this table' : undefined
+                }
                 onClick={(e) => {
                   e.stopPropagation();
-                  void updateTableStatus(table.id, next.next);
+                  if (clearBlocked) {
+                    window.alert('Pay the open bill before clearing this table.');
+                    return;
+                  }
+                  void updateTableStatus(table.id, next.next).then((ok) => {
+                    if (!ok) {
+                      window.alert(
+                        useTableStore.getState().lastError ||
+                          'Pay the open bill before clearing this table.'
+                      );
+                    }
+                  });
                 }}
               >
-                {next.label}
+                {clearBlocked ? 'Pay bill first' : next.label}
               </button>
               <button
                 type="button"

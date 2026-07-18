@@ -28,7 +28,6 @@ const HISTORY_MAX = 50;
 
 type DesignerMode = 'design' | 'preview';
 export type DesignerTool = 'select' | 'pan';
-export type DevicePreview = 'desktop' | 'tablet' | 'mobile';
 
 interface HistoryEntry {
   objects: FloorObject[];
@@ -44,8 +43,6 @@ interface FloorDesignerState {
   mode: DesignerMode;
   /** Active canvas tool while editing (select objects vs pan floor) */
   tool: DesignerTool;
-  /** Page-designer device frame */
-  devicePreview: DevicePreview;
   isDirty: boolean;
   isLoading: boolean;
   isSaving: boolean;
@@ -67,7 +64,6 @@ interface FloorDesignerState {
 
   setMode: (mode: DesignerMode) => void;
   setTool: (tool: DesignerTool) => void;
-  setDevicePreview: (device: DevicePreview) => void;
   setViewport: (viewport: Partial<LayoutViewport>, opts?: { markDirty?: boolean }) => void;
   setGrid: (patch: { size?: GridSize; snap?: boolean; visible?: boolean }) => void;
   setFloorSize: (patch: Partial<FloorSize>) => void;
@@ -145,7 +141,6 @@ export const useFloorStore = create<FloorDesignerState>((set, get) => ({
   selectedIds: [],
   mode: 'design',
   tool: 'select',
-  devicePreview: 'desktop',
   isDirty: false,
   isLoading: false,
   isSaving: false,
@@ -289,8 +284,6 @@ export const useFloorStore = create<FloorDesignerState>((set, get) => ({
     }),
 
   setTool: (tool) => set({ tool }),
-
-  setDevicePreview: (devicePreview) => set({ devicePreview }),
 
   setViewport: (viewport, opts) =>
     set((s) => {

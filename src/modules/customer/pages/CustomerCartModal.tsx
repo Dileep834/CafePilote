@@ -37,9 +37,13 @@ export function CustomerCartModal({ isOpen, onClose, table, onViewStatus }: Cust
       if (guest) {
         setCustomerDetails(guest.name, guest.email);
       }
+      // Ensure the scanned table is in the list even if guest store hasn't finished loading
+      const allTables = tables.some((t) => t.id === table.id)
+        ? tables
+        : [table, ...tables];
       await addItemsToTable(
         table,
-        tables,
+        allTables,
         cart.map((item) => ({
           productId: item.product.id,
           name: item.product.name,

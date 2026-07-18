@@ -8,6 +8,8 @@ import {
   isMergePrimary,
   useTableStore,
 } from './useTableStore';
+import { getTenantOutletId } from '@/store/useTenantStore';
+import { useAuthStore } from '@/store/useAuthStore';
 
 export type TableBillItem = {
   id: string;
@@ -90,6 +92,29 @@ function safeOutletId(outletId: string) {
   return outletId;
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function toOrderItemRows(orderId: string, items: TableBillItem[]) {
+  return items.map((item) => ({
+    order_id: orderId,
+    product_id: item.productId && UUID_RE.test(item.productId) ? item.productId : null,
+    product_name: item.name,
+    quantity: item.quantity,
+    unit_price: item.price,
+    total_price: item.price * item.quantity,
+  }));
+}
+
+/** Keep open-check line items in sync so staff POS can hydrate QR guest orders. */
+async function syncCloudOrderItems(orderId: string, items: TableBillItem[]) {
+  const { error: delErr } = await supabase.from('pos_order_items').delete().eq('order_id', orderId);
+  if (delErr) throw delErr;
+  if (items.length === 0) return;
+  const { error } = await supabase.from('pos_order_items').insert(toOrderItemRows(orderId, items));
+  if (error) throw error;
+}
+
 function mergeItems(existing: TableBillItem[], incoming: AddItemInput[]): TableBillItem[] {
   const next = [...existing];
   for (const item of incoming) {
@@ -114,6 +139,58 @@ function mergeItems(existing: TableBillItem[], incoming: AddItemInput[]): TableB
     }
   }
   return next;
+}
+
+function billItemScore(bill: Pick<TableBill, 'items' | 'updatedAt'>) {
+  const qty = bill.items.reduce((s, i) => s + i.quantity, 0);
+  return qty * 1e12 + new Date(bill.updatedAt || 0).getTime();
+}
+
+function mapCloudItems(rows: any[] | null | undefined, fired = true): TableBillItem[] {
+  return (rows || []).map((item: any) => ({
+    id: crypto.randomUUID(),
+    productId: item.product_id || '',
+    name: item.product_name,
+    price: Number(item.unit_price) || 0,
+    quantity: Number(item.quantity) || 1,
+    fired,
+  }));
+}
+
+/** Recover line items from kitchen tickets when an open check header has no rows (legacy bug). */
+async function fetchSentItemsForTable(tableId: string): Promise<TableBillItem[]> {
+  try {
+    const { data, error } = await supabase
+      .from('pos_orders')
+      .select(
+        `
+        id, table_id, notes, created_at,
+        pos_order_items ( product_id, product_name, quantity, unit_price )
+      `
+      )
+      .eq('status', 'sent')
+      .or(`table_id.eq.${tableId},notes.ilike.%table:${tableId}%`)
+      .order('created_at', { ascending: true })
+      .limit(50);
+    if (error || !data?.length) return [];
+
+    const merged: TableBillItem[] = [];
+    for (const row of data) {
+      for (const item of mapCloudItems(row.pos_order_items, true)) {
+        const idx = merged.findIndex(
+          (x) => x.productId === item.productId && x.name === item.name && (x.notes || '') === (item.notes || '')
+        );
+        if (idx >= 0) {
+          merged[idx] = { ...merged[idx], quantity: merged[idx].quantity + item.quantity };
+        } else {
+          merged.push(item);
+        }
+      }
+    }
+    return merged;
+  } catch {
+    return [];
+  }
 }
 
 async function upsertCloudOpenOrder(bill: TableBill): Promise<string | undefined> {
@@ -148,21 +225,31 @@ async function upsertCloudOpenOrder(bill: TableBill): Promise<string | undefined
   };
 
   try {
-    if (bill.cloudOrderId) {
-      let { error } = await supabase.from('pos_orders').update(fullPayload).eq('id', bill.cloudOrderId);
+    let orderId = bill.cloudOrderId;
+
+    if (orderId) {
+      let { error } = await supabase.from('pos_orders').update(fullPayload).eq('id', orderId);
       if (error) {
-        ({ error } = await supabase.from('pos_orders').update(legacyPayload).eq('id', bill.cloudOrderId));
+        ({ error } = await supabase.from('pos_orders').update(legacyPayload).eq('id', orderId));
       }
       if (error) throw error;
-      return bill.cloudOrderId;
+    } else {
+      let { data, error } = await supabase.from('pos_orders').insert([fullPayload]).select('id').single();
+      if (error) {
+        ({ data, error } = await supabase.from('pos_orders').insert([legacyPayload]).select('id').single());
+      }
+      if (error) throw error;
+      orderId = data?.id as string;
     }
 
-    let { data, error } = await supabase.from('pos_orders').insert([fullPayload]).select('id').single();
-    if (error) {
-      ({ data, error } = await supabase.from('pos_orders').insert([legacyPayload]).select('id').single());
+    if (orderId) {
+      try {
+        await syncCloudOrderItems(orderId, bill.items);
+      } catch (e) {
+        console.error('Failed to sync open-order line items', e);
+      }
     }
-    if (error) throw error;
-    return data?.id as string;
+    return orderId;
   } catch {
     return undefined;
   }
@@ -226,20 +313,9 @@ async function insertKitchenTicket(params: {
     if (error) throw error;
 
     const orderId = data.id as string;
-    const rows = params.items.map((item) => ({
-      order_id: orderId,
-      product_id: item.productId?.match(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-      )
-        ? item.productId
-        : null,
-      product_name: item.name,
-      quantity: item.quantity,
-      unit_price: item.price,
-      total_price: item.price * item.quantity,
-    }));
-
-    const { error: itemsError } = await supabase.from('pos_order_items').insert(rows);
+    const { error: itemsError } = await supabase
+      .from('pos_order_items')
+      .insert(toOrderItemRows(orderId, params.items));
     if (itemsError) throw itemsError;
     return orderId;
   } catch (e) {
@@ -277,19 +353,21 @@ export const useTableBillStore = create<TableBillState>()(
       hydrateOpenBills: async (outletId) => {
         set({ isHydrating: true, lastError: null });
         try {
+          const outlet = safeOutletId(outletId || '');
           let query = supabase
             .from('pos_orders')
             .select(
               `
-              id, outlet_id, table_id, table_number, order_source, status, notes, created_at, updated_at,
+              id, outlet_id, table_id, table_number, order_source, status, notes, created_at, updated_at, total_amount,
               pos_order_items ( product_id, product_name, quantity, unit_price )
             `
             )
             .eq('status', 'open')
             .order('updated_at', { ascending: false });
 
-          if (outletId && safeOutletId(outletId)) {
-            query = query.eq('outlet_id', outletId);
+          // Include null outlet_id rows (QR guests often used placeholder outlet ids)
+          if (outlet) {
+            query = query.or(`outlet_id.eq.${outlet},outlet_id.is.null`);
           }
 
           const { data, error } = await query;
@@ -299,55 +377,98 @@ export const useTableBillStore = create<TableBillState>()(
             return;
           }
 
-          const remoteBills: TableBill[] = data
-            .filter((row: any) => row.table_id || (row.notes || '').includes('table:'))
-            .map((row: any) => {
-              const tableId =
-                row.table_id ||
-                String(row.notes || '')
-                  .split('table:')[1]
+          const mapped: TableBill[] = [];
+          const needsItemBackfill: TableBill[] = [];
+          for (const row of data as any[]) {
+            if (!row.table_id && !(row.notes || '').includes('table:')) continue;
+            const tableId =
+              row.table_id ||
+              String(row.notes || '')
+                .split('table:')[1]
+                ?.trim()
+                ?.split(/\s|·/)[0] ||
+              row.id;
+
+            let items = mapCloudItems(row.pos_order_items, true);
+            let recoveredFromKitchen = false;
+            // Legacy: open header existed but line items only lived on kitchen tickets
+            if (items.length === 0) {
+              const recovered = await fetchSentItemsForTable(tableId);
+              if (recovered.length) {
+                items = recovered;
+                recoveredFromKitchen = true;
+              }
+            }
+
+            const bill: TableBill = {
+              id: `cloud-${row.id}`,
+              tableId,
+              outletId: row.outlet_id || outletId || 'current-outlet',
+              tableLabel:
+                row.table_number ||
+                String(row.customer_name || '')
+                  .replace(/^Table\s+/i, '')
+                  .split('·')[0]
                   ?.trim() ||
-                row.id;
-              return {
-                id: `cloud-${row.id}`,
-                tableId,
-                outletId: row.outlet_id || outletId || 'current-outlet',
-                tableLabel: row.table_number || row.customer_name?.replace(/^Table\s+/i, '') || 'Table',
-                items: (row.pos_order_items || []).map((item: any) => ({
-                  id: crypto.randomUUID(),
-                  productId: item.product_id || '',
-                  name: item.product_name,
-                  price: Number(item.unit_price) || 0,
-                  quantity: Number(item.quantity) || 1,
-                  fired: true,
-                })),
-                status: 'open' as const,
-                source: (row.order_source === 'qr' ? 'qr' : 'pos') as 'pos' | 'qr',
-                cloudOrderId: row.id,
-                createdAt: row.created_at,
-                updatedAt: row.updated_at || row.created_at,
-              };
-            });
+                'Table',
+              items,
+              status: 'open' as const,
+              source: (row.order_source === 'qr' ? 'qr' : 'pos') as 'pos' | 'qr',
+              cloudOrderId: row.id,
+              createdAt: row.created_at,
+              updatedAt: row.updated_at || row.created_at,
+            };
+            mapped.push(bill);
+            if (recoveredFromKitchen && bill.cloudOrderId) needsItemBackfill.push(bill);
+          }
+
+          // One open check per table — prefer the one with more items / newer update
+          const byTable = new Map<string, TableBill>();
+          for (const bill of mapped) {
+            const prev = byTable.get(bill.tableId);
+            if (!prev || billItemScore(bill) > billItemScore(prev)) {
+              byTable.set(bill.tableId, bill);
+            }
+          }
+          const remoteBills = [...byTable.values()];
 
           set((s) => {
             const localOpen = s.bills.filter((b) => b.status === 'open');
             const merged = [...localOpen];
             for (const remote of remoteBills) {
-              const idx = merged.findIndex((b) => b.tableId === remote.tableId);
-              if (idx < 0) merged.push(remote);
-              else if (!merged[idx].cloudOrderId) {
-                merged[idx] = {
-                  ...merged[idx],
-                  cloudOrderId: remote.cloudOrderId,
-                  items: merged[idx].items.length ? merged[idx].items : remote.items,
-                };
+              const idx = merged.findIndex(
+                (b) => b.tableId === remote.tableId || b.cloudOrderId === remote.cloudOrderId
+              );
+              if (idx < 0) {
+                merged.push(remote);
+                continue;
               }
+              const local = merged[idx];
+              const preferRemote =
+                billItemScore(remote) > billItemScore(local) ||
+                (remote.items.length > 0 && local.items.length === 0);
+              merged[idx] = {
+                ...local,
+                cloudOrderId: remote.cloudOrderId || local.cloudOrderId,
+                source: preferRemote ? remote.source : local.source,
+                tableLabel: remote.tableLabel || local.tableLabel,
+                outletId: remote.outletId || local.outletId,
+                items: preferRemote ? remote.items : local.items,
+                updatedAt: preferRemote ? remote.updatedAt : local.updatedAt,
+              };
             }
             return {
               bills: [...merged, ...s.bills.filter((b) => b.status === 'paid')].slice(-60),
               isHydrating: false,
             };
           });
+
+          // Backfill open-order items in cloud when we recovered from kitchen tickets
+          for (const bill of needsItemBackfill) {
+            if (bill.cloudOrderId && bill.items.length > 0) {
+              void syncCloudOrderItems(bill.cloudOrderId, bill.items).catch(() => undefined);
+            }
+          }
         } catch {
           set({ isHydrating: false });
         }
@@ -371,11 +492,18 @@ export const useTableBillStore = create<TableBillState>()(
         const group = getMergeGroup(allTables, table);
         const primary = allTables.find((t) => t.id === billTableId) || table;
         const label = group.length > 1 ? getMergeLabel(group) : primary.tableNumber;
+        const tenantOutlet = getTenantOutletId(useAuthStore.getState().user);
+        const outletId =
+          safeOutletId(primary.outletId) ||
+          safeOutletId(tenantOutlet) ||
+          primary.outletId ||
+          tenantOutlet ||
+          'current-outlet';
 
         const bill: TableBill = {
           id: `bill-${Date.now()}`,
           tableId: billTableId,
-          outletId: primary.outletId,
+          outletId,
           tableLabel: label,
           mergeGroupId: primary.mergeGroupId,
           items: [],
@@ -507,12 +635,19 @@ export const useTableBillStore = create<TableBillState>()(
           firedKeys.has(`${item.productId}|${item.notes || ''}`) ? { ...item, fired: true } : item
         );
 
+        const updatedBill = { ...bill, items: nextItems, updatedAt: nowIso() };
         set((s) => ({
-          bills: s.bills.map((b) =>
-            b.id === bill.id ? { ...b, items: nextItems, updatedAt: nowIso() } : b
-          ),
+          bills: s.bills.map((b) => (b.id === bill.id ? updatedBill : b)),
           lastError: null,
         }));
+
+        // Keep open-check lines in cloud after firing (staff devices hydrate from this)
+        void upsertCloudOpenOrder(updatedBill).then((cloudId) => {
+          if (!cloudId || cloudId === updatedBill.cloudOrderId) return;
+          set((s) => ({
+            bills: s.bills.map((b) => (b.id === updatedBill.id ? { ...b, cloudOrderId: cloudId } : b)),
+          }));
+        });
 
         return true;
       },

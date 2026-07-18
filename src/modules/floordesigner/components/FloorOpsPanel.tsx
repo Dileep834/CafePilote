@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useFloorStore } from '../store/floorStore';
 import {
   getNextStatusAction,
+  isClearBlockedByOpenBill,
   useTableStore,
 } from '@/modules/tables/store/useTableStore';
 import { useTableBillStore } from '@/modules/tables/store/useTableBillStore';
@@ -77,6 +78,10 @@ export function FloorOpsPanel({ onPrintQr, onEditLayout }: Props) {
     ? toCanvasStatus(linked.status, { hasOpenBill: !!(bill && bill.items.length > 0) })
     : undefined;
   const nextAction = linked ? getNextStatusAction(linked.status) : null;
+  const clearBlocked =
+    !!linked &&
+    isClearBlockedByOpenBill(linked.status, !!(bill && bill.items.length > 0)) &&
+    (nextAction?.next === 'cleaning' || nextAction?.next === 'available');
 
   const linkedCount = useMemo(
     () => layout?.objects.filter((o) => o.linkedTableId).length || 0,
@@ -232,20 +237,36 @@ export function FloorOpsPanel({ onPrintQr, onEditLayout }: Props) {
                     </div>
 
                     {nextAction && (
-                      <Button
-                        type="button"
-                        className="w-full h-11 rounded-xl font-bold text-white"
-                        style={{ backgroundColor: BRAND.orange }}
-                        disabled={busy}
-                        onClick={async () => {
-                          setBusy(true);
-                          await updateTableStatus(linked.id, nextAction.next);
-                          setBusy(false);
-                        }}
-                      >
-                        <CircleDot className="w-4 h-4 mr-1.5" />
-                        {nextAction.label}
-                      </Button>
+                      <div className="space-y-1.5">
+                        <Button
+                          type="button"
+                          className="w-full h-11 rounded-xl font-bold text-white disabled:opacity-50"
+                          style={{ backgroundColor: BRAND.orange }}
+                          disabled={busy || clearBlocked}
+                          onClick={async () => {
+                            setBusy(true);
+                            const ok = await updateTableStatus(linked.id, nextAction.next);
+                            setBusy(false);
+                            if (!ok) {
+                              alert(
+                                useTableStore.getState().lastError ||
+                                  'Pay the open bill before clearing this table.'
+                              );
+                            }
+                          }}
+                        >
+                          <CircleDot className="w-4 h-4 mr-1.5" />
+                          {nextAction.label}
+                        </Button>
+                        {clearBlocked && (
+                          <p className="text-[11px] text-amber-700 font-medium text-center">
+                            Pay the open bill first, then clear the table.
+                          </p>
+                        )}
+                        {lastError && !clearBlocked && (
+                          <p className="text-[11px] text-rose-600 text-center">{lastError}</p>
+                        )}
+                      </div>
                     )}
 
                     <div className="grid grid-cols-2 gap-2">

@@ -9,6 +9,7 @@ import { useTableBillStore } from '@/modules/tables/store/useTableBillStore';
 import { formatCurrency } from '@/utils/format';
 import { ShoppingCart, Search, Plus, ChevronRight } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
+import { getTenantOutletId, useTenantStore } from '@/store/useTenantStore';
 
 function greetingForHour(hour: number) {
   if (hour < 12) return 'Good Morning';
@@ -17,14 +18,28 @@ function greetingForHour(hour: number) {
 }
 
 export function POSDashboard() {
-  const { cart, heldOrders, taxRate, clearCart, searchQuery, setSearchQuery } = usePOSStore();
+  const { cart, heldOrders, taxRate, clearCart, searchQuery, setSearchQuery, reloadActiveTableBill } =
+    usePOSStore();
   const { user } = useAuthStore();
   const [isCartOpen, setIsCartOpen] = useState(false);
   const hydrateOpenBills = useTableBillStore((s) => s.hydrateOpenBills);
+  const activeOutletId = useTenantStore((s) => s.activeOutletId);
+  const outletId = getTenantOutletId(user);
 
   useEffect(() => {
-    void hydrateOpenBills(user?.outletId);
-  }, [user?.outletId, hydrateOpenBills]);
+    const pull = async () => {
+      await hydrateOpenBills(outletId);
+      usePOSStore.getState().reloadActiveTableBill();
+    };
+    void pull();
+    const onFocus = () => void pull();
+    window.addEventListener('focus', onFocus);
+    const timer = window.setInterval(() => void pull(), 15000);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      window.clearInterval(timer);
+    };
+  }, [outletId, activeOutletId, hydrateOpenBills, reloadActiveTableBill]);
 
   const subtotal = cart.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
   const tax = subtotal * taxRate;
