@@ -28,6 +28,12 @@ interface GuestAuthState {
   setSessionContext: (ctx: GuestSessionContext | null) => void;
   registerPresence: (ctx?: GuestSessionContext) => Promise<void>;
   signInWithGoogle: (redirectTo: string) => Promise<boolean>;
+  signInWithGoogleProfile: (profile: {
+    id?: string | null;
+    email?: string | null;
+    name?: string | null;
+    avatarUrl?: string | null;
+  }) => Promise<boolean>;
   continueWithEmail: (email: string, name?: string) => Promise<boolean>;
   sendMagicLink: (email: string, redirectTo: string) => Promise<boolean>;
   signOut: () => Promise<void>;
@@ -155,6 +161,26 @@ export const useGuestAuthStore = create<GuestAuthState>()(
           });
           return false;
         }
+      },
+
+      signInWithGoogleProfile: async (profile) => {
+        set({ lastError: null });
+        const cleaned = profile.email?.trim().toLowerCase() || '';
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleaned)) {
+          set({ lastError: 'Google sign-in did not return a valid email address.' });
+          return false;
+        }
+
+        const guest: GuestUser = {
+          id: profile.id?.trim() || `google-${cleaned}`,
+          email: cleaned,
+          name: profile.name?.trim() || displayNameFromEmail(cleaned),
+          avatarUrl: profile.avatarUrl?.trim() || undefined,
+          provider: 'google',
+        };
+        set({ guest, lastError: null });
+        await publishPresence(guest, get().sessionContext, set);
+        return true;
       },
 
       continueWithEmail: async (email, name) => {

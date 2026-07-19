@@ -23,6 +23,12 @@ export type GuestSessionContext = {
   companyId?: string | null;
 };
 
+function isUuid(value?: string | null) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value || ''
+  );
+}
+
 /** Upsert CRM customer row so guest appears in Customer Directory */
 export async function upsertCustomerFromGuest(
   guest: GuestUser,
@@ -101,7 +107,7 @@ export async function startGuestSession(
           guest_id: guest.id,
           provider: guest.provider,
           company_id: ctx.companyId || null,
-          auth_user_id: guest.provider === 'google' ? guest.id : null,
+          auth_user_id: guest.provider === 'google' && isUuid(guest.id) ? guest.id : null,
           started_at: now,
           last_seen_at: now,
           ended_at: null,

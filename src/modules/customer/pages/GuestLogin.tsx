@@ -5,11 +5,106 @@ import { APP_NAME, APP_TAGLINE, BRAND } from '@/constants';
 import { useGuestAuthStore } from '../store/useGuestAuthStore';
 import type { Table } from '@/types';
 
+type GoogleTokenResponse = {
+  access_token?: string;
+  error?: string;
+  error_description?: string;
+};
+
+type GoogleProfile = {
+  sub?: string;
+  email?: string;
+  name?: string;
+  picture?: string;
+};
+
+const DEFAULT_GOOGLE_CLIENT_ID = '481368245950-64l9ksc8o29119mln2ur4d592bt6r8oi.apps.googleusercontent.com';
+
+declare global {
+  interface Window {
+    google?: {
+      accounts?: {
+        oauth2?: {
+          initTokenClient: (config: {
+            client_id: string;
+            scope: string;
+            prompt?: string;
+            callback: (response: GoogleTokenResponse) => void;
+          }) => { requestAccessToken: () => void };
+        };
+      };
+    };
+  }
+}
+
 type Props = {
   table: Table;
   redirectTo: string;
   onSignedIn: () => void;
 };
+
+function loadGoogleIdentityScript() {
+  return new Promise<boolean>((resolve) => {
+    if (window.google?.accounts?.oauth2) {
+      resolve(true);
+      return;
+    }
+
+    const existing = document.querySelector<HTMLScriptElement>('script[data-google-identity]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(true), { once: true });
+      existing.addEventListener('error', () => resolve(false), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.dataset.googleIdentity = 'true';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.head.appendChild(script);
+  });
+}
+
+async function requestGoogleProfile(clientId: string): Promise<GoogleProfile> {
+  const loaded = await loadGoogleIdentityScript();
+  if (!loaded || !window.google?.accounts?.oauth2) {
+    throw new Error('Google sign-in script could not load.');
+  }
+
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      reject(new Error('Google sign-in timed out. Please try again.'));
+    }, 120000);
+
+    const client = window.google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: 'openid email profile',
+      prompt: 'select_account',
+      callback: async (response) => {
+        window.clearTimeout(timeout);
+        if (response.error || !response.access_token) {
+          reject(new Error(response.error_description || response.error || 'Google sign-in was cancelled.'));
+          return;
+        }
+
+        try {
+          const profileResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${response.access_token}` },
+          });
+          if (!profileResponse.ok) throw new Error('Could not read Google profile.');
+          resolve((await profileResponse.json()) as GoogleProfile);
+        } catch (error) {
+          reject(error);
+        }
+      },
+    });
+
+    client.requestAccessToken();
+  });
+}
 
 export function GuestLogin({ table, redirectTo, onSignedIn }: Props) {
   const {
@@ -17,6 +112,7 @@ export function GuestLogin({ table, redirectTo, onSignedIn }: Props) {
     lastError,
     initFromSupabase,
     signInWithGoogle,
+    signInWithGoogleProfile,
     continueWithEmail,
     clearError,
   } = useGuestAuthStore();
@@ -24,10 +120,16 @@ export function GuestLogin({ table, redirectTo, onSignedIn }: Props) {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [busy, setBusy] = useState<'google' | 'email' | null>(null);
+  const googleClientId =
+    (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim() || DEFAULT_GOOGLE_CLIENT_ID;
 
   useEffect(() => {
     void initFromSupabase();
   }, [initFromSupabase]);
+
+  useEffect(() => {
+    if (googleClientId) void loadGoogleIdentityScript();
+  }, [googleClientId]);
 
   useEffect(() => {
     if (guest) onSignedIn();
@@ -36,6 +138,22 @@ export function GuestLogin({ table, redirectTo, onSignedIn }: Props) {
   const handleGoogle = async () => {
     clearError();
     setBusy('google');
+    if (googleClientId) {
+      try {
+        const profile = await requestGoogleProfile(googleClientId);
+        const ok = await signInWithGoogleProfile({
+          id: profile.sub,
+          email: profile.email,
+          name: profile.name,
+          avatarUrl: profile.picture,
+        });
+        setBusy(null);
+        if (ok) onSignedIn();
+        return;
+      } catch {
+        // Fall back to Supabase OAuth when the browser blocks the popup or GIS is unavailable.
+      }
+    }
     await signInWithGoogle(redirectTo);
     setBusy(null);
   };
