@@ -384,7 +384,7 @@ export function ProductGrid({ favoritesOnly = false }: ProductGridProps) {
         </div>
       </div>
 
-      <div className="shrink-0 pb-24 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-contain xl:pb-4">
+      <div className="shrink-0 pb-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-contain xl:pb-4">
         {filteredProducts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center text-slate-400">
             <UtensilsCrossed className="w-10 h-10 opacity-30 mb-2" />

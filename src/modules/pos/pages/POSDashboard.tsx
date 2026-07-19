@@ -122,11 +122,7 @@ export function POSDashboard() {
     <div className="absolute inset-0 flex flex-col md:flex-row bg-slate-100 font-sans pos-crisp-text overflow-hidden">
 
       {/* ── Left pane: tool rail + filters + product grid ── */}
-      <div
-        ref={mobileScrollRef}
-        onScroll={handleMobileContentScroll}
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-smooth xl:overflow-hidden"
-      >
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 
         {/* Mobile greeting bar */}
         <div
@@ -181,17 +177,65 @@ export function POSDashboard() {
 
         {/* Product grid / history / held — fills all remaining vertical space */}
         <div
-          className="min-h-0 px-3 pb-[var(--pos-mobile-footer-space)] xl:flex-1 xl:overflow-hidden xl:pb-3"
-          style={
-            {
-              '--pos-mobile-footer-space':
-                'calc(7rem + var(--cafepilots-visual-bottom, 0px) + env(safe-area-inset-bottom, 0px))',
-            } as React.CSSProperties
-          }
+          ref={mobileScrollRef}
+          onScroll={handleMobileContentScroll}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 scroll-smooth xl:overflow-hidden"
         >
           <Card className="flex h-auto flex-col overflow-visible border-none bg-white p-0 shadow-none sm:border sm:border-slate-200 sm:p-4 sm:shadow-sm xl:h-full xl:overflow-hidden">
             {leftPane}
           </Card>
+        </div>
+
+        {/* Compact/tablet cart bottom bar anchored in the POS layout */}
+        <div className="shrink-0 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] pt-2 xl:hidden">
+          <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
+            <SheetTrigger
+              render={
+                <button
+                  type="button"
+                  className="h-14 w-full rounded-2xl border border-slate-700 bg-slate-900 flex items-center justify-between p-1.5 pr-3 shadow-[0_10px_40px_rgba(13,27,42,0.35)]"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={cn(
+                      "w-11 h-11 rounded-xl flex items-center justify-center relative shadow-lg shrink-0",
+                      cart.length > 0 ? "bg-orange-500 shadow-orange-500/40" : "bg-slate-700 shadow-transparent"
+                    )}>
+                      <ShoppingCart className={cn("w-5 h-5", cart.length > 0 ? "text-white" : "text-slate-400")} />
+                      {cart.length > 0 && (
+                        <div className="absolute -top-1 -right-1 min-w-[1.15rem] h-[1.15rem] px-0.5 bg-white rounded-full flex items-center justify-center border-2 border-orange-500">
+                          <span className="text-[10px] font-bold text-orange-500 leading-none">
+                            {cart.length}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-start min-w-0">
+                      <span className="text-white font-bold text-sm leading-tight">View Cart</span>
+                      <span className={cn("font-medium text-[10px] truncate", cart.length > 0 ? "text-orange-300" : "text-slate-400")}>
+                        {cart.length === 0 ? 'Cart is empty' : `${cart.length} item${cart.length === 1 ? '' : 's'}`}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <span className={cn("font-bold text-sm tabular-nums", cart.length > 0 ? "text-white" : "text-slate-400")}>
+                      {formatCurrency(total)}
+                    </span>
+                    <ChevronRight className={cn("w-5 h-5", cart.length > 0 ? "text-orange-300" : "text-slate-500")} />
+                  </div>
+                </button>
+              }
+            />
+            <SheetContent
+              side="bottom"
+              showCloseButton={false}
+              className="h-[92svh] max-h-[92svh] gap-0 overflow-hidden rounded-t-3xl border-none p-0"
+            >
+              <Cart
+                onOpenHeld={() => handleViewChange('held')}
+                onClose={() => setIsCartOpen(false)}
+              />
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
 
@@ -199,10 +243,9 @@ export function POSDashboard() {
         <button
           type="button"
           onClick={scrollMobileToTop}
-          className="fixed right-4 z-[65] flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-lg shadow-slate-900/15 transition active:scale-95 xl:hidden"
+          className="absolute right-4 z-[65] flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-lg shadow-slate-900/15 transition active:scale-95 xl:hidden"
           style={{
-            bottom:
-              'calc(5.25rem + var(--cafepilots-visual-bottom, 0px) + env(safe-area-inset-bottom, 0px))',
+            bottom: 'calc(5.25rem + env(safe-area-inset-bottom, 0px))',
           }}
           aria-label="Scroll menu to top"
         >
@@ -219,63 +262,6 @@ export function POSDashboard() {
         </Card>
       </div>
 
-      {/* ── Compact/tablet cart bottom bar (fixed) ── */}
-      <div
-        className="pointer-events-none fixed inset-x-0 z-[70] px-3 xl:hidden"
-        style={{
-          bottom:
-            'calc(0.75rem + var(--cafepilots-visual-bottom, 0px) + env(safe-area-inset-bottom, 0px))',
-        }}
-      >
-        <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
-          <SheetTrigger
-            render={
-              <button
-                type="button"
-                className="pointer-events-auto h-14 w-full rounded-2xl border border-slate-700 bg-slate-900 flex items-center justify-between p-1.5 pr-3 shadow-[0_10px_40px_rgba(13,27,42,0.35)]"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className={cn(
-                    "w-11 h-11 rounded-xl flex items-center justify-center relative shadow-lg shrink-0",
-                    cart.length > 0 ? "bg-orange-500 shadow-orange-500/40" : "bg-slate-700 shadow-transparent"
-                  )}>
-                    <ShoppingCart className={cn("w-5 h-5", cart.length > 0 ? "text-white" : "text-slate-400")} />
-                    {cart.length > 0 && (
-                      <div className="absolute -top-1 -right-1 min-w-[1.15rem] h-[1.15rem] px-0.5 bg-white rounded-full flex items-center justify-center border-2 border-orange-500">
-                        <span className="text-[10px] font-bold text-orange-500 leading-none">
-                          {cart.length}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-col items-start min-w-0">
-                    <span className="text-white font-bold text-sm leading-tight">View Cart</span>
-                    <span className={cn("font-medium text-[10px] truncate", cart.length > 0 ? "text-orange-300" : "text-slate-400")}>
-                      {cart.length === 0 ? 'Cart is empty' : `${cart.length} item${cart.length === 1 ? '' : 's'}`}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-0.5 shrink-0">
-                  <span className={cn("font-bold text-sm tabular-nums", cart.length > 0 ? "text-white" : "text-slate-400")}>
-                    {formatCurrency(total)}
-                  </span>
-                  <ChevronRight className={cn("w-5 h-5", cart.length > 0 ? "text-orange-300" : "text-slate-500")} />
-                </div>
-              </button>
-            }
-          />
-          <SheetContent
-            side="bottom"
-            showCloseButton={false}
-            className="h-[92svh] max-h-[92svh] gap-0 overflow-hidden rounded-t-3xl border-none p-0"
-          >
-            <Cart
-              onOpenHeld={() => handleViewChange('held')}
-              onClose={() => setIsCartOpen(false)}
-            />
-          </SheetContent>
-        </Sheet>
-      </div>
     </div>
   );
 }
