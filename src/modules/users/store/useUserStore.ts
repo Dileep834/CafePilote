@@ -30,6 +30,7 @@ interface UserState {
   fetchUsers: () => Promise<void>;
   fetchOutlets: () => Promise<void>;
   addUser: (user: Partial<UserProfile>, password?: string) => Promise<void>;
+  updateUser: (id: string, user: Partial<UserProfile>) => Promise<void>;
   toggleUserStatus: (id: string, currentStatus: boolean) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
 }
@@ -203,6 +204,40 @@ export const useUserStore = create<UserState>((set) => ({
 
       const data = await readCreatedUser(insertedId, email, companyId);
       set((state) => ({ users: [data as any, ...state.users] }));
+    } catch (err: any) {
+      set({ error: errorMessage(err) });
+      throw err;
+    }
+  },
+
+  updateUser: async (id, userData) => {
+    try {
+      const email = normalizeEmail(userData.email);
+      const name = userData.name?.trim() || '';
+      if (!name || !email || !userData.role) {
+        throw new Error('Name, email, and role are required.');
+      }
+      if (OUTLET_SCOPED_ROLES.includes(userData.role) && !userData.outlet_id) {
+        throw new Error('Please assign this staff member to a branch.');
+      }
+
+      const payload = {
+        name,
+        email,
+        role: userData.role,
+        outlet_id: OUTLET_SCOPED_ROLES.includes(userData.role) ? userData.outlet_id || null : null,
+        is_active: userData.is_active ?? true,
+      };
+
+      const { error } = await supabase.from('users').update(payload).eq('id', id);
+      if (error) throw error;
+
+      const authUser = useAuthStore.getState().user;
+      const companyId = getScopedCompanyId(authUser);
+      const data = await readCreatedUser(id, email, companyId);
+      set((state) => ({
+        users: state.users.map((u) => (u.id === id ? (data as any) : u)),
+      }));
     } catch (err: any) {
       set({ error: errorMessage(err) });
       throw err;

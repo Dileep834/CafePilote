@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useUserStore } from '../store/useUserStore';
+import { useUserStore, type UserProfile } from '../store/useUserStore';
 import { useAuthStore } from '@/store/useAuthStore';
-import { Users, Plus, Shield, ShieldAlert, ShieldCheck, Mail, CheckCircle2, XCircle, Trash2, Store } from 'lucide-react';
+import { Users, Plus, Shield, ShieldAlert, ShieldCheck, Mail, CheckCircle2, XCircle, Trash2, Store, Pencil } from 'lucide-react';
 import {
   OUTLET_SCOPED_ROLES,
   Role,
@@ -19,15 +19,28 @@ export function UserManagement() {
   const { user } = useAuthStore();
   const canManageUsers = useHasPermission(PERMISSIONS.USERS_MANAGE);
   const planId = useTenantStore((s) => s.planId);
-  const { users, outlets, isLoading, error, fetchUsers, fetchOutlets, addUser, toggleUserStatus, deleteUser } = useUserStore();
+  const {
+    users,
+    outlets,
+    isLoading,
+    error,
+    fetchUsers,
+    fetchOutlets,
+    addUser,
+    updateUser,
+    toggleUserStatus,
+    deleteUser,
+  } = useUserStore();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     role: Role.CASHIER,
     outlet_id: '',
     password: '',
+    is_active: true,
   });
   const [formError, setFormError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -36,15 +49,44 @@ export function UserManagement() {
     : TENANT_ADMIN_ASSIGNABLE_ROLES;
   const selectedRoleNeedsOutlet = OUTLET_SCOPED_ROLES.includes(formData.role);
   const userLimitGate = checkUserLimit(planId, users.length);
+  const canEditRoles = isSuperAdmin(user);
+
+  const resetForm = () => {
+    setEditingUser(null);
+    setFormData({ name: '', email: '', role: Role.CASHIER, outlet_id: '', password: '', is_active: true });
+  };
 
   const openAddStaff = () => {
     if (!isSuperAdmin(user) && !userLimitGate.ok) {
       alert(userLimitGate.message);
       return;
     }
+    resetForm();
     setFormError('');
     setActionError('');
     setIsModalOpen(true);
+  };
+
+  const openEditStaff = (staff: UserProfile) => {
+    if (!canEditRoles) return;
+    setEditingUser(staff);
+    setFormData({
+      name: staff.name,
+      email: staff.email,
+      role: staff.role,
+      outlet_id: staff.outlet_id || '',
+      password: '',
+      is_active: staff.is_active,
+    });
+    setFormError('');
+    setActionError('');
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    resetForm();
+    setFormError('');
   };
 
   useEffect(() => {
@@ -54,7 +96,8 @@ export function UserManagement() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name.trim() || !formData.email.trim() || formData.password.length < 6) return;
+    if (!formData.name.trim() || !formData.email.trim()) return;
+    if (!editingUser && formData.password.length < 6) return;
     if (selectedRoleNeedsOutlet && !formData.outlet_id) {
       setFormError('Please assign this staff member to a branch.');
       return;
@@ -67,11 +110,14 @@ export function UserManagement() {
     setFormError('');
     setActionError('');
     try {
-      await addUser(formData, formData.password);
-      setIsModalOpen(false);
-      setFormData({ name: '', email: '', role: Role.CASHIER, outlet_id: '', password: '' });
+      if (editingUser) {
+        await updateUser(editingUser.id, formData);
+      } else {
+        await addUser(formData, formData.password);
+      }
+      closeModal();
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Could not create staff account.');
+      setFormError(err instanceof Error ? err.message : 'Could not save staff account.');
     }
   };
 
@@ -230,6 +276,15 @@ export function UserManagement() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right space-x-2">
+                        {canEditRoles && (
+                          <button
+                            onClick={() => openEditStaff(u)}
+                            className="text-sm font-medium px-3 py-1.5 rounded transition-colors text-blue-600 hover:bg-blue-50 inline-flex items-center gap-1"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            Edit
+                          </button>
+                        )}
                         <button
                           onClick={() => void handleToggleStatus(u.id, u.is_active)}
                           className={`text-sm font-medium px-3 py-1.5 rounded transition-colors ${
@@ -292,6 +347,15 @@ export function UserManagement() {
                   </div>
 
                   <div className="flex justify-end gap-2 pt-3 border-t border-slate-50">
+                    {canEditRoles && (
+                      <button
+                        onClick={() => openEditStaff(u)}
+                        className="text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded transition-colors text-blue-600 bg-blue-50 inline-flex items-center gap-1"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        Edit
+                      </button>
+                    )}
                     <button
                       onClick={() => void handleToggleStatus(u.id, u.is_active)}
                       className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded transition-colors ${
@@ -322,8 +386,10 @@ export function UserManagement() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h2 className="text-lg font-bold text-slate-800">Add New Staff</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">x</button>
+              <h2 className="text-lg font-bold text-slate-800">
+                {editingUser ? 'Edit Staff Role' : 'Add New Staff'}
+              </h2>
+              <button onClick={closeModal} className="text-slate-400 hover:text-slate-600">x</button>
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -356,19 +422,21 @@ export function UserManagement() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Temporary Password *</label>
-                <input
-                  required
-                  minLength={6}
-                  type="password"
-                  autoComplete="new-password"
-                  placeholder="Minimum 6 characters"
-                  className="w-full border-slate-200 rounded-lg focus:ring-orange-600 focus:border-orange-600 shadow-sm"
-                  value={formData.password}
-                  onChange={e => setFormData({...formData, password: e.target.value})}
-                />
-              </div>
+              {!editingUser && (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Temporary Password *</label>
+                  <input
+                    required
+                    minLength={6}
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder="Minimum 6 characters"
+                    className="w-full border-slate-200 rounded-lg focus:ring-orange-600 focus:border-orange-600 shadow-sm"
+                    value={formData.password}
+                    onChange={e => setFormData({...formData, password: e.target.value})}
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Role *</label>
@@ -393,6 +461,20 @@ export function UserManagement() {
                 </p>
               </div>
 
+              {editingUser && (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Account Status</label>
+                  <select
+                    className="w-full border-slate-200 rounded-lg focus:ring-orange-600 focus:border-orange-600 shadow-sm"
+                    value={formData.is_active ? 'active' : 'suspended'}
+                    onChange={e => setFormData({...formData, is_active: e.target.value === 'active'})}
+                  >
+                    <option value="active">Active</option>
+                    <option value="suspended">Suspended</option>
+                  </select>
+                </div>
+              )}
+
               {/* Show branch selector only if they are not Super Admin/Admin */}
               {selectedRoleNeedsOutlet && (
                 <div>
@@ -414,7 +496,7 @@ export function UserManagement() {
               <div className="pt-4 flex gap-3">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={closeModal}
                   className="flex-1 bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium hover:bg-slate-50 transition-colors"
                 >
                   Cancel
@@ -423,7 +505,7 @@ export function UserManagement() {
                   type="submit"
                   className="flex-1 bg-orange-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-orange-700 transition-colors"
                 >
-                  Create Account
+                  {editingUser ? 'Save Changes' : 'Create Account'}
                 </button>
               </div>
             </form>
