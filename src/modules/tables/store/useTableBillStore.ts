@@ -136,7 +136,7 @@ function toOrderItemRows(orderId: string, items: TableBillItem[]) {
   return items.map((item) => ({
     order_id: orderId,
     product_id: item.productId && UUID_RE.test(item.productId) ? item.productId : null,
-    product_name: item.name,
+    product_name: item.notes ? `${item.name} (${item.notes})` : item.name,
     quantity: item.quantity,
     unit_price: item.price,
     total_price: item.price * item.quantity,

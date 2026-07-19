@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import type { User } from '@/types';
 import {
   getPlanLimits,
+  normalizePlanId,
   type SubscriptionPlanId,
   type PlanLimits,
 } from '@/lib/planLimits';
@@ -72,7 +73,7 @@ export const useTenantStore = create<TenantState>()(
       companyName: null,
       activeOutletId: null,
       outlets: [],
-      planId: 'growth',
+      planId: 'professional',
       isLoading: false,
       lastError: null,
 
@@ -135,7 +136,7 @@ export const useTenantStore = create<TenantState>()(
         let outlets: TenantOutlet[] = [];
         let companyName: string | null = sa ? HQ_COMPANY_NAME : null;
         // Do not keep a stale persisted plan when hydrating — prefer DB
-        let planId: SubscriptionPlanId = sa ? 'enterprise' : 'growth';
+        let planId: SubscriptionPlanId = sa ? 'enterprise' : 'professional';
 
         try {
           const { data: company } = await supabase
@@ -173,8 +174,8 @@ export const useTenantStore = create<TenantState>()(
             .select('plan_id')
             .eq('company_id', companyId)
             .maybeSingle();
-          if (sub?.plan_id === 'starter' || sub?.plan_id === 'growth' || sub?.plan_id === 'enterprise') {
-            planId = sub.plan_id;
+          if (sub?.plan_id) {
+            planId = normalizePlanId(sub.plan_id);
           } else if (sa) {
             planId = 'enterprise';
           }

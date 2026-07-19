@@ -12,6 +12,10 @@ import {
   Radio,
   RefreshCw,
   MapPin,
+  Calendar,
+  MessageSquare,
+  Gift,
+  TrendingUp,
 } from 'lucide-react';
 import { formatCurrency } from '@/utils/format';
 import dayjs from 'dayjs';
@@ -59,6 +63,14 @@ export function CustomerManagement() {
       (c.phone && c.phone.includes(searchQuery)) ||
       (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+  const crmStats = {
+    totalCustomers: customers.length,
+    activeCustomers: customers.filter((customer) => customer.is_active).length,
+    liveGuests: liveGuests.length,
+    loyaltyPoints: customers.reduce((sum, customer) => sum + (Number(customer.loyalty_points) || 0), 0),
+    lifetimeSpend: customers.reduce((sum, customer) => sum + (Number(customer.total_spend) || 0), 0),
+    vipCustomers: customers.filter((customer) => Number(customer.total_spend) >= 5000).length,
+  };
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -93,6 +105,44 @@ export function CustomerManagement() {
             Add Customer
           </button>
         </div>
+      </div>
+
+      <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
+        {[
+          { label: 'Customers', value: crmStats.totalCustomers, icon: Users, tone: 'bg-slate-50 text-slate-700' },
+          { label: 'Live guests', value: crmStats.liveGuests, icon: Radio, tone: 'bg-emerald-50 text-emerald-700' },
+          { label: 'Eligible', value: crmStats.activeCustomers, icon: CheckCircle2, tone: 'bg-green-50 text-green-700' },
+          { label: 'Reward points', value: crmStats.loyaltyPoints, icon: Star, tone: 'bg-amber-50 text-amber-700' },
+          { label: 'Lifetime spend', value: formatCurrency(crmStats.lifetimeSpend), icon: TrendingUp, tone: 'bg-orange-50 text-orange-700' },
+          { label: 'VIP guests', value: crmStats.vipCustomers, icon: Gift, tone: 'bg-sky-50 text-sky-700' },
+        ].map((stat) => (
+          <div key={stat.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${stat.tone}`}>
+              <stat.icon className="h-5 w-5" />
+            </div>
+            <p className="truncate text-[11px] font-black uppercase tracking-wider text-slate-400">{stat.label}</p>
+            <p className="truncate text-lg font-black text-slate-900">{stat.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+        {[
+          { label: 'Birthday reminders', value: 'This week', icon: Calendar },
+          { label: 'WhatsApp follow-up', value: `${crmStats.liveGuests} live tables`, icon: MessageSquare },
+          { label: 'Favorite items', value: 'From order history', icon: Star },
+          { label: 'Visit frequency', value: 'Auto ranked', icon: TrendingUp },
+        ].map((item) => (
+          <div key={item.label} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-orange-600 shadow-sm">
+              <item.icon className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-black text-slate-800">{item.label}</p>
+              <p className="truncate text-xs font-semibold text-slate-500">{item.value}</p>
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">

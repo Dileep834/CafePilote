@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, Download, ArrowUpDown, Filter } from 'lucide-react';
+import { Search, Download, Filter, AlertTriangle, Boxes, IndianRupee, TrendingDown } from 'lucide-react';
 import { formatCurrency } from '@/utils/format';
 
 interface InventoryItem {
@@ -17,47 +17,136 @@ interface InventoryItem {
   quantity: number;
   unit: string;
   minStock: number;
-  status: 'Low Stock' | 'Optimal';
+  status: 'Not Counted' | 'Out of Stock' | 'Low Stock' | 'Optimal';
   item_type: string;
+  unitCost: number;
+  stockValue: number;
 }
 
-const fetchInventory = async (companyId?: string): Promise<InventoryItem[]> => {
+type ProductRow = {
+  id: string;
+  code?: string | null;
+  name?: string | null;
+  unit?: string | null;
+  min_stock?: number | string | null;
+  item_type?: string | null;
+  purchase_price?: number | string | null;
+  selling_price?: number | string | null;
+  categories?: { name?: string | null } | { name?: string | null }[] | null;
+};
+
+type InventoryRow = {
+  product_id?: string | null;
+  current_quantity?: number | string | null;
+};
+
+const PRODUCT_SELECT_BASE = 'id, code, name, unit, min_stock, item_type, categories(name)';
+const PRODUCT_SELECT_WITH_PRICE = `${PRODUCT_SELECT_BASE}, purchase_price, selling_price`;
+
+function isMissingSchemaField(error: unknown) {
+  const candidate = error as { message?: string; details?: string; hint?: string; code?: string };
+  const text = [candidate?.message, candidate?.details, candidate?.hint, candidate?.code]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  return (
+    text.includes('schema cache') ||
+    text.includes('does not exist') ||
+    text.includes('column') ||
+    text.includes('relation')
+  );
+}
+
+function getCategoryName(category: ProductRow['categories']) {
+  if (Array.isArray(category)) return category[0]?.name || 'Uncategorized';
+  return category?.name || 'Uncategorized';
+}
+
+function toNumber(value: number | string | null | undefined, fallback = 0) {
+  const next = Number(value);
+  return Number.isFinite(next) ? next : fallback;
+}
+
+function getInventoryStatus(qty: number, min: number, hasStockRecord: boolean): InventoryItem['status'] {
+  if (!hasStockRecord) return 'Not Counted';
+  if (qty <= 0) return 'Out of Stock';
+  if (min > 0 && qty <= min) return 'Low Stock';
+  return 'Optimal';
+}
+
+function getStatusClass(status: InventoryItem['status']) {
+  if (status === 'Optimal') {
+    return 'bg-green-50 text-green-700 ring-green-600/20';
+  }
+
+  if (status === 'Low Stock') {
+    return 'bg-amber-50 text-amber-700 ring-amber-600/20';
+  }
+
+  if (status === 'Out of Stock') {
+    return 'bg-red-50 text-red-700 ring-red-600/10';
+  }
+
+  return 'bg-slate-100 text-slate-700 ring-slate-300';
+}
+
+const fetchInventory = async (_companyId?: string): Promise<InventoryItem[]> => {
   // 1. Fetch Products
-  const { data: productsData, error: productsError } = await supabase
+  let { data: productsData, error: productsError } = await supabase
     .from('products')
-    .select('id, code, name, unit, min_stock, item_type, categories(name)')
+    .select(PRODUCT_SELECT_WITH_PRICE)
     .eq('is_active', true)
     .order('name');
+
+  if (productsError && isMissingSchemaField(productsError)) {
+    const fallback = await supabase
+      .from('products')
+      .select(PRODUCT_SELECT_BASE)
+      .eq('is_active', true)
+      .order('name');
+
+    productsData = fallback.data;
+    productsError = fallback.error;
+  }
 
   if (productsError) throw productsError;
 
   // 2. Fetch Live Inventory
-  let invQuery = supabase.from('inventory').select('product_id, current_quantity');
+  const invQuery = supabase.from('inventory').select('product_id, current_quantity');
   // Add company/franchise filter here in the future if inventory table has company_id
 
-  const { data: invData, error: invError } = await invQuery;
-  if (invError) throw invError;
+  const { data: inventoryData, error: invError } = await invQuery;
+  if (invError && !isMissingSchemaField(invError)) throw invError;
+  const invData = invError ? [] : inventoryData;
 
   // 3. Aggregate Inventory
   const invMap: Record<string, number> = {};
-  invData?.forEach((row: any) => {
-    invMap[row.product_id] = (invMap[row.product_id] || 0) + (Number(row.current_quantity) || 0);
+  const productsWithStockRows = new Set<string>();
+  (invData as InventoryRow[] | null)?.forEach((row) => {
+    if (!row.product_id) return;
+    productsWithStockRows.add(row.product_id);
+    invMap[row.product_id] = (invMap[row.product_id] || 0) + toNumber(row.current_quantity);
   });
 
   // 4. Merge
-  return productsData.map((p: any) => {
+  return ((productsData || []) as ProductRow[]).map((p) => {
+    const hasStockRecord = productsWithStockRows.has(p.id);
     const qty = invMap[p.id] || 0;
-    const min = p.min_stock || 10;
+    const min = Math.max(0, toNumber(p.min_stock));
+    const unitCost = toNumber(p.purchase_price ?? p.selling_price);
     return {
       id: p.id,
-      productCode: p.code,
-      productName: p.name,
-      category: p.categories?.name || 'Uncategorized',
+      productCode: p.code || '',
+      productName: p.name || 'Unnamed item',
+      category: getCategoryName(p.categories),
       quantity: qty,
       unit: p.unit || 'Unit',
       minStock: min,
-      status: qty < min ? 'Low Stock' : 'Optimal',
-      item_type: p.item_type || 'raw_material'
+      status: getInventoryStatus(qty, min, hasStockRecord),
+      item_type: p.item_type || 'raw_material',
+      unitCost,
+      stockValue: qty * unitCost,
     };
   });
 };
@@ -67,17 +156,33 @@ export function CurrentInventory() {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'raw_material' | 'ready_product'>('all');
 
-  const { data: inventory, isLoading } = useQuery({
+  const { data: inventory = [], isLoading, error } = useQuery({
     queryKey: ['current-inventory', user?.companyId],
     queryFn: () => fetchInventory(user?.companyId),
   });
+  const loadError = error instanceof Error ? error.message : error ? 'Unable to load current inventory.' : '';
 
   const filteredInventory = inventory?.filter(item => {
-    const matchesSearch = item.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.productCode.toLowerCase().includes(searchTerm.toLowerCase());
+    const needle = searchTerm.toLowerCase();
+    const matchesSearch = item.productName.toLowerCase().includes(needle) ||
+                         item.productCode.toLowerCase().includes(needle);
     const matchesType = typeFilter === 'all' || item.item_type === typeFilter;
     return matchesSearch && matchesType;
   });
+  const inventoryStats = React.useMemo(() => {
+    const rows = inventory || [];
+    const attention = rows.filter((item) => item.status !== 'Optimal');
+    const value = rows.reduce((sum, item) => sum + item.stockValue, 0);
+    const raw = rows.filter((item) => item.item_type === 'raw_material').length;
+    return {
+      total: rows.length,
+      attention: attention.length,
+      raw,
+      ready: rows.length - raw,
+      value,
+      suggestions: attention.length,
+    };
+  }, [inventory]);
 
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto">
@@ -91,6 +196,50 @@ export function CurrentInventory() {
           Export Report
         </Button>
       </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        {[
+          { label: 'Items tracked', value: inventoryStats.total, icon: Boxes, tone: 'text-slate-700 bg-slate-50' },
+          { label: 'Needs attention', value: inventoryStats.attention, icon: AlertTriangle, tone: inventoryStats.attention > 0 ? 'text-red-700 bg-red-50' : 'text-emerald-700 bg-emerald-50' },
+          { label: 'Stock value', value: formatCurrency(inventoryStats.value), icon: IndianRupee, tone: 'text-emerald-700 bg-emerald-50' },
+          { label: 'Purchase suggestions', value: inventoryStats.suggestions, icon: TrendingDown, tone: 'text-amber-700 bg-amber-50' },
+          { label: 'Raw / Ready', value: `${inventoryStats.raw}/${inventoryStats.ready}`, icon: Filter, tone: 'text-sky-700 bg-sky-50' },
+        ].map((stat) => (
+          <Card key={stat.label} className="border-slate-200 shadow-sm">
+            <CardContent className="flex items-center gap-3 p-4">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${stat.tone}`}>
+                <stat.icon className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-[11px] font-black uppercase tracking-wider text-slate-400">{stat.label}</p>
+                <p className="truncate text-lg font-black text-slate-900">{stat.value}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        {[
+          'Auto recipe deduction tracks ingredient use when KOT is fired.',
+          'Expiry, batch, and vendor comparison can be reviewed during daily stock.',
+          'Actual vs theoretical variance is highlighted from low-stock and closing gaps.',
+        ].map((text) => (
+          <div key={text} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 shadow-sm">
+            {text}
+          </div>
+        ))}
+      </div>
+
+      {loadError ? (
+        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-black">Inventory could not load from Supabase.</p>
+            <p className="mt-1 text-red-700">{loadError}</p>
+          </div>
+        </div>
+      ) : null}
 
       <Card className="border-slate-200 shadow-sm overflow-hidden">
         <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-4">
@@ -153,6 +302,12 @@ export function CurrentInventory() {
                         Loading inventory data...
                       </TableCell>
                     </TableRow>
+                  ) : loadError ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-24 text-center text-red-700">
+                        Current inventory is unavailable. Check the error message above.
+                      </TableCell>
+                    </TableRow>
                   ) : filteredInventory?.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-24 text-center text-slate-500">
@@ -181,15 +336,9 @@ export function CurrentInventory() {
                           {item.minStock} <span className="text-slate-400 text-xs ml-1">{item.unit}</span>
                         </TableCell>
                         <TableCell>
-                          {item.status === 'Optimal' ? (
-                            <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
-                              Optimal
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/10">
-                              Low Stock
-                            </span>
-                          )}
+                          <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset ${getStatusClass(item.status)}`}>
+                            {item.status}
+                          </span>
                         </TableCell>
                       </TableRow>
                     ))
@@ -202,6 +351,8 @@ export function CurrentInventory() {
             <div className="md:hidden flex flex-col divide-y divide-slate-100">
               {isLoading ? (
                 <div className="p-8 text-center text-slate-500 text-sm">Loading inventory data...</div>
+              ) : loadError ? (
+                <div className="p-8 text-center text-red-700 text-sm">Current inventory is unavailable. Check the error message above.</div>
               ) : filteredInventory?.length === 0 ? (
                 <div className="p-8 text-center text-slate-500 text-sm">No inventory items found.</div>
               ) : (
@@ -212,15 +363,9 @@ export function CurrentInventory() {
                         <div className="font-bold text-slate-900 text-base">{item.productName}</div>
                         <div className="text-xs font-mono text-slate-500 mt-0.5">{item.productCode}</div>
                       </div>
-                      {item.status === 'Optimal' ? (
-                        <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-bold text-green-700 ring-1 ring-inset ring-green-600/20 uppercase tracking-wider">
-                          Optimal
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700 ring-1 ring-inset ring-red-600/10 uppercase tracking-wider">
-                          Low Stock
-                        </span>
-                      )}
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ring-inset uppercase tracking-wider ${getStatusClass(item.status)}`}>
+                        {item.status}
+                      </span>
                     </div>
 
                     <div className="flex flex-wrap gap-2 mb-3">

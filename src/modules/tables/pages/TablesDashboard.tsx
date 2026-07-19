@@ -58,6 +58,8 @@ import {
   Search,
   X,
   ChevronRight,
+  Clock3,
+  ChefHat,
 } from 'lucide-react';
 
 const FloorOpsView = React.lazy(() =>
@@ -100,6 +102,26 @@ const STATUS_META: Record<
   },
 };
 
+function minutesSince(dateIso?: string | null) {
+  if (!dateIso) return 0;
+  return Math.max(0, Math.floor((Date.now() - new Date(dateIso).getTime()) / 60000));
+}
+
+function durationLabel(minutes: number) {
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+}
+
+function timeLabel(dateIso?: string | null) {
+  if (!dateIso) return 'Not ordered';
+  return new Intl.DateTimeFormat('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(dateIso));
+}
+
 export function TablesDashboard() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
@@ -136,6 +158,7 @@ export function TablesDashboard() {
 
   const getOpenBillForTable = useTableBillStore((s) => s.getOpenBillForTable);
   const getBillTotal = useTableBillStore((s) => s.getBillTotal);
+  const getUnfiredItems = useTableBillStore((s) => s.getUnfiredItems);
   const hydrateOpenBills = useTableBillStore((s) => s.hydrateOpenBills);
   const movePartyToTable = useTableBillStore((s) => s.movePartyToTable);
   const billError = useTableBillStore((s) => s.lastError);
@@ -522,6 +545,9 @@ export function TablesDashboard() {
               const bill = getOpenBillForTable(table, outletTables);
               const billTotal = bill ? getBillTotal(bill) : 0;
               const hasBill = !!(bill && bill.items.length > 0);
+              const running = bill ? durationLabel(minutesSince(bill.createdAt)) : '0m';
+              const lastOrder = bill ? timeLabel(bill.updatedAt) : 'Not ordered';
+              const unfired = bill ? getUnfiredItems(bill).length : 0;
 
               return (
                 <li key={table.id}>
@@ -591,6 +617,23 @@ export function TablesDashboard() {
                         )}
                       </div>
 
+                      <div className="flex flex-wrap gap-1.5 text-[10px] font-bold text-slate-500 md:col-span-5">
+                        <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1">
+                          <Clock3 className="h-3 w-3" />
+                          Run {running}
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1">
+                          <ChefHat className="h-3 w-3" />
+                          KOT {unfired > 0 ? `${unfired} pending` : hasBill ? 'sent' : 'none'}
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1">
+                          Waiter {user?.name?.split(' ')[0] || 'Staff'}
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1">
+                          Last {lastOrder}
+                        </span>
+                      </div>
+
                       <div className="flex items-center justify-between gap-2 min-w-0">
                         <p className="text-[12px] text-slate-500 font-medium truncate">
                           {merged && !primary
@@ -624,6 +667,10 @@ export function TablesDashboard() {
             const primary = isMergePrimary(table);
             const bill = getOpenBillForTable(table, outletTables);
             const billTotal = bill ? getBillTotal(bill) : 0;
+            const hasBill = !!(bill && bill.items.length > 0);
+            const running = bill ? durationLabel(minutesSince(bill.createdAt)) : '0m';
+            const lastOrder = bill ? timeLabel(bill.updatedAt) : 'Not ordered';
+            const unfired = bill ? getUnfiredItems(bill).length : 0;
             return (
               <button
                 key={table.id}
@@ -677,7 +724,7 @@ export function TablesDashboard() {
                   >
                     {meta.label}
                   </span>
-                  {bill && bill.items.length > 0 ? (
+                  {hasBill ? (
                     <p className="text-[11px] font-black leading-snug" style={{ color: BRAND.orange }}>
                       {formatCurrency(billTotal)} open
                     </p>
@@ -688,6 +735,14 @@ export function TablesDashboard() {
                         : `Next: ${action.label}`}
                     </p>
                   )}
+                  <div className="mt-2 grid grid-cols-2 gap-1 text-[9px] font-black text-slate-500">
+                    <span className="rounded-md bg-white/80 px-1.5 py-1">Run {running}</span>
+                    <span className={cn('rounded-md px-1.5 py-1', unfired > 0 ? 'bg-amber-100 text-amber-700' : 'bg-white/80')}>
+                      KOT {unfired > 0 ? unfired : hasBill ? 'OK' : '-'}
+                    </span>
+                    <span className="rounded-md bg-white/80 px-1.5 py-1">Guests {seats}</span>
+                    <span className="rounded-md bg-white/80 px-1.5 py-1">Last {lastOrder}</span>
+                  </div>
                 </div>
               </button>
             );

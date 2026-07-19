@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Bell, LogOut } from 'lucide-react';
+import { Menu, Bell, LogOut, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import {
@@ -12,13 +12,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Sidebar } from './Sidebar';
 import { useAuthStore } from '@/store/useAuthStore';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { CafePilotsLogo } from '@/components/CafePilotsLogo';
 import { BRAND } from '@/constants';
 import { cn } from '@/lib/utils';
 import { BranchSwitcher } from './BranchSwitcher';
 import { useTenantStore } from '@/store/useTenantStore';
 import { loginPath } from '@/lib/appHost';
+import { CommandPalette } from './CommandPalette';
 
 interface HeaderProps {
   onToggleSidebar?: () => void;
@@ -36,6 +37,7 @@ function initialsFromName(name?: string | null, email?: string | null) {
 
 export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [commandOpen, setCommandOpen] = React.useState(false);
   const { logout, user } = useAuthStore();
   const clearTenant = useTenantStore((s) => s.clear);
   const navigate = useNavigate();
@@ -46,6 +48,17 @@ export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
     await logout('manual');
     navigate(loginPath(), { replace: true });
   };
+
+  React.useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setCommandOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center gap-2 border-b bg-white px-3 shadow-sm sm:gap-3 sm:px-6 overflow-hidden">
@@ -75,7 +88,14 @@ export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
           <span className="sr-only">Toggle sidebar</span>
         </Button>
 
-        <div className={cn('min-w-0', isSidebarOpen ? 'lg:hidden' : 'lg:flex')}>
+        <Link
+          to="/erp"
+          aria-label="Go to dashboard"
+          className={cn(
+            'min-w-0 rounded-md outline-none transition-opacity hover:opacity-85 focus-visible:ring-2 focus-visible:ring-orange-300',
+            isSidebarOpen ? 'lg:hidden' : 'lg:flex'
+          )}
+        >
           {/* Icon-only on very narrow; wordmark from sm up */}
           <CafePilotsLogo
             size={32}
@@ -84,7 +104,7 @@ export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
             className="hidden sm:inline-flex"
           />
           <CafePilotsLogo size={32} withWordmark={false} className="sm:hidden" />
-        </div>
+        </Link>
       </div>
 
       {/* Center: branch — flex-1 but capped so it never bleeds into right actions */}
@@ -94,6 +114,18 @@ export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
 
       {/* Right: actions — always shrink-0, never overflow */}
       <div className="relative z-10 flex shrink-0 items-center gap-0.5 bg-white sm:gap-1.5">
+        <Button
+          type="button"
+          variant="outline"
+          className="hidden h-9 rounded-xl border-slate-200 px-3 text-xs font-bold text-slate-500 md:flex"
+          onClick={() => setCommandOpen(true)}
+        >
+          <Search className="mr-2 h-3.5 w-3.5" />
+          Search
+          <span className="ml-2 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-slate-400">
+            Ctrl K
+          </span>
+        </Button>
         <Button variant="ghost" size="icon" className="hidden text-slate-500 sm:inline-flex">
           <Bell className="h-5 w-5" />
           <span className="sr-only">View notifications</span>
@@ -133,6 +165,7 @@ export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
     </header>
   );
 }

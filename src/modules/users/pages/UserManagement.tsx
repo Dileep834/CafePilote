@@ -11,10 +11,14 @@ import {
 } from '@/constants';
 import { PERMISSIONS, ROLE_ACCESS_SUMMARIES } from '@/constants/permissions';
 import { useHasPermission } from '@/hooks/useHasPermission';
+import { useTenantStore } from '@/store/useTenantStore';
+import { checkUserLimit } from '@/lib/planLimits';
+import { isSuperAdmin } from '@/lib/access';
 
 export function UserManagement() {
   const { user } = useAuthStore();
   const canManageUsers = useHasPermission(PERMISSIONS.USERS_MANAGE);
+  const planId = useTenantStore((s) => s.planId);
   const { users, outlets, isLoading, error, fetchUsers, fetchOutlets, addUser, toggleUserStatus, deleteUser } = useUserStore();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -29,6 +33,15 @@ export function UserManagement() {
     ? SUPER_ADMIN_ASSIGNABLE_ROLES
     : TENANT_ADMIN_ASSIGNABLE_ROLES;
   const selectedRoleNeedsOutlet = OUTLET_SCOPED_ROLES.includes(formData.role);
+  const userLimitGate = checkUserLimit(planId, users.length);
+
+  const openAddStaff = () => {
+    if (!isSuperAdmin(user) && !userLimitGate.ok) {
+      alert(userLimitGate.message);
+      return;
+    }
+    setIsModalOpen(true);
+  };
 
   useEffect(() => {
     fetchUsers();
@@ -38,6 +51,10 @@ export function UserManagement() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim() || !formData.email.trim() || formData.password.length < 6) return;
+    if (!isSuperAdmin(user) && !userLimitGate.ok) {
+      alert(userLimitGate.message);
+      return;
+    }
 
     await addUser(formData, formData.password);
     setIsModalOpen(false);
@@ -100,7 +117,7 @@ export function UserManagement() {
             View Login Logs
           </a>
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={openAddStaff}
             className="bg-orange-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-orange-700 transition-colors flex items-center gap-2 shadow-sm"
           >
             <Plus className="w-5 h-5" />
@@ -121,7 +138,7 @@ export function UserManagement() {
             <h3 className="text-lg font-bold text-slate-700">No Staff Setup</h3>
             <p className="text-slate-500 mb-6">Start by adding your first cashier or manager.</p>
             <button
-              onClick={() => setIsModalOpen(true)}
+              onClick={openAddStaff}
               className="bg-orange-100 text-orange-700 px-4 py-2 rounded-lg font-medium hover:bg-orange-200 transition-colors inline-flex items-center gap-2"
             >
               <Plus className="w-5 h-5" />

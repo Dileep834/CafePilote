@@ -13,6 +13,7 @@ import {
   CircleCheckBig,
   Clock3,
   ClipboardList,
+  Flame,
   LayoutGrid,
   Map,
   Package,
@@ -21,20 +22,33 @@ import {
   Settings,
   Shield,
   ShoppingCart,
+  Sparkles,
   Store,
   Tags,
   Ticket,
+  TimerReset,
+  TrendingDown,
+  TrendingUp,
   Truck,
   Trash2,
   Users,
   UtensilsCrossed,
   type LucideIcon,
 } from 'lucide-react';
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+} from 'recharts';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BRAND, type RoleType } from '@/constants';
 import { PERMISSIONS, type PermissionId } from '@/constants/permissions';
 import { supabase } from '@/lib/supabase';
+import { hasPlanModule, type PlanModuleId } from '@/lib/planLimits';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/useAuthStore';
 import { usePermissionsStore } from '@/store/usePermissionsStore';
@@ -50,6 +64,7 @@ type ModuleCard = {
   icon: LucideIcon;
   path: string;
   permission: PermissionId;
+  planModule?: PlanModuleId;
 };
 
 type ModuleSection = {
@@ -60,19 +75,45 @@ type ModuleSection = {
 
 type DashboardMetrics = {
   todayRevenue: number;
+  yesterdayRevenue: number;
   completedOrders: number;
+  yesterdayCompletedOrders: number;
   heldOrders: number;
+  pendingPayments: number;
   lowStockItems: number;
   draftPurchaseOrders: number;
+  averageOrderValue: number;
+  highestTableBill: number;
+  peakHour: string;
+  topSellingItem: string;
+  slowSellingItem: string;
+  hourlySales: Array<{ hour: string; revenue: number }>;
+  recentActivity: Array<{
+    id: string;
+    label: string;
+    detail: string;
+    amount: number;
+    time: string;
+  }>;
   hadError: boolean;
 };
 
 const EMPTY_METRICS: DashboardMetrics = {
   todayRevenue: 0,
+  yesterdayRevenue: 0,
   completedOrders: 0,
+  yesterdayCompletedOrders: 0,
   heldOrders: 0,
+  pendingPayments: 0,
   lowStockItems: 0,
   draftPurchaseOrders: 0,
+  averageOrderValue: 0,
+  highestTableBill: 0,
+  peakHour: 'No sales yet',
+  topSellingItem: 'No item sold yet',
+  slowSellingItem: 'No item sold yet',
+  hourlySales: [],
+  recentActivity: [],
   hadError: false,
 };
 
@@ -87,6 +128,7 @@ const sections: ModuleSection[] = [
         icon: ShoppingCart,
         path: '/erp/pos',
         permission: PERMISSIONS.POS_ACCESS,
+        planModule: 'pos',
       },
       {
         title: 'Tables',
@@ -94,6 +136,7 @@ const sections: ModuleSection[] = [
         icon: LayoutGrid,
         path: '/erp/tables',
         permission: PERMISSIONS.TABLES_MANAGE,
+        planModule: 'tables',
       },
       {
         title: 'Floor Designer',
@@ -101,6 +144,7 @@ const sections: ModuleSection[] = [
         icon: Map,
         path: '/erp/floor',
         permission: PERMISSIONS.FLOOR_MANAGE,
+        planModule: 'floorDesigner',
       },
       {
         title: 'Kitchen KDS',
@@ -108,6 +152,7 @@ const sections: ModuleSection[] = [
         icon: ChefHat,
         path: '/erp/kitchen',
         permission: PERMISSIONS.KITCHEN_ACCESS,
+        planModule: 'kitchen',
       },
     ],
   },
@@ -121,6 +166,7 @@ const sections: ModuleSection[] = [
         icon: UtensilsCrossed,
         path: '/erp/menu/products',
         permission: PERMISSIONS.MENU_PRODUCTS_MANAGE,
+        planModule: 'products',
       },
       {
         title: 'Categories',
@@ -128,6 +174,7 @@ const sections: ModuleSection[] = [
         icon: Tags,
         path: '/erp/menu/categories',
         permission: PERMISSIONS.MENU_CATEGORIES_MANAGE,
+        planModule: 'products',
       },
       {
         title: 'Recipes',
@@ -135,6 +182,7 @@ const sections: ModuleSection[] = [
         icon: BookOpen,
         path: '/erp/menu/recipes',
         permission: PERMISSIONS.RECIPES_MANAGE,
+        planModule: 'recipes',
       },
     ],
   },
@@ -148,6 +196,7 @@ const sections: ModuleSection[] = [
         icon: Boxes,
         path: '/erp/inventory',
         permission: PERMISSIONS.INVENTORY_VIEW,
+        planModule: 'inventory',
       },
       {
         title: 'Daily Stock',
@@ -155,6 +204,7 @@ const sections: ModuleSection[] = [
         icon: ClipboardList,
         path: '/erp/inventory/daily',
         permission: PERMISSIONS.INVENTORY_DAILY,
+        planModule: 'inventory',
       },
       {
         title: 'Purchase Orders',
@@ -162,6 +212,7 @@ const sections: ModuleSection[] = [
         icon: Truck,
         path: '/erp/purchase',
         permission: PERMISSIONS.PURCHASE_MANAGE,
+        planModule: 'purchase',
       },
       {
         title: 'Adjustments',
@@ -169,6 +220,7 @@ const sections: ModuleSection[] = [
         icon: Package,
         path: '/erp/inventory/adjustments',
         permission: PERMISSIONS.INVENTORY_ADJUST,
+        planModule: 'inventory',
       },
       {
         title: 'Waste Log',
@@ -176,6 +228,7 @@ const sections: ModuleSection[] = [
         icon: Trash2,
         path: '/erp/inventory/waste',
         permission: PERMISSIONS.INVENTORY_WASTE,
+        planModule: 'inventory',
       },
       {
         title: 'Suppliers',
@@ -183,6 +236,7 @@ const sections: ModuleSection[] = [
         icon: Store,
         path: '/erp/purchase/suppliers',
         permission: PERMISSIONS.SUPPLIERS_MANAGE,
+        planModule: 'suppliers',
       },
     ],
   },
@@ -196,6 +250,7 @@ const sections: ModuleSection[] = [
         icon: Users,
         path: '/erp/crm',
         permission: PERMISSIONS.CRM_MANAGE,
+        planModule: 'crm',
       },
       {
         title: 'Offers',
@@ -203,6 +258,7 @@ const sections: ModuleSection[] = [
         icon: Ticket,
         path: '/erp/vouchers',
         permission: PERMISSIONS.MARKETING_MANAGE,
+        planModule: 'crm',
       },
       {
         title: 'Reports',
@@ -210,6 +266,7 @@ const sections: ModuleSection[] = [
         icon: BarChart3,
         path: '/erp/reports',
         permission: PERMISSIONS.REPORTS_VIEW,
+        planModule: 'reports',
       },
       {
         title: 'Outlets',
@@ -217,6 +274,7 @@ const sections: ModuleSection[] = [
         icon: Building2,
         path: '/erp/franchise',
         permission: PERMISSIONS.FRANCHISE_MANAGE,
+        planModule: 'franchise',
       },
     ],
   },
@@ -230,6 +288,7 @@ const sections: ModuleSection[] = [
         icon: Shield,
         path: '/erp/users',
         permission: PERMISSIONS.USERS_MANAGE,
+        planModule: 'staff',
       },
       {
         title: 'Settings',
@@ -237,6 +296,7 @@ const sections: ModuleSection[] = [
         icon: Settings,
         path: '/erp/settings',
         permission: PERMISSIONS.SETTINGS_MANAGE,
+        planModule: 'settings',
       },
     ],
   },
@@ -252,42 +312,149 @@ function startOfTodayIso() {
   return date.toISOString();
 }
 
+function startOfYesterdayIso() {
+  const date = new Date();
+  date.setDate(date.getDate() - 1);
+  date.setHours(0, 0, 0, 0);
+  return date.toISOString();
+}
+
+function yesterdayEndIso() {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date.toISOString();
+}
+
+function hourLabel(dateIso: string) {
+  return new Intl.DateTimeFormat('en-IN', {
+    hour: '2-digit',
+    hour12: true,
+  }).format(new Date(dateIso));
+}
+
+function shortTimeLabel(dateIso: string) {
+  return new Intl.DateTimeFormat('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(dateIso));
+}
+
+function trendPercent(current: number, previous: number) {
+  if (previous <= 0) return current > 0 ? 100 : 0;
+  return Math.round(((current - previous) / previous) * 100);
+}
+
 function canSeeModule(
   item: ModuleCard,
   role: RoleType | undefined,
-  hasPermission: (role: RoleType, permissionId: PermissionId) => boolean
+  hasPermission: (role: RoleType, permissionId: PermissionId) => boolean,
+  planId: string | null | undefined
 ) {
   if (!role) return false;
-  return hasPermission(role, item.permission);
+  return hasPlanModule(planId, item.planModule) && hasPermission(role, item.permission);
 }
 
 async function fetchDashboardMetrics(outletId?: string | null): Promise<DashboardMetrics> {
   const metrics: DashboardMetrics = { ...EMPTY_METRICS };
   const today = startOfTodayIso();
+  const yesterday = startOfYesterdayIso();
+  const yesterdayEnd = yesterdayEndIso();
   const outletFilter = isCloudOutletId(outletId) ? outletId : null;
 
   try {
     let ordersQuery = supabase
       .from('pos_orders')
-      .select('id, status, total_amount')
-      .gte('created_at', today)
+      .select(
+        `
+        id,
+        created_at,
+        status,
+        total_amount,
+        payment_method,
+        table_number,
+        customer_name,
+        kitchen_status,
+        order_source,
+        items:pos_order_items (
+          product_name,
+          quantity,
+          total_price
+        )
+      `
+      )
+      .gte('created_at', yesterday)
+      .order('created_at', { ascending: false })
       .limit(500);
 
     if (outletFilter) ordersQuery = ordersQuery.eq('outlet_id', outletFilter);
 
-    const { data, error } = await ordersQuery;
-    if (error) throw error;
+    let { data, error } = await ordersQuery;
+    if (error) {
+      let fallback = supabase
+        .from('pos_orders')
+        .select('id, created_at, status, total_amount, payment_method, table_number, customer_name, kitchen_status, order_source')
+        .gte('created_at', yesterday)
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (outletFilter) fallback = fallback.eq('outlet_id', outletFilter);
+      const fb = await fallback;
+      if (fb.error) throw fb.error;
+      data = fb.data as any[];
+    }
+
+    const itemQty = new Map<string, number>();
+    const hourly = new Map<string, number>();
 
     for (const order of data || []) {
       const status = String((order as any).status || '');
+      const createdAt = String((order as any).created_at || '');
+      const total = Number((order as any).total_amount) || 0;
       if (status === 'completed') {
-        metrics.completedOrders += 1;
-        metrics.todayRevenue += Number((order as any).total_amount) || 0;
+        if (createdAt >= today) {
+          metrics.completedOrders += 1;
+          metrics.todayRevenue += total;
+          metrics.highestTableBill = Math.max(metrics.highestTableBill, total);
+          hourly.set(hourLabel(createdAt), (hourly.get(hourLabel(createdAt)) || 0) + total);
+
+          for (const item of ((order as any).items || []) as any[]) {
+            const name = String(item.product_name || 'Item');
+            itemQty.set(name, (itemQty.get(name) || 0) + (Number(item.quantity) || 0));
+          }
+        } else if (createdAt >= yesterday && createdAt < yesterdayEnd) {
+          metrics.yesterdayCompletedOrders += 1;
+          metrics.yesterdayRevenue += total;
+        }
       }
       if (status === 'held') {
         metrics.heldOrders += 1;
       }
+      if (['open', 'sent'].includes(status) || String((order as any).payment_method || '') === 'pending') {
+        metrics.pendingPayments += 1;
+      }
     }
+
+    metrics.averageOrderValue =
+      metrics.completedOrders > 0 ? metrics.todayRevenue / metrics.completedOrders : 0;
+
+    const itemRanks = [...itemQty.entries()].sort((a, b) => b[1] - a[1]);
+    metrics.topSellingItem = itemRanks[0]?.[0] || metrics.topSellingItem;
+    metrics.slowSellingItem =
+      itemRanks.length > 1 ? itemRanks[itemRanks.length - 1][0] : metrics.slowSellingItem;
+
+    const hourRanks = [...hourly.entries()].sort((a, b) => b[1] - a[1]);
+    metrics.peakHour = hourRanks[0] ? `${hourRanks[0][0]} (${formatCurrency(hourRanks[0][1])})` : metrics.peakHour;
+    metrics.hourlySales = [...hourly.entries()]
+      .reverse()
+      .map(([hour, revenue]) => ({ hour, revenue }));
+    metrics.recentActivity = (data || [])
+      .slice(0, 6)
+      .map((order: any) => ({
+        id: String(order.id),
+        label: order.table_number ? `Table ${order.table_number}` : order.customer_name || 'Walk-in order',
+        detail: `${String(order.status || 'order')} - ${String(order.payment_method || 'pending')}`,
+        amount: Number(order.total_amount) || 0,
+        time: shortTimeLabel(order.created_at),
+      }));
   } catch {
     // Optional inventory setup can lag behind POS rollout; keep the dashboard usable.
   }
@@ -354,12 +521,18 @@ function MetricTile({
   label,
   value,
   detail,
+  trend,
+  comparison,
+  status,
   icon: Icon,
   tone,
 }: {
   label: string;
   value: string;
   detail: string;
+  trend?: number;
+  comparison?: string;
+  status?: 'good' | 'watch' | 'danger' | 'neutral';
   icon: LucideIcon;
   tone: 'orange' | 'emerald' | 'sky' | 'amber' | 'rose' | 'slate';
 }) {
@@ -371,17 +544,42 @@ function MetricTile({
     rose: 'bg-rose-50 text-rose-700 ring-rose-100',
     slate: 'bg-slate-50 text-slate-700 ring-slate-100',
   }[tone];
+  const trendIcon = trend === undefined || trend >= 0 ? TrendingUp : TrendingDown;
+  const TrendIcon = trendIcon;
+  const statusClass = {
+    good: 'bg-emerald-500',
+    watch: 'bg-amber-500',
+    danger: 'bg-rose-500',
+    neutral: 'bg-slate-300',
+  }[status || 'neutral'];
 
   return (
-    <Card className="rounded-lg border-slate-200 bg-white shadow-sm">
+    <Card className="rounded-lg border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <CardContent className="flex h-full items-start gap-3 p-4">
         <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ring-1', toneClass)}>
           <Icon className="h-5 w-5" />
         </div>
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate text-xs font-semibold uppercase text-slate-500">{label}</p>
+            <span className={cn('h-2 w-2 shrink-0 rounded-full', statusClass)} />
+          </div>
           <p className="mt-1 text-xl font-black leading-tight text-slate-950">{value}</p>
-          <p className="mt-1 text-xs leading-snug text-slate-500">{detail}</p>
+          <div className="mt-1 flex items-center gap-1.5 text-xs leading-snug">
+            {trend !== undefined && (
+              <span
+                className={cn(
+                  'inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 font-black',
+                  trend >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                )}
+              >
+                <TrendIcon className="h-3 w-3" />
+                {Math.abs(trend)}%
+              </span>
+            )}
+            <span className="truncate text-slate-500">{detail}</span>
+          </div>
+          {comparison && <p className="mt-1 truncate text-[11px] font-semibold text-slate-400">{comparison}</p>}
         </div>
       </CardContent>
     </Card>
@@ -421,11 +619,216 @@ function PriorityItem({
   );
 }
 
+function QuickInsightsPanel({
+  metrics,
+  openBills,
+  kitchenQueue,
+  showTables,
+  showKitchen,
+}: {
+  metrics: DashboardMetrics;
+  openBills: number;
+  kitchenQueue: number;
+  showTables: boolean;
+  showKitchen: boolean;
+}) {
+  const insights = [
+    { label: 'Top selling item', value: metrics.topSellingItem, icon: Flame },
+    { label: 'Slow selling item', value: metrics.slowSellingItem, icon: TrendingDown },
+    { label: 'Peak sales hour', value: metrics.peakHour, icon: Clock3 },
+    { label: 'Average order value', value: formatCurrency(metrics.averageOrderValue), icon: ReceiptText },
+    { label: 'Highest table bill', value: formatCurrency(metrics.highestTableBill), icon: Store },
+    showTables ? { label: 'Running tables', value: String(openBills), icon: LayoutGrid } : null,
+    showKitchen ? { label: 'Kitchen delay watch', value: kitchenQueue > 0 ? `${kitchenQueue} active tickets` : 'No active delay', icon: TimerReset } : null,
+    { label: 'Pending payments', value: String(metrics.pendingPayments), icon: Ticket },
+  ].filter(Boolean) as Array<{ label: string; value: string; icon: LucideIcon }>;
+
+  return (
+    <Card className="rounded-lg border-slate-200 bg-white shadow-sm">
+      <CardHeader className="p-4 pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Sparkles className="h-4 w-4 text-orange-600" />
+          Quick insights
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="grid grid-cols-1 gap-2 p-4 pt-2 sm:grid-cols-2">
+        {insights.map((insight) => (
+          <div key={insight.label} className="flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50/70 p-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-orange-600 shadow-sm">
+              <insight.icon className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-[11px] font-bold uppercase text-slate-400">{insight.label}</p>
+              <p className="truncate text-sm font-black text-slate-900">{insight.value}</p>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function OpsAlertsPanel({
+  metrics,
+  kitchenQueue,
+  openBills,
+  showInventory,
+  showKitchen,
+  showTables,
+  showPurchase,
+}: {
+  metrics: DashboardMetrics;
+  kitchenQueue: number;
+  openBills: number;
+  showInventory: boolean;
+  showKitchen: boolean;
+  showTables: boolean;
+  showPurchase: boolean;
+}) {
+  const alerts = [
+    showInventory && metrics.lowStockItems > 0
+      ? { title: 'Low stock', detail: `${metrics.lowStockItems} items below minimum`, tone: 'rose', icon: AlertTriangle }
+      : null,
+    showKitchen && kitchenQueue > 6
+      ? { title: 'Kitchen delay', detail: `${kitchenQueue} tickets in service`, tone: 'amber', icon: ChefHat }
+      : null,
+    showTables && openBills > 8
+      ? { title: 'Pending payments', detail: `${openBills} running table checks`, tone: 'orange', icon: ReceiptText }
+      : null,
+    showPurchase && metrics.draftPurchaseOrders > 0
+      ? { title: 'Purchase follow-up', detail: `${metrics.draftPurchaseOrders} open purchase orders`, tone: 'sky', icon: Truck }
+      : null,
+    metrics.pendingPayments > 0
+      ? { title: 'Payment mismatch watch', detail: `${metrics.pendingPayments} unpaid or pending orders`, tone: 'amber', icon: Ticket }
+      : null,
+  ].filter(Boolean) as Array<{
+    title: string;
+    detail: string;
+    tone: 'rose' | 'amber' | 'orange' | 'sky';
+    icon: LucideIcon;
+  }>;
+
+  const toneClasses = {
+    rose: 'border-rose-200 bg-rose-50 text-rose-700',
+    amber: 'border-amber-200 bg-amber-50 text-amber-800',
+    orange: 'border-orange-200 bg-orange-50 text-orange-700',
+    sky: 'border-sky-200 bg-sky-50 text-sky-700',
+  };
+
+  return (
+    <Card className="rounded-lg border-slate-200 bg-white shadow-sm">
+      <CardHeader className="p-4 pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <AlertTriangle className="h-4 w-4 text-orange-600" />
+          Alerts
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2 p-4 pt-2">
+        {alerts.length > 0 ? (
+          alerts.map((alert) => (
+            <div key={alert.title} className={cn('flex items-start gap-2 rounded-lg border p-3', toneClasses[alert.tone])}>
+              <alert.icon className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-black">{alert.title}</p>
+                <p className="text-xs font-semibold opacity-80">{alert.detail}</p>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-800">
+            <CircleCheckBig className="h-5 w-5 shrink-0" />
+            <div>
+              <p className="text-sm font-bold">No critical alerts</p>
+              <p className="text-xs text-emerald-700">Available modules and payments look stable.</p>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SalesPulsePanel({ metrics }: { metrics: DashboardMetrics }) {
+  const chartData = metrics.hourlySales.length > 0 ? metrics.hourlySales : [{ hour: 'Now', revenue: 0 }];
+
+  return (
+    <Card className="rounded-lg border-slate-200 bg-white shadow-sm">
+      <CardHeader className="flex-row items-center justify-between space-y-0 p-4 pb-2">
+        <div>
+          <CardTitle className="text-base">Sales pulse</CardTitle>
+          <p className="mt-1 text-xs font-semibold text-slate-500">Hourly revenue for the current service day</p>
+        </div>
+        <span className="rounded-md bg-orange-50 px-2 py-1 text-xs font-black text-orange-700">
+          {formatCurrency(metrics.todayRevenue)}
+        </span>
+      </CardHeader>
+      <CardContent className="h-56 p-4 pt-2">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData} margin={{ left: 0, right: 8, top: 12, bottom: 0 }}>
+            <defs>
+              <linearGradient id="salesPulse" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#FF6A00" stopOpacity={0.35} />
+                <stop offset="95%" stopColor="#FF6A00" stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+            <XAxis dataKey="hour" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#64748B' }} />
+            <Tooltip
+              formatter={(value) => formatCurrency(Number(value))}
+              labelClassName="font-bold text-slate-800"
+              contentStyle={{ borderRadius: 12, borderColor: '#E2E8F0' }}
+            />
+            <Area
+              type="monotone"
+              dataKey="revenue"
+              stroke="#FF6A00"
+              strokeWidth={3}
+              fill="url(#salesPulse)"
+              dot={{ r: 3, strokeWidth: 2, fill: '#fff' }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RecentActivityPanel({ metrics }: { metrics: DashboardMetrics }) {
+  return (
+    <Card className="rounded-lg border-slate-200 bg-white shadow-sm">
+      <CardHeader className="p-4 pb-2">
+        <CardTitle className="text-base">Recent activity</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2 p-4 pt-2">
+        {metrics.recentActivity.length > 0 ? (
+          metrics.recentActivity.map((item) => (
+            <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/60 p-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black text-slate-900">{item.label}</p>
+                <p className="truncate text-xs font-semibold text-slate-500">{item.detail}</p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="text-sm font-black text-slate-900">{formatCurrency(item.amount)}</p>
+                <p className="text-[11px] font-bold text-slate-400">{item.time}</p>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="rounded-lg border border-dashed border-slate-200 p-5 text-center text-sm font-semibold text-slate-500">
+            No service activity yet today.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function ERPHome() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const hasPermission = usePermissionsStore((s) => s.hasPermission);
   const activeOutletId = useTenantStore((s) => s.activeOutletId);
+  const planId = useTenantStore((s) => s.planId);
   const companyName = useTenantStore((s) => s.companyName);
   const outlets = useTenantStore((s) => s.outlets);
   const tables = useTableStore((s) => s.tables);
@@ -437,10 +840,14 @@ export function ERPHome() {
   const fetchKitchenOrders = useKitchenStore((s) => s.fetchOrders);
 
   const activeOutlet = outlets.find((outlet) => outlet.id === activeOutletId);
-  const canAccess = (permission: PermissionId) =>
-    Boolean(user?.role && hasPermission(user.role, permission));
-  const canAccessAny = (permissions: PermissionId[]) =>
-    Boolean(user?.role && permissions.some((permission) => hasPermission(user.role, permission)));
+  const canAccess = (permission: PermissionId, planModule?: PlanModuleId) =>
+    Boolean(user?.role && hasPlanModule(planId, planModule) && hasPermission(user.role, permission));
+  const canAccessAny = (permissions: PermissionId[], planModule?: PlanModuleId) =>
+    Boolean(
+      user?.role &&
+      hasPlanModule(planId, planModule) &&
+      permissions.some((permission) => hasPermission(user.role, permission))
+    );
 
   const visibleSections = useMemo(
     () =>
@@ -448,11 +855,11 @@ export function ERPHome() {
         .map((section) => ({
           ...section,
           items: section.items.filter((item) =>
-            canSeeModule(item, user?.role, hasPermission)
+            canSeeModule(item, user?.role, hasPermission, planId)
           ),
         }))
         .filter((section) => section.items.length > 0),
-    [hasPermission, user?.role]
+    [hasPermission, planId, user?.role]
   );
 
   useEffect(() => {
@@ -513,6 +920,7 @@ export function ERPHome() {
       icon: ShoppingCart,
       iconClassName: 'text-orange-400',
       permission: PERMISSIONS.POS_ACCESS,
+      planModule: 'pos' as const,
       variant: 'primary',
     },
     {
@@ -521,6 +929,7 @@ export function ERPHome() {
       icon: LayoutGrid,
       iconClassName: 'text-sky-600',
       permission: PERMISSIONS.TABLES_MANAGE,
+      planModule: 'tables' as const,
       variant: 'outline',
     },
     {
@@ -529,6 +938,7 @@ export function ERPHome() {
       icon: ChefHat,
       iconClassName: 'text-amber-600',
       permission: PERMISSIONS.KITCHEN_ACCESS,
+      planModule: 'kitchen' as const,
       variant: 'outline',
     },
     {
@@ -537,6 +947,7 @@ export function ERPHome() {
       icon: BarChart3,
       iconClassName: 'text-emerald-600',
       permission: PERMISSIONS.REPORTS_VIEW,
+      planModule: 'reports' as const,
       variant: 'outline',
     },
     {
@@ -545,9 +956,10 @@ export function ERPHome() {
       icon: ClipboardList,
       iconClassName: 'text-rose-600',
       permission: PERMISSIONS.INVENTORY_DAILY,
+      planModule: 'inventory' as const,
       variant: 'outline',
     },
-  ].filter((action) => canAccess(action.permission));
+  ].filter((action) => canAccess(action.permission, action.planModule));
 
   const primaryAction = quickActions[0];
 
@@ -556,51 +968,70 @@ export function ERPHome() {
       label: 'Today sales',
       value: formatCurrency(metrics.todayRevenue),
       detail: `${metrics.completedOrders} paid orders`,
+      trend: trendPercent(metrics.todayRevenue, metrics.yesterdayRevenue),
+      comparison: `Yesterday ${formatCurrency(metrics.yesterdayRevenue)}`,
       icon: BarChart3,
       tone: 'emerald' as const,
+      status: metrics.todayRevenue >= metrics.yesterdayRevenue ? 'good' as const : 'watch' as const,
       permissions: [PERMISSIONS.POS_ACCESS, PERMISSIONS.REPORTS_VIEW],
+      planModule: 'pos' as const,
     },
     {
       label: 'Table load',
       value: `${tableStats.active}/${Math.max(tableStats.total, 1)}`,
       detail: `${tableStats.available} available now`,
+      comparison: `${tableStats.occupied} occupied, ${tableStats.cleaning} cleaning`,
       icon: Store,
       tone: 'sky' as const,
+      status: tableStats.available > 0 ? 'good' as const : 'danger' as const,
       permissions: [PERMISSIONS.TABLES_MANAGE],
+      planModule: 'tables' as const,
     },
     {
       label: 'Kitchen queue',
       value: String(kitchenQueue),
       detail: `${readyKitchen} ready to serve`,
+      comparison: `${pendingKitchen} pending, ${preparingKitchen} preparing`,
       icon: ChefHat,
       tone: (kitchenQueue > 0 ? 'amber' : 'slate') as const,
+      status: kitchenQueue > 6 ? 'danger' as const : kitchenQueue > 0 ? 'watch' as const : 'good' as const,
       permissions: [PERMISSIONS.KITCHEN_ACCESS],
+      planModule: 'kitchen' as const,
     },
     {
       label: 'Open checks',
       value: String(openBills.length),
       detail: formatCurrency(openBillTotal),
+      comparison: `${metrics.pendingPayments} payment follow-ups`,
       icon: ReceiptText,
       tone: (openBills.length > 0 ? 'orange' : 'slate') as const,
+      status: openBills.length > 8 ? 'danger' as const : openBills.length > 0 ? 'watch' as const : 'good' as const,
       permissions: [PERMISSIONS.POS_ACCESS, PERMISSIONS.TABLES_MANAGE],
+      planModule: 'pos' as const,
     },
     {
       label: 'Stock watch',
       value: String(metrics.lowStockItems),
       detail: 'items below minimum',
+      comparison: 'Auto recipe deduction ready',
       icon: AlertTriangle,
       tone: (metrics.lowStockItems > 0 ? 'rose' : 'slate') as const,
+      status: metrics.lowStockItems > 0 ? 'danger' as const : 'good' as const,
       permissions: [PERMISSIONS.INVENTORY_VIEW],
+      planModule: 'inventory' as const,
     },
     {
       label: 'Follow-up',
       value: String(metrics.heldOrders + metrics.draftPurchaseOrders),
       detail: `${metrics.heldOrders} held orders, ${metrics.draftPurchaseOrders} POs pending`,
+      comparison: 'Resolve before closing shift',
       icon: Clock3,
       tone: (metrics.heldOrders + metrics.draftPurchaseOrders > 0 ? 'amber' : 'slate') as const,
+      status: metrics.heldOrders + metrics.draftPurchaseOrders > 0 ? 'watch' as const : 'good' as const,
       permissions: [PERMISSIONS.POS_ACCESS, PERMISSIONS.PURCHASE_MANAGE],
+      planModule: 'pos' as const,
     },
-  ].filter((metric) => canAccessAny(metric.permissions));
+  ].filter((metric) => canAccessAny(metric.permissions, metric.planModule));
 
   const priorityItems = [
     kitchenQueue > 0
@@ -611,6 +1042,7 @@ export function ERPHome() {
           icon: ChefHat,
           tone: 'bg-amber-50 text-amber-700',
           permission: PERMISSIONS.KITCHEN_ACCESS,
+          planModule: 'kitchen' as const,
         }
       : null,
     openBills.length > 0
@@ -621,6 +1053,7 @@ export function ERPHome() {
           icon: ReceiptText,
           tone: 'bg-sky-50 text-sky-700',
           permission: PERMISSIONS.TABLES_MANAGE,
+          planModule: 'tables' as const,
         }
       : null,
     metrics.lowStockItems > 0
@@ -631,6 +1064,7 @@ export function ERPHome() {
           icon: AlertTriangle,
           tone: 'bg-rose-50 text-rose-700',
           permission: PERMISSIONS.INVENTORY_VIEW,
+          planModule: 'inventory' as const,
         }
       : null,
     metrics.draftPurchaseOrders > 0
@@ -641,15 +1075,17 @@ export function ERPHome() {
           icon: Truck,
           tone: 'bg-orange-50 text-orange-700',
           permission: PERMISSIONS.PURCHASE_MANAGE,
+          planModule: 'purchase' as const,
         }
       : null,
-  ].filter((item) => item && canAccess(item.permission)) as Array<{
+  ].filter((item) => item && canAccess(item.permission, item.planModule)) as Array<{
     title: string;
     detail: string;
     path: string;
     icon: LucideIcon;
     tone: string;
     permission: PermissionId;
+    planModule: PlanModuleId;
   }>;
 
   const currentTimeLabel = new Intl.DateTimeFormat('en-IN', {
@@ -710,6 +1146,10 @@ export function ERPHome() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <section className="flex flex-col gap-6 lg:col-span-2">
+          {canAccessAny([PERMISSIONS.POS_ACCESS, PERMISSIONS.REPORTS_VIEW]) && (
+            <SalesPulsePanel metrics={metrics} />
+          )}
+
           {quickActions.length > 0 && (
             <div className="grid gap-3 sm:grid-cols-2">
               {quickActions.map((action) => {
@@ -769,6 +1209,24 @@ export function ERPHome() {
         </section>
 
         <aside className="flex flex-col gap-4 lg:col-span-1">
+          <QuickInsightsPanel
+            metrics={metrics}
+            openBills={openBills.length}
+            kitchenQueue={kitchenQueue}
+            showTables={canAccess(PERMISSIONS.TABLES_MANAGE, 'tables')}
+            showKitchen={canAccess(PERMISSIONS.KITCHEN_ACCESS, 'kitchen')}
+          />
+
+          <OpsAlertsPanel
+            metrics={metrics}
+            kitchenQueue={kitchenQueue}
+            openBills={openBills.length}
+            showInventory={canAccess(PERMISSIONS.INVENTORY_VIEW, 'inventory')}
+            showKitchen={canAccess(PERMISSIONS.KITCHEN_ACCESS, 'kitchen')}
+            showTables={canAccess(PERMISSIONS.TABLES_MANAGE, 'tables')}
+            showPurchase={canAccess(PERMISSIONS.PURCHASE_MANAGE, 'purchase')}
+          />
+
           <Card className="rounded-lg border-slate-200 bg-white shadow-sm">
             <CardHeader className="p-4 pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -791,7 +1249,7 @@ export function ERPHome() {
             </CardContent>
           </Card>
 
-          {canAccess(PERMISSIONS.TABLES_MANAGE) && (
+          {canAccess(PERMISSIONS.TABLES_MANAGE, 'tables') && (
             <Card className="rounded-lg border-slate-200 bg-white shadow-sm">
               <CardHeader className="p-4 pb-2">
                 <CardTitle className="text-base">Service snapshot</CardTitle>
@@ -824,6 +1282,8 @@ export function ERPHome() {
               </CardContent>
             </Card>
           )}
+
+          <RecentActivityPanel metrics={metrics} />
         </aside>
       </div>
     </div>

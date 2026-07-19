@@ -10,6 +10,7 @@ export interface KitchenOrderItem {
   id: string;
   product_name: string;
   quantity: number;
+  notes?: string | null;
 }
 
 export interface KitchenOrder {
@@ -20,6 +21,8 @@ export interface KitchenOrder {
   status: string | null;
   kitchen_status: KitchenStatus;
   created_at: string;
+  notes?: string | null;
+  customer_phone?: string | null;
   items: KitchenOrderItem[];
 }
 
@@ -44,6 +47,8 @@ function mapRows(data: any[]): KitchenOrder[] {
     status: row.status || null,
     kitchen_status: row.kitchen_status,
     created_at: row.created_at,
+    notes: row.notes || null,
+    customer_phone: row.customer_phone || null,
     items: row.items || [],
   }));
 }
@@ -79,6 +84,8 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
           status,
           kitchen_status,
           created_at,
+          notes,
+          customer_phone,
           items:pos_order_items (
             id,
             product_name,

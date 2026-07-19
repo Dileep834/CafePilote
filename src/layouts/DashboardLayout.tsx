@@ -135,7 +135,27 @@ const DashboardLayout: React.FC = () => {
   const drawer = (
     <div>
       <Toolbar sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 2 }}>
-        <CafePilotsLogo size={40} withWordmark withDivider />
+        <Box
+          component="button"
+          type="button"
+          aria-label="Go to dashboard"
+          onClick={() => navigate('/erp')}
+          sx={{
+            border: 0,
+            p: 0,
+            bgcolor: 'transparent',
+            cursor: 'pointer',
+            borderRadius: 1,
+            transition: 'opacity 160ms ease',
+            '&:hover': { opacity: 0.86 },
+            '&:focus-visible': {
+              outline: `2px solid ${BRAND.orange}`,
+              outlineOffset: 4,
+            },
+          }}
+        >
+          <CafePilotsLogo size={40} withWordmark withDivider />
+        </Box>
       </Toolbar>
       <Divider />
       <List sx={{ px: 2, pt: 2 }}>

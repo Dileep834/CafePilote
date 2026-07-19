@@ -196,8 +196,20 @@ code {
 }
 
 .pos-crisp-text .swiper-wrapper {
-  /* Avoid fractional translate blur on category chips */
-  transform: translate3d(0, 0, 0) !important;
+  backface-visibility: hidden;
+  will-change: transform;
+}
+
+.pos-crisp-text .cat-prev.swiper-button-disabled,
+.pos-crisp-text .cat-next.swiper-button-disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (min-width: 640px) {
+  .pos-crisp-text .pos-category-swiper {
+    mask-image: linear-gradient(90deg, transparent 0, #000 1.75rem, #000 calc(100% - 1.75rem), transparent 100%);
+  }
 }
 
 /* Guest menu: full-height category pages with vertical scroll inside slides */

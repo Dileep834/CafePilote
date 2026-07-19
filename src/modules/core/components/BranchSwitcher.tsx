@@ -2,10 +2,11 @@ import React, { useEffect } from 'react';
 import { MapPin, ChevronDown } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useTenantStore } from '@/store/useTenantStore';
-import { getPlanLimits } from '@/lib/planLimits';
+import { getPlanLimits, hasPlanModule } from '@/lib/planLimits';
 import { BRAND } from '@/constants';
 import { PERMISSIONS } from '@/constants/permissions';
 import { useHasPermission } from '@/hooks/useHasPermission';
+import { isSuperAdmin } from '@/lib/access';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -33,7 +34,8 @@ export function BranchSwitcher({ className, onBranchChange }: Props) {
   }, [user?.id, user?.companyId, user?.outletId, hydrateFromUser, user]);
 
   const active = outlets.find((o) => o.id === activeOutletId) || outlets[0];
-  const locked = !canSwitchBranch(user) || !canSwitchBranchByPermission;
+  const canUseMultiOutlet = isSuperAdmin(user) || hasPlanModule(planId, 'multiOutlet');
+  const locked = !canUseMultiOutlet || !canSwitchBranch(user) || !canSwitchBranchByPermission;
   const plan = getPlanLimits(planId);
 
   if (!user) return null;

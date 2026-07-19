@@ -7,11 +7,14 @@ import DataTable from '../../components/DataTable';
 import type { Product } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useTenantStore } from '@/store/useTenantStore';
 import { getScopedCompanyId } from '../../lib/tenantScope';
+import { checkProductLimit } from '@/lib/planLimits';
 import { HQ_COMPANY_ID } from '../../constants';
 
 const Products: React.FC = () => {
   const { user } = useAuthStore();
+  const planId = useTenantStore((s) => s.planId);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [products, setProducts] = useState<Product[]>([]);
@@ -60,6 +63,14 @@ const Products: React.FC = () => {
   };
 
   const handleOpen = (product?: Product) => {
+    if (!product) {
+      const gate = checkProductLimit(planId, products.length);
+      if (!gate.ok) {
+        alert(gate.message);
+        return;
+      }
+    }
+
     if (product) {
       setFormData(product);
     } else {
@@ -88,6 +99,9 @@ const Products: React.FC = () => {
         const { error } = await supabase.from('products').update(dataToSave).eq('id', formData.id);
         if (error) throw error;
       } else {
+        const gate = checkProductLimit(planId, products.length);
+        if (!gate.ok) throw new Error(gate.message);
+
         // Insert
         const dataToSave = { ...formData };
         delete dataToSave.category;
@@ -99,7 +113,7 @@ const Products: React.FC = () => {
       fetchProducts();
     } catch (error) {
       console.error("Error saving product", error);
-      alert("Error saving product.");
+      alert(error instanceof Error ? error.message : "Error saving product.");
     } finally {
       setSaving(false);
     }

@@ -1,112 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
-import {
-  LayoutDashboard,
-  ShoppingCart,
-  Package,
-  Truck,
-  ChefHat,
-  Users,
-  BarChart3,
-  Store,
-  Settings,
-  Shield,
-  Ticket,
-  Map,
-  LayoutGrid,
-  UtensilsCrossed,
-  Tags,
-  BookOpen,
-  Boxes,
-  ClipboardList,
-  Trash2,
-  ChevronDown,
-  Building2,
-} from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, NavLink, useLocation } from 'react-router-dom';
+import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CafePilotsLogo } from '@/components/CafePilotsLogo';
 import { APP_NAME, BRAND } from '@/constants';
-import { PERMISSIONS, type PermissionId } from '@/constants/permissions';
 import { useAuthStore } from '@/store/useAuthStore';
 import { usePermissionsStore } from '@/store/usePermissionsStore';
+import { useTenantStore } from '@/store/useTenantStore';
 import { isSuperAdmin } from '@/lib/access';
-
-type NavLeaf = {
-  name: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  end?: boolean;
-  requiredPermission?: PermissionId;
-  /** Only visible to Super Admin (platform owner) */
-  superAdminOnly?: boolean;
-};
-
-type NavGroup = {
-  id: string;
-  label: string;
-  items: NavLeaf[];
-};
-
-const NAV_GROUPS: NavGroup[] = [
-  {
-    id: 'service',
-    label: 'Front of house',
-    items: [
-      { name: 'Dashboard', href: '/erp', icon: LayoutDashboard, end: true, requiredPermission: PERMISSIONS.DASHBOARD_ACCESS },
-      { name: 'POS (Billing)', href: '/erp/pos', icon: ShoppingCart, requiredPermission: PERMISSIONS.POS_ACCESS },
-      { name: 'Tables', href: '/erp/tables', icon: LayoutGrid, end: true, requiredPermission: PERMISSIONS.TABLES_MANAGE },
-      { name: 'Floor Designer', href: '/erp/floor', icon: Map, requiredPermission: PERMISSIONS.FLOOR_MANAGE },
-      { name: 'Kitchen (KDS)', href: '/erp/kitchen', icon: ChefHat, end: true, requiredPermission: PERMISSIONS.KITCHEN_ACCESS },
-    ],
-  },
-  {
-    id: 'menu',
-    label: 'Menu & catalog',
-    items: [
-      { name: 'Products', href: '/erp/menu/products', icon: UtensilsCrossed, requiredPermission: PERMISSIONS.MENU_PRODUCTS_MANAGE },
-      { name: 'Categories', href: '/erp/menu/categories', icon: Tags, requiredPermission: PERMISSIONS.MENU_CATEGORIES_MANAGE },
-      { name: 'Recipes', href: '/erp/menu/recipes', icon: BookOpen, requiredPermission: PERMISSIONS.RECIPES_MANAGE },
-    ],
-  },
-  {
-    id: 'stock',
-    label: 'Inventory & purchase',
-    items: [
-      { name: 'Stock on hand', href: '/erp/inventory', icon: Boxes, end: true, requiredPermission: PERMISSIONS.INVENTORY_VIEW },
-      { name: 'Daily stock update', href: '/erp/inventory/daily', icon: ClipboardList, requiredPermission: PERMISSIONS.INVENTORY_DAILY },
-      { name: 'Adjustments', href: '/erp/inventory/adjustments', icon: Package, requiredPermission: PERMISSIONS.INVENTORY_ADJUST },
-      { name: 'Waste log', href: '/erp/inventory/waste', icon: Trash2, requiredPermission: PERMISSIONS.INVENTORY_WASTE },
-      { name: 'Purchase orders', href: '/erp/purchase', icon: Truck, end: true, requiredPermission: PERMISSIONS.PURCHASE_MANAGE },
-      { name: 'Suppliers', href: '/erp/purchase/suppliers', icon: Store, requiredPermission: PERMISSIONS.SUPPLIERS_MANAGE },
-    ],
-  },
-  {
-    id: 'growth',
-    label: 'Customers & offers',
-    items: [
-      { name: 'CRM / Guests', href: '/erp/crm', icon: Users, requiredPermission: PERMISSIONS.CRM_MANAGE },
-      { name: 'Offers & vouchers', href: '/erp/vouchers', icon: Ticket, requiredPermission: PERMISSIONS.MARKETING_MANAGE },
-    ],
-  },
-  {
-    id: 'business',
-    label: 'Business',
-    items: [
-      { name: 'Reports', href: '/erp/reports', icon: BarChart3, requiredPermission: PERMISSIONS.REPORTS_VIEW },
-      { name: 'Outlets / Branches', href: '/erp/franchise', icon: Building2, requiredPermission: PERMISSIONS.FRANCHISE_MANAGE },
-    ],
-  },
-  {
-    id: 'admin',
-    label: 'Admin',
-    items: [
-      { name: 'Staff & users', href: '/erp/users', icon: Shield, requiredPermission: PERMISSIONS.USERS_MANAGE },
-      { name: 'Login logs', href: '/erp/users/logs', icon: ClipboardList, requiredPermission: PERMISSIONS.USERS_LOGS },
-      { name: 'Companies', href: '/erp/companies', icon: Building2, requiredPermission: PERMISSIONS.COMPANIES_MANAGE, superAdminOnly: true },
-      { name: 'Settings', href: '/erp/settings', icon: Settings, requiredPermission: PERMISSIONS.SETTINGS_MANAGE },
-    ],
-  },
-];
+import { hasPlanModule } from '@/lib/planLimits';
+import { NAV_GROUPS } from './navConfig';
 
 function pathMatches(pathname: string, href: string, end?: boolean) {
   if (end) return pathname === href || pathname === `${href}/`;
@@ -122,6 +25,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const hasPermission = usePermissionsStore((s) => s.hasPermission);
+  const planId = useTenantStore((s) => s.planId);
   const sa = isSuperAdmin(user);
   const role = user?.role;
 
@@ -130,12 +34,13 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
       ...g,
       items: g.items.filter((item) => {
         if (item.superAdminOnly && !sa) return false;
+        if (!sa && !hasPlanModule(planId, item.requiredPlanModule)) return false;
         if (!item.requiredPermission) return true;
         if (!role) return false;
         return hasPermission(role, item.requiredPermission);
       }),
     })).filter((g) => g.items.length > 0);
-  }, [hasPermission, role, sa]);
+  }, [hasPermission, planId, role, sa]);
 
   const activeGroupIds = useMemo(() => {
     return visibleGroups
@@ -174,7 +79,14 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
   return (
     <div className={cn('flex h-full flex-col text-slate-50', className)} style={{ backgroundColor: BRAND.navy }}>
       <div className="flex h-16 items-center px-5 border-b border-white/10 shrink-0">
-        <CafePilotsLogo size={34} withWordmark withDivider onDark />
+        <Link
+          to="/erp"
+          onClick={onNavigate}
+          aria-label="Go to dashboard"
+          className="rounded-md outline-none transition-opacity hover:opacity-85 focus-visible:ring-2 focus-visible:ring-orange-300"
+        >
+          <CafePilotsLogo size={34} withWordmark withDivider onDark />
+        </Link>
       </div>
 
       <nav className="flex-1 px-2.5 py-3 overflow-y-auto space-y-3">

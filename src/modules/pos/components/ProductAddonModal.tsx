@@ -16,11 +16,21 @@ interface ProductAddonModalProps {
 export function ProductAddonModal({ isOpen, onClose, product, allProducts }: ProductAddonModalProps) {
   const addItem = usePOSStore(state => state.addItem);
   const [selectedAddons, setSelectedAddons] = useState<any[]>([]);
+  const [selectedSize, setSelectedSize] = useState<'regular' | 'small' | 'large'>('regular');
+  const [selectedPortion, setSelectedPortion] = useState<'full' | 'half'>('full');
+  const [selectedSpice, setSelectedSpice] = useState<'regular' | 'mild' | 'extra'>('regular');
+  const [extraCheese, setExtraCheese] = useState(false);
+  const [customNote, setCustomNote] = useState('');
 
   // Reset state when opened
   useEffect(() => {
     if (isOpen) {
       setSelectedAddons([]);
+      setSelectedSize('regular');
+      setSelectedPortion('full');
+      setSelectedSpice('regular');
+      setExtraCheese(false);
+      setCustomNote('');
     }
   }, [isOpen, product]);
 
@@ -53,9 +63,21 @@ export function ProductAddonModal({ isOpen, onClose, product, allProducts }: Pro
   };
 
   const handleAddToOrder = () => {
-    // 1. Add main product
-    addItem(product);
-    // 2. Add all selected add-ons
+    const mainPrice = adjustedMainPrice();
+    const notes = [
+      selectedSize !== 'regular' ? selectedSize : null,
+      selectedPortion !== 'full' ? selectedPortion : null,
+      selectedSpice !== 'regular' ? `${selectedSpice} spice` : null,
+      extraCheese ? 'extra cheese' : null,
+      customNote.trim() || null,
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+    addItem(product, {
+      price: mainPrice,
+      notes,
+    });
     selectedAddons.forEach(addon => {
       addItem(addon);
     });
@@ -63,6 +85,14 @@ export function ProductAddonModal({ isOpen, onClose, product, allProducts }: Pro
   };
 
   const safePrice = (p: any) => p.selling_price || p.sellingPrice || 0;
+  const adjustedMainPrice = () => {
+    const base = safePrice(product);
+    const sizeDelta =
+      selectedSize === 'small' ? -base * 0.1 : selectedSize === 'large' ? base * 0.25 : 0;
+    const portionMultiplier = selectedPortion === 'half' ? 0.6 : 1;
+    const cheeseDelta = extraCheese ? 30 : 0;
+    return Math.max(0, Math.round((base + sizeDelta) * portionMultiplier + cheeseDelta));
+  };
 
   const getDietaryIcon = (pref: string) => {
     const p = pref.toLowerCase();
@@ -73,7 +103,7 @@ export function ProductAddonModal({ isOpen, onClose, product, allProducts }: Pro
     return null;
   };
 
-  const totalPrice = safePrice(product) + selectedAddons.reduce((sum, item) => sum + safePrice(item), 0);
+  const totalPrice = adjustedMainPrice() + selectedAddons.reduce((sum, item) => sum + safePrice(item), 0);
 
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center pointer-events-auto">
@@ -130,6 +160,97 @@ export function ProductAddonModal({ isOpen, onClose, product, allProducts }: Pro
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 scrollbar-hide bg-slate-50">
+          <div className="mb-5 grid grid-cols-1 gap-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">Modifiers</h3>
+                  <p className="text-xs font-semibold text-slate-500">Fast kitchen instructions for this item</p>
+                </div>
+                <span className="rounded-lg bg-orange-50 px-2.5 py-1 text-xs font-black text-brand-orange">
+                  {formatCurrency(adjustedMainPrice())}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <p className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">Size</p>
+                  <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
+                    {(['small', 'regular', 'large'] as const).map((size) => (
+                      <button
+                        key={size}
+                        type="button"
+                        onClick={() => setSelectedSize(size)}
+                        className={cn(
+                          'h-9 rounded-lg text-xs font-black capitalize transition',
+                          selectedSize === size ? 'bg-white text-brand-orange shadow-sm' : 'text-slate-500'
+                        )}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">Portion</p>
+                  <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
+                    {(['half', 'full'] as const).map((portion) => (
+                      <button
+                        key={portion}
+                        type="button"
+                        onClick={() => setSelectedPortion(portion)}
+                        className={cn(
+                          'h-9 rounded-lg text-xs font-black capitalize transition',
+                          selectedPortion === portion ? 'bg-white text-brand-orange shadow-sm' : 'text-slate-500'
+                        )}
+                      >
+                        {portion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">Spice</p>
+                  <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
+                    {(['mild', 'regular', 'extra'] as const).map((spice) => (
+                      <button
+                        key={spice}
+                        type="button"
+                        onClick={() => setSelectedSpice(spice)}
+                        className={cn(
+                          'h-9 rounded-lg text-xs font-black capitalize transition',
+                          selectedSpice === spice ? 'bg-white text-brand-orange shadow-sm' : 'text-slate-500'
+                        )}
+                      >
+                        {spice}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-[auto_minmax(0,1fr)] gap-3">
+                <label className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={extraCheese}
+                    onChange={(event) => setExtraCheese(event.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-brand-orange focus:ring-brand-orange"
+                  />
+                  Extra cheese +{formatCurrency(30)}
+                </label>
+                <input
+                  type="text"
+                  value={customNote}
+                  onChange={(event) => setCustomNote(event.target.value)}
+                  placeholder="Kitchen note, allergy, no onion..."
+                  className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20"
+                />
+              </div>
+            </div>
+          </div>
           
           {suggestions.length > 0 && (
             <div className="mb-6">

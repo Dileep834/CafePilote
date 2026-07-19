@@ -51,13 +51,23 @@ SET
 -- Create subscriptions table if missing (was only in saas_tenant_floor_patch)
 CREATE TABLE IF NOT EXISTS public.company_subscriptions (
   company_id text PRIMARY KEY,
-  plan_id text NOT NULL DEFAULT 'growth'
-    CHECK (plan_id IN ('starter', 'growth', 'enterprise')),
+  plan_id text NOT NULL DEFAULT 'professional'
+    CHECK (plan_id IN ('lite', 'starter', 'professional', 'growth', 'enterprise')),
   status text NOT NULL DEFAULT 'active'
     CHECK (status IN ('active', 'trialing', 'past_due', 'canceled')),
   seats int,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.company_subscriptions
+  DROP CONSTRAINT IF EXISTS company_subscriptions_plan_id_check;
+
+ALTER TABLE public.company_subscriptions
+  ADD CONSTRAINT company_subscriptions_plan_id_check
+  CHECK (plan_id IN ('lite', 'starter', 'professional', 'growth', 'enterprise'));
+
+ALTER TABLE public.company_subscriptions
+  ALTER COLUMN plan_id SET DEFAULT 'professional';
 
 ALTER TABLE public.company_subscriptions ENABLE ROW LEVEL SECURITY;
 
@@ -77,7 +87,7 @@ VALUES ('a1000000-0000-4000-8000-000000000001', 'enterprise', 'active')
 ON CONFLICT (company_id) DO NOTHING;
 
 INSERT INTO public.company_subscriptions (company_id, plan_id, status)
-VALUES ('c1000000-0000-0000-0000-000000000001', 'growth', 'active')
+VALUES ('c1000000-0000-0000-0000-000000000001', 'professional', 'active')
 ON CONFLICT (company_id) DO NOTHING;
 
 -- 3) Super Admin with SYSTEM/null → CafePilots HQ (not Backbenchers)

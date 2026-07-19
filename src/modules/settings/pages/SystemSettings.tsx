@@ -3,7 +3,8 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import type { TableViewMode, TableBoardLayout } from '../store/useSettingsStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useTenantStore } from '@/store/useTenantStore';
-import { PLAN_LIMITS, type SubscriptionPlanId } from '@/lib/planLimits';
+import { PLAN_LIMITS, hasPlanModule, normalizePlanId, type SubscriptionPlanId } from '@/lib/planLimits';
+import { supabase } from '@/lib/supabase';
 import { Settings, Printer, Store, Save, FileText, CheckCircle2, Shield, LayoutGrid, Map, List, CreditCard } from 'lucide-react';
 import { ThermalReceipt } from '../../pos/components/ThermalReceipt';
 import { RolesPermissions } from '../components/RolesPermissions';
@@ -39,6 +40,9 @@ export function SystemSettings() {
   });
   const [isSaved, setIsSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<'general' | 'payments' | 'permissions'>('general');
+  const canManageSubscriptions = isSuperAdmin(user);
+  const activePlanId = normalizePlanId(planId);
+  const canUseStaffManagement = canManageSubscriptions || hasPlanModule(activePlanId, 'staff');
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,6 +50,27 @@ export function SystemSettings() {
 
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 3000);
+  };
+
+  const handleSubscriptionChange = async (nextPlanId: SubscriptionPlanId) => {
+    if (!canManageSubscriptions) return;
+    setPlanId(nextPlanId);
+
+    if (!companyId) return;
+
+    try {
+      await supabase.from('company_subscriptions').upsert(
+        {
+          company_id: String(companyId),
+          plan_id: nextPlanId,
+          status: 'active',
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'company_id' }
+      );
+    } catch {
+      /* Keep local/demo mode usable even before the subscription SQL is applied. */
+    }
   };
 
   if (!canManageSettings) {
@@ -90,17 +115,19 @@ export function SystemSettings() {
           <Store className="w-4 h-4" />
           General & Receipts
         </button>
-        <button
-          onClick={() => setActiveTab('permissions')}
-          className={`px-6 py-3 font-bold text-sm transition-colors border-b-2 -mb-px flex items-center gap-2 ${
-            activeTab === 'permissions'
-              ? 'border-orange-600 text-orange-700'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <Shield className="w-4 h-4" />
-          Roles & Permissions
-        </button>
+        {canUseStaffManagement && (
+          <button
+            onClick={() => setActiveTab('permissions')}
+            className={`px-6 py-3 font-bold text-sm transition-colors border-b-2 -mb-px flex items-center gap-2 ${
+              activeTab === 'permissions'
+                ? 'border-orange-600 text-orange-700'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Shield className="w-4 h-4" />
+            Roles & Permissions
+          </button>
+        )}
         <button
           onClick={() => setActiveTab('payments')}
           className={`px-6 py-3 font-bold text-sm transition-colors border-b-2 -mb-px flex items-center gap-2 ${
@@ -267,18 +294,20 @@ export function SystemSettings() {
               Floor plans and tables are scoped to the active branch (header switcher). Plan limits
               block extra floors/tables when you hit the quota.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               {(Object.keys(PLAN_LIMITS) as SubscriptionPlanId[]).map((id) => {
                 const p = PLAN_LIMITS[id];
-                const on = planId === id;
+                const on = activePlanId === id;
                 return (
                   <button
                     key={id}
                     type="button"
-                    onClick={() => setPlanId(id)}
+                    onClick={() => void handleSubscriptionChange(id)}
+                    disabled={!canManageSubscriptions}
                     className={cn(
                       'text-left border-2 rounded-xl p-4 transition-all',
-                      on ? 'border-[#FF6A00] bg-orange-50/40' : 'border-slate-200 hover:border-slate-300'
+                      on ? 'border-[#FF6A00] bg-orange-50/40' : 'border-slate-200 hover:border-slate-300',
+                      !canManageSubscriptions && 'cursor-not-allowed opacity-80 hover:border-slate-200'
                     )}
                   >
                     <div className="flex justify-between items-start mb-1">
@@ -286,15 +315,17 @@ export function SystemSettings() {
                       {on && <CheckCircle2 className="w-5 h-5" style={{ color: BRAND.orange }} />}
                     </div>
                     <p className="text-[11px] text-slate-500">
-                      {p.maxOutlets} branches · {p.maxFloorsPerOutlet} floors · {p.maxTablesPerOutlet}{' '}
-                      tables/branch
+                      {p.maxProducts ? `${p.maxProducts} products` : 'Unlimited products'} ·{' '}
+                      {p.maxUsers ? `${p.maxUsers} users` : 'Unlimited users'} · {p.maxOutlets} branch{p.maxOutlets === 1 ? '' : 'es'}
                     </p>
                   </button>
                 );
               })}
             </div>
             <p className="text-[10px] text-slate-400">
-              Demo: plan is stored locally (and in company_subscriptions when that SQL is applied).
+              {canManageSubscriptions
+                ? 'Super Admin can change subscriptions here or from Company Management.'
+                : 'Subscription changes are managed by CafePilots Super Admin.'}
             </p>
           </div>
         </div>
@@ -440,11 +471,11 @@ export function SystemSettings() {
         <div className="animate-in fade-in slide-in-from-right-4 duration-300">
           <PaymentGatewaySettings />
         </div>
-      ) : (
+      ) : canUseStaffManagement ? (
         <div className="animate-in fade-in slide-in-from-right-4 duration-300">
           <RolesPermissions />
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

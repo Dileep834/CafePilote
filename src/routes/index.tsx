@@ -4,6 +4,8 @@ import { useAuthStore } from '../store/useAuthStore';
 import { Role, type RoleType } from '../constants';
 import { PERMISSIONS, type PermissionId } from '@/constants/permissions';
 import { usePermissionsStore } from '../store/usePermissionsStore';
+import { useTenantStore } from '@/store/useTenantStore';
+import { hasPlanModule, type PlanModuleId } from '@/lib/planLimits';
 import AuthLayout from '../layouts/AuthLayout';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { isAppHost, loginPath } from '../lib/appHost';
@@ -50,16 +52,19 @@ const ProtectedRoute = ({
   allowedRoles,
   requiredPermission,
   requiredPermissions,
+  requiredPlanModule,
   requireAll = false,
 }: {
   children: React.ReactNode;
   allowedRoles?: RoleType[];
   requiredPermission?: PermissionId;
   requiredPermissions?: PermissionId[];
+  requiredPlanModule?: PlanModuleId;
   requireAll?: boolean;
 }) => {
   const { isAuthenticated, user, isSessionExpired } = useAuthStore();
   const { hasPermission } = usePermissionsStore();
+  const planId = useTenantStore((s) => s.planId);
 
   if (!isAuthenticated || !user) {
     return <Navigate to={loginPath()} replace />;
@@ -74,6 +79,10 @@ const ProtectedRoute = ({
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/erp" replace />;
+  }
+
+  if (!hasPlanModule(planId, requiredPlanModule)) {
     return <Navigate to="/erp" replace />;
   }
 
@@ -138,7 +147,7 @@ const AppRoutes = () => {
           <Route
             path="pos"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.POS_ACCESS}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.POS_ACCESS} requiredPlanModule="pos">
                 <POSDashboard />
               </ProtectedRoute>
             }
@@ -146,7 +155,7 @@ const AppRoutes = () => {
           <Route
             path="pos/checkout"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.POS_CHECKOUT}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.POS_CHECKOUT} requiredPlanModule="posCheckout">
                 <CheckoutPage />
               </ProtectedRoute>
             }
@@ -155,7 +164,7 @@ const AppRoutes = () => {
           <Route
             path="menu/products"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.MENU_PRODUCTS_MANAGE}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.MENU_PRODUCTS_MANAGE} requiredPlanModule="products">
                 <Products />
               </ProtectedRoute>
             }
@@ -163,7 +172,7 @@ const AppRoutes = () => {
           <Route
             path="menu/categories"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.MENU_CATEGORIES_MANAGE}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.MENU_CATEGORIES_MANAGE} requiredPlanModule="products">
                 <Categories />
               </ProtectedRoute>
             }
@@ -171,7 +180,7 @@ const AppRoutes = () => {
           <Route
             path="menu/recipes"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.RECIPES_MANAGE}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.RECIPES_MANAGE} requiredPlanModule="recipes">
                 <Recipes />
               </ProtectedRoute>
             }
@@ -181,7 +190,7 @@ const AppRoutes = () => {
           <Route
             path="inventory"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.INVENTORY_VIEW}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.INVENTORY_VIEW} requiredPlanModule="inventory">
                 <ERPCurrentInventory />
               </ProtectedRoute>
             }
@@ -189,7 +198,7 @@ const AppRoutes = () => {
           <Route
             path="inventory/daily"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.INVENTORY_DAILY}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.INVENTORY_DAILY} requiredPlanModule="inventory">
                 <DailyStockUpdate />
               </ProtectedRoute>
             }
@@ -197,7 +206,7 @@ const AppRoutes = () => {
           <Route
             path="inventory/adjustments"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.INVENTORY_ADJUST}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.INVENTORY_ADJUST} requiredPlanModule="inventory">
                 <StockAdjustments />
               </ProtectedRoute>
             }
@@ -205,7 +214,7 @@ const AppRoutes = () => {
           <Route
             path="inventory/waste"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.INVENTORY_WASTE}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.INVENTORY_WASTE} requiredPlanModule="inventory">
                 <WasteEntry />
               </ProtectedRoute>
             }
@@ -213,7 +222,7 @@ const AppRoutes = () => {
           <Route
             path="purchase"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.PURCHASE_MANAGE}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.PURCHASE_MANAGE} requiredPlanModule="purchase">
                 <ERPPurchaseOrders />
               </ProtectedRoute>
             }
@@ -221,7 +230,7 @@ const AppRoutes = () => {
           <Route
             path="purchase/suppliers"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.SUPPLIERS_MANAGE}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.SUPPLIERS_MANAGE} requiredPlanModule="suppliers">
                 <SuppliersList />
               </ProtectedRoute>
             }
@@ -230,7 +239,7 @@ const AppRoutes = () => {
           <Route
             path="kitchen"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.KITCHEN_ACCESS}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.KITCHEN_ACCESS} requiredPlanModule="kitchen">
                 <KitchenDisplay />
               </ProtectedRoute>
             }
@@ -238,7 +247,7 @@ const AppRoutes = () => {
           <Route
             path="crm"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.CRM_MANAGE}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.CRM_MANAGE} requiredPlanModule="crm">
                 <CustomerManagement />
               </ProtectedRoute>
             }
@@ -246,7 +255,7 @@ const AppRoutes = () => {
           <Route
             path="reports"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.REPORTS_VIEW}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.REPORTS_VIEW} requiredPlanModule="reports">
                 <OrderHistory />
               </ProtectedRoute>
             }
@@ -254,7 +263,7 @@ const AppRoutes = () => {
           <Route
             path="franchise"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.FRANCHISE_MANAGE}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.FRANCHISE_MANAGE} requiredPlanModule="franchise">
                 <FranchiseManagement />
               </ProtectedRoute>
             }
@@ -262,7 +271,7 @@ const AppRoutes = () => {
           <Route
             path="vouchers"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.MARKETING_MANAGE}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.MARKETING_MANAGE} requiredPlanModule="crm">
                 <VoucherManagement />
               </ProtectedRoute>
             }
@@ -270,7 +279,7 @@ const AppRoutes = () => {
           <Route
             path="users"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.USERS_MANAGE}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.USERS_MANAGE} requiredPlanModule="staff">
                 <UserManagement />
               </ProtectedRoute>
             }
@@ -278,7 +287,7 @@ const AppRoutes = () => {
           <Route
             path="users/logs"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.USERS_LOGS}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.USERS_LOGS} requiredPlanModule="staff">
                 <UserLogs />
               </ProtectedRoute>
             }
@@ -286,7 +295,7 @@ const AppRoutes = () => {
           <Route
             path="tables"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.TABLES_MANAGE}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.TABLES_MANAGE} requiredPlanModule="tables">
                 <TablesDashboard />
               </ProtectedRoute>
             }
@@ -294,7 +303,7 @@ const AppRoutes = () => {
           <Route
             path="floor"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.FLOOR_MANAGE}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.FLOOR_MANAGE} requiredPlanModule="floorDesigner">
                 <ErrorBoundary area="floor designer">
                   <FloorDesignerPage />
                 </ErrorBoundary>
@@ -304,7 +313,7 @@ const AppRoutes = () => {
           <Route
             path="floor/:floorId"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.FLOOR_MANAGE}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.FLOOR_MANAGE} requiredPlanModule="floorDesigner">
                 <ErrorBoundary area="floor designer">
                   <FloorDesignerPage />
                 </ErrorBoundary>
@@ -314,7 +323,7 @@ const AppRoutes = () => {
           <Route
             path="settings"
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.SETTINGS_MANAGE}>
+              <ProtectedRoute requiredPermission={PERMISSIONS.SETTINGS_MANAGE} requiredPlanModule="settings">
                 <ERPSystemSettings />
               </ProtectedRoute>
             }

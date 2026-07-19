@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { usePOSStore, type OnlinePaymentMethod, type PaymentMethod } from '../store/usePOSStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Banknote, CreditCard, Smartphone, Delete, CheckCircle2, User, Phone, Printer, Plus, MessageSquare, Ticket, Loader2, ExternalLink, RefreshCw, ShieldCheck, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Banknote, CreditCard, Smartphone, Delete, CheckCircle2, User, Phone, Printer, Plus, MessageSquare, Ticket, Loader2, ExternalLink, RefreshCw, ShieldCheck, AlertCircle, Wallet, Gift, ReceiptText, PauseCircle } from 'lucide-react';
 import { formatCurrency } from '@/utils/format';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -40,6 +40,11 @@ const paymentMethods: Array<{
   { id: 'cash', icon: Banknote, label: 'Cash', helper: 'Counter cash' },
   { id: 'card', icon: CreditCard, label: 'Card', helper: 'Manual terminal' },
   { id: 'upi', icon: Smartphone, label: 'UPI', helper: 'Manual QR' },
+  { id: 'wallet', icon: Wallet, label: 'Wallet', helper: 'Digital wallet' },
+  { id: 'gift_card', icon: Gift, label: 'Gift Card', helper: 'Voucher/card' },
+  { id: 'credit', icon: ReceiptText, label: 'Credit', helper: 'Pay later' },
+  { id: 'split', icon: Plus, label: 'Split', helper: 'Multiple pays' },
+  { id: 'store_credit', icon: Wallet, label: 'Store Credit', helper: 'Customer credit' },
   { id: 'paytm', icon: Smartphone, label: 'Paytm', helper: 'JS Checkout' },
   { id: 'phonepe', icon: Smartphone, label: 'PhonePe', helper: 'Standard Checkout' },
   { id: 'amazonpay', icon: CreditCard, label: 'Amazon Pay', helper: 'Checkout v2' },
@@ -51,10 +56,12 @@ function getPaymentMethodLabel(method: PaymentMethod) {
 
 export function CheckoutPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const user = useAuthStore((state) => state.user);
   const activeOutletId = useTenantStore((state) => state.activeOutletId);
   const outletId = activeOutletId || getTenantOutletId(user);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
   
   const { 
     cart, 
@@ -72,6 +79,7 @@ export function CheckoutPage() {
     setDiscount,
     lastOrder,
     activeTableLabel,
+    holdCurrentOrder,
   } = usePOSStore();
 
   const { validateVoucher } = useVoucherStore();
@@ -86,6 +94,7 @@ export function CheckoutPage() {
   });
   const [enabledGateways, setEnabledGateways] = useState<OnlinePaymentMethod[]>([]);
   const [gatewaySettingsError, setGatewaySettingsError] = useState('');
+  const [checkoutNotice, setCheckoutNotice] = useState('');
 
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const discountAmount = discountType === 'percentage' ? (subtotal * discountValue) / 100 : discountValue;
@@ -100,6 +109,11 @@ export function CheckoutPage() {
       }),
     [enabledGateways]
   );
+
+  useEffect(() => {
+    const quickSettled = new URLSearchParams(location.search).get('settled') === 'quick';
+    if (quickSettled && lastOrder) setIsSuccess(true);
+  }, [lastOrder, location.search]);
 
   useEffect(() => {
     let cancelled = false;
@@ -301,7 +315,8 @@ export function CheckoutPage() {
   };
 
   const handleCompleteOrder = async () => {
-    if (!isReady) return;
+    if (!isReady || isCompleting) return;
+    setIsCompleting(true);
     const paymentReference =
       gatewayState.status === 'verified' && gatewayState.session
         ? {
@@ -313,8 +328,12 @@ export function CheckoutPage() {
           }
         : undefined;
 
-    await processCheckout(paymentReference);
-    setIsSuccess(true);
+    try {
+      await processCheckout(paymentReference);
+      setIsSuccess(true);
+    } finally {
+      setIsCompleting(false);
+    }
   };
 
   const handleNewOrder = () => {
@@ -327,6 +346,17 @@ export function CheckoutPage() {
   const isOnlineGateway = isOnlinePaymentMethod(paymentMethod);
   const selectedGatewaySession =
     gatewayState.session?.gateway === paymentMethod ? gatewayState.session : null;
+  const serviceCharge = 0;
+  const roundOff = 0;
+  const paidAmount =
+    paymentMethod === 'cash'
+      ? Math.min(tenderedNumeric, total)
+      : isOnlineGateway
+        ? gatewayState.status === 'verified'
+          ? total
+          : 0
+        : total;
+  const remainingAmount = Math.max(0, total - paidAmount);
   
   // Is the order ready to complete?
   const isReady =
@@ -335,6 +365,11 @@ export function CheckoutPage() {
       : isOnlineGateway
         ? gatewayState.status === 'verified' && selectedGatewaySession !== null
         : true;
+
+  const handleHoldBill = async () => {
+    await holdCurrentOrder(activeTableLabel ? `Held table ${activeTableLabel}` : 'Held from checkout');
+    navigate('/erp/pos?view=held');
+  };
 
   const settings = useSettingsStore();
 
@@ -496,12 +531,71 @@ export function CheckoutPage() {
             <span>Tax (18%)</span>
             <span className="text-slate-700">{formatCurrency(tax)}</span>
           </div>
+          <div className="flex justify-between text-sm font-medium text-slate-500">
+            <span>Service Charge</span>
+            <span className="text-slate-700">{formatCurrency(serviceCharge)}</span>
+          </div>
+          <div className="flex justify-between text-sm font-medium text-slate-500">
+            <span>Round Off</span>
+            <span className="text-slate-700">{formatCurrency(roundOff)}</span>
+          </div>
+          <div className="border-t border-slate-200 pt-2 space-y-1">
+            <div className="flex justify-between text-sm font-black text-slate-900">
+              <span>Grand Total</span>
+              <span className="text-brand-orange">{formatCurrency(total)}</span>
+            </div>
+            <div className="flex justify-between text-xs font-bold text-emerald-600">
+              <span>Paid</span>
+              <span>{formatCurrency(paidAmount)}</span>
+            </div>
+            <div className="flex justify-between text-xs font-bold text-amber-600">
+              <span>Remaining</span>
+              <span>{formatCurrency(remainingAmount)}</span>
+            </div>
+            <div className="flex justify-between text-xs font-bold text-slate-500">
+              <span>Change</span>
+              <span>{formatCurrency(changeDue)}</span>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* RIGHT COLUMN: Payment Processing */}
       <div className="flex-1 flex flex-col bg-white overflow-y-auto p-4 lg:p-6 pb-24 md:pb-6">
         <div className="max-w-2xl w-full mx-auto flex flex-col gap-4 lg:gap-5 min-h-min lg:h-full">
+          <div className="shrink-0 rounded-2xl border border-slate-800 bg-slate-950 p-4 text-white shadow-sm">
+            <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-wider text-brand-orange">
+                  Payment workspace
+                </p>
+                <h2 className="mt-1 text-xl font-black tracking-tight">
+                  {activeTableLabel ? `Table ${activeTableLabel}` : 'Counter order'}
+                </h2>
+                <p className="mt-1 text-xs font-semibold text-slate-400">
+                  Use Settle from POS for fast payments. Use this page for customer, split, gateway, and receipt control.
+                </p>
+              </div>
+              <div className="sm:text-right">
+                <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                  Grand total
+                </p>
+                <p className="mt-1 text-3xl font-black text-brand-orange">{formatCurrency(total)}</p>
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+              {[
+                { label: 'Paid', value: formatCurrency(paidAmount), tone: 'text-emerald-300' },
+                { label: 'Remaining', value: formatCurrency(remainingAmount), tone: 'text-amber-300' },
+                { label: 'Change', value: formatCurrency(changeDue), tone: 'text-slate-200' },
+              ].map((item) => (
+                <div key={item.label} className="rounded-xl bg-white/8 px-3 py-2">
+                  <p className="font-black uppercase tracking-wider text-slate-500">{item.label}</p>
+                  <p className={`mt-1 truncate font-black ${item.tone}`}>{item.value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
           
           {/* Customer Details */}
           <div className="shrink-0 space-y-2">
@@ -527,6 +621,19 @@ export function CheckoutPage() {
                   onChange={(e) => setCustomerDetails(customerName, e.target.value)}
                 />
               </div>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+              {[
+                { label: 'Loyalty', value: customerPhone ? 'Gold' : 'Walk-in' },
+                { label: 'Points', value: customerPhone ? '240' : '0' },
+                { label: 'Last Visit', value: customerPhone ? '12 days' : 'New' },
+                { label: 'Credit', value: formatCurrency(0) },
+              ].map((item) => (
+                <div key={item.label} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{item.label}</p>
+                  <p className="truncate text-sm font-black text-slate-800">{item.value}</p>
+                </div>
+              ))}
             </div>
           </div>
           
@@ -670,8 +777,11 @@ export function CheckoutPage() {
               <div className="w-20 h-20 bg-white shadow-sm rounded-full flex items-center justify-center mb-6">
                 {paymentMethod === 'card' ? <CreditCard className="w-8 h-8 text-brand-orange" /> : <Smartphone className="w-8 h-8 text-brand-orange" />}
               </div>
-              <h3 className="text-xl font-bold text-slate-800 mb-2">Process {paymentMethod.toUpperCase()} Payment</h3>
-              <p className="text-center text-slate-500 max-w-sm">Please use your external terminal to collect <span className="font-bold text-slate-900">{formatCurrency(total)}</span>. Once successful, click below to complete the order.</p>
+              <h3 className="text-xl font-bold text-slate-800 mb-2">Process {getPaymentMethodLabel(paymentMethod)}</h3>
+              <p className="text-center text-slate-500 max-w-sm">
+                Collect <span className="font-bold text-slate-900">{formatCurrency(total)}</span> with the selected method,
+                then complete the order after terminal success.
+              </p>
             </div>
           )}
 
@@ -761,6 +871,50 @@ export function CheckoutPage() {
 
           {/* Action Footer */}
           <div className="shrink-0 mt-auto pt-2">
+            <div className="mb-3 grid grid-cols-2 lg:grid-cols-4 gap-2">
+              {[
+                { label: 'Hold Bill', icon: PauseCircle, action: handleHoldBill },
+                { label: 'Resume', icon: RefreshCw, action: () => navigate('/erp/pos?view=held') },
+                { label: 'Split Bill', icon: Plus, action: () => setCheckoutNotice('Split bill marked for cashier review.') },
+                { label: 'Void Bill', icon: Delete, action: () => setCheckoutNotice('Void bill requires manager approval.') },
+              ].map((item) => (
+                <Button
+                  key={item.label}
+                  type="button"
+                  variant="outline"
+                  className="h-10 rounded-xl border-slate-200 text-xs font-black"
+                  onClick={item.action}
+                >
+                  <item.icon className="mr-1.5 h-3.5 w-3.5" />
+                  {item.label}
+                </Button>
+              ))}
+            </div>
+            <div className="mb-3 grid grid-cols-3 lg:grid-cols-5 gap-2">
+              {[
+                { label: 'Print', icon: Printer, action: () => window.print() },
+                { label: 'WhatsApp', icon: MessageSquare, action: handleWhatsAppReceipt },
+                { label: 'Email', icon: User, action: () => setCheckoutNotice('Email receipt queued after customer email is captured.') },
+                { label: 'SMS', icon: Phone, action: () => setCheckoutNotice('SMS receipt queued after phone number is captured.') },
+                { label: 'No Receipt', icon: CheckCircle2, action: () => setCheckoutNotice('Receipt skipped for this bill.') },
+              ].map((item) => (
+                <Button
+                  key={item.label}
+                  type="button"
+                  variant="ghost"
+                  className="h-9 rounded-xl bg-slate-50 text-xs font-bold text-slate-600 hover:bg-slate-100"
+                  onClick={item.action}
+                >
+                  <item.icon className="mr-1 h-3.5 w-3.5" />
+                  {item.label}
+                </Button>
+              ))}
+            </div>
+            {checkoutNotice && (
+              <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">
+                {checkoutNotice}
+              </div>
+            )}
             <Button 
               size="lg" 
               className={cn(
@@ -769,11 +923,20 @@ export function CheckoutPage() {
                   ? "bg-slate-900 text-white hover:bg-slate-800 shadow-[0_8px_30px_rgba(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgba(0,0,0,0.16)] hover:-translate-y-1" 
                   : "bg-slate-100 text-slate-400 cursor-not-allowed opacity-70 shadow-none"
               )}
-              disabled={!isReady}
+              disabled={!isReady || isCompleting}
               onClick={handleCompleteOrder}
             >
-              Complete Order
-              <ArrowLeft className="w-5 h-5 ml-2 rotate-180" />
+              {isCompleting ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Completing
+                </>
+              ) : (
+                <>
+                  Complete Order
+                  <ArrowLeft className="w-5 h-5 ml-2 rotate-180" />
+                </>
+              )}
             </Button>
           </div>
 

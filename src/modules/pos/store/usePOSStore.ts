@@ -15,8 +15,23 @@ export interface CartItem {
   notes?: string;
 }
 
+export interface AddCartItemOptions {
+  price?: number;
+  notes?: string;
+  quantity?: number;
+}
+
 export type OnlinePaymentMethod = 'paytm' | 'phonepe' | 'amazonpay';
-export type PaymentMethod = 'cash' | 'card' | 'upi' | OnlinePaymentMethod;
+export type ManualPaymentMethod =
+  | 'cash'
+  | 'card'
+  | 'upi'
+  | 'wallet'
+  | 'gift_card'
+  | 'credit'
+  | 'split'
+  | 'store_credit';
+export type PaymentMethod = ManualPaymentMethod | OnlinePaymentMethod;
 
 export interface CheckoutPaymentReference {
   gateway: OnlinePaymentMethod;
@@ -56,7 +71,7 @@ interface POSState {
   searchQuery: string;
 
   setSearchQuery: (query: string) => void;
-  addItem: (product: any) => void;
+  addItem: (product: any, options?: AddCartItemOptions) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
@@ -108,14 +123,21 @@ export const usePOSStore = create<POSState>((set, get) => ({
 
   setSearchQuery: (query) => set({ searchQuery: query }),
 
-  addItem: (product) => {
+  addItem: (product, options = {}) => {
     set((state) => {
-      const existing = state.cart.find((item) => item.productId === product.id);
+      const price = options.price ?? product.selling_price ?? product.sellingPrice ?? product.price ?? 0;
+      const notes = options.notes?.trim() || undefined;
+      const quantity = Math.max(1, options.quantity || 1);
+      const existing = state.cart.find(
+        (item) => item.productId === product.id && item.price === price && (item.notes || '') === (notes || '')
+      );
       if (existing) {
         return {
           cart: state.cart.map((item) =>
             item.productId === product.id
-              ? { ...item, quantity: item.quantity + 1 }
+            && item.price === price
+            && (item.notes || '') === (notes || '')
+              ? { ...item, quantity: item.quantity + quantity }
               : item
           ),
         };
@@ -127,8 +149,9 @@ export const usePOSStore = create<POSState>((set, get) => ({
             id: crypto.randomUUID(),
             productId: product.id,
             name: product.name,
-            price: product.selling_price || product.sellingPrice || product.price || 0,
-            quantity: 1,
+            price,
+            quantity,
+            notes,
           },
         ],
       };
@@ -326,7 +349,7 @@ export const usePOSStore = create<POSState>((set, get) => ({
       const orderItems = cartSnapshot.map((item) => ({
         order_id: orderId,
         product_id: item.productId,
-        product_name: item.name,
+        product_name: item.notes ? `${item.name} (${item.notes})` : item.name,
         quantity: item.quantity,
         unit_price: item.price,
         total_price: item.price * item.quantity,

@@ -220,7 +220,13 @@ export default function LandingPage() {
         <div className="absolute inset-0 bg-[linear-gradient(105deg,rgba(13,27,42,0.96)_0%,rgba(13,27,42,0.88)_45%,rgba(13,27,42,0.38)_100%)]" />
 
         <nav className="relative z-10 flex items-center justify-between px-5 py-4 sm:px-8 lg:px-12">
-          <CafePilotsLogo size={40} withWordmark withDivider onDark />
+          <Link
+            to="/"
+            aria-label="Go to home page"
+            className="rounded-md outline-none transition-opacity hover:opacity-85 focus-visible:ring-2 focus-visible:ring-orange-300"
+          >
+            <CafePilotsLogo size={40} withWordmark withDivider onDark />
+          </Link>
           <div className="flex items-center gap-2">
             <a
               href={mailHref}
@@ -228,9 +234,15 @@ export default function LandingPage() {
             >
               Contact us
             </a>
+            <a
+              href={mailHref}
+              className="hidden rounded-md bg-brand-orange px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-black/20 transition hover:bg-brand-orange-light hover:text-brand-navy sm:inline-flex"
+            >
+              Get started
+            </a>
             <Link
               to={appHref}
-              className="rounded-md bg-brand-orange px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-black/20 transition hover:bg-brand-orange-light hover:text-brand-navy"
+              className="rounded-md border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/45 hover:bg-white/10"
             >
               Login
             </Link>
@@ -260,13 +272,13 @@ export default function LandingPage() {
               inventory, CRM, staff roles, and multi-branch reports.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link
-                to={appHref}
+              <a
+                href={mailHref}
                 className="group inline-flex items-center gap-2 rounded-md bg-brand-orange px-6 py-3 text-base font-bold text-white shadow-xl shadow-black/25 transition hover:bg-brand-orange-light hover:text-brand-navy"
               >
-                Open dashboard
+                Get started
                 <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-              </Link>
+              </a>
               <a
                 href={mailHref}
                 className="inline-flex items-center gap-2 rounded-md border border-white/25 bg-white/10 px-6 py-3 text-base font-semibold text-white backdrop-blur transition hover:border-white/45 hover:bg-white/15"
@@ -554,8 +566,15 @@ export default function LandingPage() {
                   href={mailHref}
                   className="inline-flex items-center gap-2 rounded-md bg-brand-orange px-6 py-3 font-bold text-white transition hover:bg-brand-orange-light hover:text-brand-navy"
                 >
+                  Get started
+                  <ArrowRight className="h-4 w-4" />
+                </a>
+                <a
+                  href={mailHref}
+                  className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-6 py-3 font-bold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
+                >
                   <Mail className="h-4 w-4" />
-                  {CONTACT_EMAIL}
+                  Contact us
                 </a>
                 <button
                   type="button"
@@ -596,7 +615,13 @@ export default function LandingPage() {
       <footer className="border-t border-slate-200 bg-white px-5 py-10 sm:px-8 lg:px-12">
         <div className="mx-auto flex max-w-7xl flex-col gap-8 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CafePilotsLogo size={34} withWordmark withDivider />
+            <Link
+              to="/"
+              aria-label="Go to home page"
+              className="inline-flex rounded-md outline-none transition-opacity hover:opacity-85 focus-visible:ring-2 focus-visible:ring-orange-300"
+            >
+              <CafePilotsLogo size={34} withWordmark withDivider />
+            </Link>
             <p className="mt-3 max-w-md text-sm text-slate-500">
               Restaurant operating system for POS, QR ordering, kitchen display, inventory, CRM,
               staff access, and multi-branch reporting.
@@ -608,6 +633,9 @@ export default function LandingPage() {
             </button>
             <a href={mailHref} className="hover:text-slate-950">
               Contact
+            </a>
+            <a href={mailHref} className="text-brand-orange hover:text-brand-navy">
+              Get started
             </a>
             <Link to={appHref} className="hover:text-slate-950">
               Login

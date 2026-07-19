@@ -22,6 +22,10 @@ import {
   Plus,
   Search,
   ListChecks,
+  Clock3,
+  BadgeCheck,
+  Sparkles,
+  PackageX,
 } from 'lucide-react';
 import { ProductAddonModal } from './ProductAddonModal';
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -98,6 +102,62 @@ function categoryIcon(category: string) {
   return { Icon: ListChecks, color: 'text-slate-600' };
 }
 
+function productStockQuantity(product: any) {
+  return Number(
+    product.current_stock ??
+      product.stock_quantity ??
+      product.stock ??
+      product.quantity ??
+      product.available_quantity ??
+      0
+  );
+}
+
+function isProductOutOfStock(product: any) {
+  const explicit =
+    product.is_out_of_stock === true ||
+    String(product.stock_status || '').toLowerCase() === 'out_of_stock' ||
+    String(product.status || '').toLowerCase() === 'out_of_stock';
+  if (explicit) return true;
+  if (product.track_stock === false || product.item_type !== 'ready_product') return false;
+  const qty = productStockQuantity(product);
+  return qty <= 0 && (product.current_stock !== undefined || product.stock_quantity !== undefined);
+}
+
+function prepMinutes(product: any) {
+  const raw = Number(product.preparation_time ?? product.prep_time ?? product.prep_minutes);
+  if (Number.isFinite(raw) && raw > 0) return Math.round(raw);
+  const category = String((product.categories as any)?.name || '').toLowerCase();
+  if (category.includes('beverage') || category.includes('coffee') || category.includes('shake')) return 5;
+  if (category.includes('bread') || category.includes('fries') || category.includes('appetizer')) return 8;
+  return 12;
+}
+
+function productBadges(product: any) {
+  const badges: Array<{ label: string; className: string; icon?: typeof BadgeCheck }> = [];
+  if (product.is_popular || product.is_featured) {
+    badges.push({ label: 'Popular', className: 'bg-orange-500 text-white', icon: BadgeCheck });
+  }
+  if (product.is_chef_special || product.chef_special) {
+    badges.push({ label: 'Chef special', className: 'bg-slate-900 text-white', icon: Sparkles });
+  }
+  const createdAt = product.created_at ? new Date(product.created_at).getTime() : 0;
+  const isNew = product.is_new || (createdAt && Date.now() - createdAt < 1000 * 60 * 60 * 24 * 21);
+  if (isNew) badges.push({ label: 'New', className: 'bg-emerald-500 text-white' });
+  return badges.slice(0, 2);
+}
+
+function shouldOpenModifierSheet(product: any) {
+  if (isProductOutOfStock(product)) return false;
+  if (product.has_modifiers || product.allow_customization || product.is_combo) return true;
+  if (Array.isArray(product.modifier_groups) && product.modifier_groups.length > 0) return true;
+  if (Array.isArray(product.variants) && product.variants.length > 0) return true;
+  const category = String((product.categories as any)?.name || '').toLowerCase();
+  return ['pizza', 'burger', 'pasta', 'maggi', 'sandwich', 'fries', 'bread'].some((term) =>
+    category.includes(term)
+  );
+}
+
 type ProductGridProps = {
   /** When true, only show favorited products (POS Favorites workspace) */
   favoritesOnly?: boolean;
@@ -126,6 +186,11 @@ export function ProductGrid({ favoritesOnly = false }: ProductGridProps) {
   });
 
   const handleProductClick = (product: any) => {
+    if (isProductOutOfStock(product)) return;
+    if (shouldOpenModifierSheet(product)) {
+      setSelectedProductForAddons(product);
+      return;
+    }
     addItem(product);
   };
 
@@ -193,10 +258,11 @@ export function ProductGrid({ favoritesOnly = false }: ProductGridProps) {
 
       {/* Category filter — desktop shows nav arrows, mobile scrolls freely */}
       {!favoritesOnly && (
-        <div className="relative flex items-center gap-2 -mx-0.5 px-0.5 sm:mx-0 sm:px-0">
+        <div className="relative -mx-0.5 px-0.5 sm:mx-0 sm:px-0">
           <button
             type="button"
-            className="cat-prev shrink-0 h-9 w-9 hidden sm:flex items-center justify-center rounded-full bg-white border border-slate-200 shadow-sm text-slate-500 hover:text-brand-orange hover:border-brand-orange/50 disabled:opacity-50 z-10"
+            aria-label="Previous category"
+            className="cat-prev absolute left-0 top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-500 shadow-md shadow-slate-900/10 backdrop-blur transition hover:border-brand-orange/40 hover:text-brand-orange sm:flex"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -209,7 +275,7 @@ export function ProductGrid({ favoritesOnly = false }: ProductGridProps) {
             observeParents
             navigation={{ prevEl: '.cat-prev', nextEl: '.cat-next' }}
             modules={[FreeMode, Navigation]}
-            className="w-full !overflow-visible"
+            className="pos-category-swiper w-full !overflow-hidden px-0 sm:px-9"
           >
             {categories.map((category) => {
               const { Icon, color } = categoryIcon(category);
@@ -241,7 +307,8 @@ export function ProductGrid({ favoritesOnly = false }: ProductGridProps) {
 
           <button
             type="button"
-            className="cat-next shrink-0 h-9 w-9 hidden sm:flex items-center justify-center rounded-full bg-white border border-slate-200 shadow-sm text-slate-500 hover:text-brand-orange hover:border-brand-orange/50 disabled:opacity-50 z-10"
+            aria-label="Next category"
+            className="cat-next absolute right-0 top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-500 shadow-md shadow-slate-900/10 backdrop-blur transition hover:border-brand-orange/40 hover:text-brand-orange sm:flex"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -332,11 +399,23 @@ export function ProductGrid({ favoritesOnly = false }: ProductGridProps) {
           </div>
         ) : (
           <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-4">
-            {filteredProducts.map((product) => (
+            {filteredProducts.map((product) => {
+              const outOfStock = isProductOutOfStock(product);
+              const badges = productBadges(product);
+              const minutes = prepMinutes(product);
+              const stockQty = productStockQuantity(product);
+
+              return (
               <Card
                 key={product.id}
-                className="group overflow-hidden bg-white rounded-xl sm:rounded-3xl border border-slate-100 shadow-sm active:scale-[0.98] transition-transform flex flex-col p-1.5 sm:p-3 relative cursor-pointer"
+                className={cn(
+                  'group overflow-hidden bg-white rounded-xl sm:rounded-2xl border border-slate-100 shadow-sm transition-all duration-200 flex flex-col p-1.5 sm:p-3 relative cursor-pointer',
+                  outOfStock
+                    ? 'opacity-75 cursor-not-allowed'
+                    : 'active:scale-[0.98] hover:-translate-y-0.5 hover:shadow-md hover:border-orange-200'
+                )}
                 onClick={() => handleProductClick(product)}
+                aria-disabled={outOfStock}
               >
                 {/* Dietary badge + favourite */}
                 <div className="flex items-start justify-between z-10 w-full mb-1">
@@ -390,6 +469,29 @@ export function ProductGrid({ favoritesOnly = false }: ProductGridProps) {
                       <UtensilsCrossed className="w-6 h-6 sm:w-8 sm:h-8 opacity-20" />
                     </div>
                   )}
+                  <div className="absolute left-1.5 top-1.5 flex flex-wrap gap-1">
+                    {badges.map((badge) => {
+                      const BadgeIcon = badge.icon;
+                      return (
+                        <span
+                          key={badge.label}
+                          className={cn(
+                            'inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase shadow-sm',
+                            badge.className
+                          )}
+                        >
+                          {BadgeIcon && <BadgeIcon className="h-2.5 w-2.5" />}
+                          {badge.label}
+                        </span>
+                      );
+                    })}
+                  </div>
+                  {outOfStock && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/70 text-white">
+                      <PackageX className="h-6 w-6 mb-1" />
+                      <span className="text-[10px] font-black uppercase tracking-wider">Out of stock</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Name + price + add button */}
@@ -397,15 +499,26 @@ export function ProductGrid({ favoritesOnly = false }: ProductGridProps) {
                   <h3 className="font-semibold text-brand-navy text-[10px] sm:text-sm leading-snug line-clamp-2 tracking-tight min-h-[2em]">
                     {product.name}
                   </h3>
+                  <div className="flex items-center gap-1.5 text-[9px] sm:text-[10px] font-bold text-slate-400">
+                    <span className="inline-flex items-center gap-0.5">
+                      <Clock3 className="h-3 w-3" />
+                      {minutes}m
+                    </span>
+                    <span className={cn('truncate', outOfStock ? 'text-rose-500' : stockQty > 0 ? 'text-emerald-600' : 'text-slate-400')}>
+                      {outOfStock ? 'Unavailable' : stockQty > 0 ? `${stockQty} in stock` : 'Ready'}
+                    </span>
+                  </div>
                   <div className="mt-auto flex items-center justify-between gap-0.5">
                     <span className="text-[11px] sm:text-sm font-bold text-brand-orange tabular-nums truncate">
                       {formatCurrency(product.selling_price || 0)}
                     </span>
                     <button
                       type="button"
-                      className="w-6 h-6 sm:w-8 sm:h-8 shrink-0 rounded-full bg-brand-orange text-white flex items-center justify-center active:bg-[#e55f00] shadow-sm"
+                      disabled={outOfStock}
+                      className="w-6 h-6 sm:w-8 sm:h-8 shrink-0 rounded-full bg-brand-orange text-white flex items-center justify-center active:bg-[#e55f00] shadow-sm disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (outOfStock) return;
                         addItem(product);
                       }}
                       aria-label={`Add ${product.name}`}
@@ -415,7 +528,8 @@ export function ProductGrid({ favoritesOnly = false }: ProductGridProps) {
                   </div>
                 </div>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

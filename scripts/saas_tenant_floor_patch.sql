@@ -11,13 +11,23 @@ create index if not exists floor_layouts_company_idx on public.floor_layouts (co
 -- Optional: company subscription (plan gates)
 create table if not exists public.company_subscriptions (
   company_id text primary key,
-  plan_id text not null default 'growth'
-    check (plan_id in ('starter', 'growth', 'enterprise')),
+  plan_id text not null default 'professional'
+    check (plan_id in ('lite', 'starter', 'professional', 'growth', 'enterprise')),
   status text not null default 'active'
     check (status in ('active', 'trialing', 'past_due', 'canceled')),
   seats int,
   updated_at timestamptz not null default now()
 );
+
+alter table public.company_subscriptions
+  drop constraint if exists company_subscriptions_plan_id_check;
+
+alter table public.company_subscriptions
+  add constraint company_subscriptions_plan_id_check
+  check (plan_id in ('lite', 'starter', 'professional', 'growth', 'enterprise'));
+
+alter table public.company_subscriptions
+  alter column plan_id set default 'professional';
 
 alter table public.company_subscriptions enable row level security;
 
@@ -32,7 +42,7 @@ begin
   end if;
 end $$;
 
--- Seed default growth plan for demo company if present
+-- Seed default professional plan for demo company if present
 insert into public.company_subscriptions (company_id, plan_id, status)
-values ('c1000000-0000-0000-0000-000000000001', 'growth', 'active')
+values ('c1000000-0000-0000-0000-000000000001', 'professional', 'active')
 on conflict (company_id) do nothing;

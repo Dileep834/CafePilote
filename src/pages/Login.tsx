@@ -15,7 +15,7 @@ import {
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { CafePilotsLogo } from '../components/CafePilotsLogo';
 import { useAuthStore } from '../store/useAuthStore';
-import { APP_NAME, APP_TAGLINE, HQ_COMPANY_ID, Role } from '../constants';
+import { APP_NAME, APP_TAGLINE, BRAND, HQ_COMPANY_ID, Role } from '../constants';
 import { isMarketingHost } from '../lib/appHost';
 import { authenticateStaff } from '../lib/staffSessionService';
 
@@ -77,7 +77,23 @@ const Login: React.FC = () => {
   return (
     <Box>
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 4 }}>
-        <Box sx={{ mb: 2 }}>
+        <Box
+          component={Link}
+          to="/"
+          aria-label="Go to home page"
+          sx={{
+            mb: 2,
+            display: 'inline-flex',
+            borderRadius: 1,
+            textDecoration: 'none',
+            transition: 'opacity 160ms ease',
+            '&:hover': { opacity: 0.86 },
+            '&:focus-visible': {
+              outline: `2px solid ${BRAND.orange}`,
+              outlineOffset: 4,
+            },
+          }}
+        >
           <CafePilotsLogo size={56} withWordmark withDivider />
         </Box>
         <Typography 

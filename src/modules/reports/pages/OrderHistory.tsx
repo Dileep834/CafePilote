@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useReportStore } from '../store/useReportStore';
 import dayjs from 'dayjs';
 import { formatCurrency } from '@/utils/format';
-import { FileText, Search, Store, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
+import { FileText, Search, Store, Calendar, ChevronDown, ChevronUp, Download, Printer, Clock3, WalletCards } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PERMISSIONS } from '@/constants/permissions';
 import { useHasPermission } from '@/hooks/useHasPermission';
@@ -32,6 +32,21 @@ export function OrderHistory() {
   };
 
   const totalSalesAmount = orders.reduce((sum, order) => sum + order.total_amount, 0);
+  const averageOrderValue = orders.length > 0 ? totalSalesAmount / orders.length : 0;
+  const paymentMix = orders.reduce<Record<string, number>>((acc, order) => {
+    const method = order.payment_method || 'unknown';
+    acc[method] = (acc[method] || 0) + 1;
+    return acc;
+  }, {});
+  const topPaymentMethod =
+    Object.entries(paymentMix).sort((a, b) => b[1] - a[1])[0]?.[0] || 'No payments';
+  const hourlySales = orders.reduce<Record<string, number>>((acc, order) => {
+    const hour = dayjs(order.created_at).format('ha');
+    acc[hour] = (acc[hour] || 0) + order.total_amount;
+    return acc;
+  }, {});
+  const peakHour = Object.entries(hourlySales).sort((a, b) => b[1] - a[1])[0];
+  const cancelledBills = orders.filter((order) => String(order.status || '').toLowerCase().includes('cancel')).length;
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -41,9 +56,9 @@ export function OrderHistory() {
         <div>
           <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             <FileText className="w-6 h-6 text-orange-600" />
-            Order History & Reports
+            Restaurant Reports
           </h1>
-          <p className="text-slate-500 text-sm">View past transactions across your business</p>
+          <p className="text-slate-500 text-sm">Sales, payments, discounts, peak hours, and table performance</p>
         </div>
 
         {/* Filters */}
@@ -85,29 +100,46 @@ export function OrderHistory() {
             </select>
           </div>
 
+          {[
+            { label: 'Excel', icon: Download },
+            { label: 'PDF', icon: FileText },
+            { label: 'CSV', icon: Download },
+            { label: 'Print', icon: Printer, action: () => window.print() },
+          ].map((action) => (
+            <button
+              key={action.label}
+              type="button"
+              onClick={action.action}
+              className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 shadow-sm hover:bg-slate-50"
+            >
+              <action.icon className="mr-1.5 inline h-3.5 w-3.5" />
+              {action.label}
+            </button>
+          ))}
+
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-slate-500 text-sm font-medium">Total Revenue</p>
-            <p className="text-2xl font-black text-slate-800">{formatCurrency(totalSalesAmount)}</p>
+      <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
+        {[
+          { label: 'Revenue', value: formatCurrency(totalSalesAmount), icon: FileText, tone: 'bg-emerald-50 text-emerald-700' },
+          { label: 'Orders', value: orders.length, icon: Store, tone: 'bg-blue-50 text-blue-700' },
+          { label: 'AOV', value: formatCurrency(averageOrderValue), icon: WalletCards, tone: 'bg-orange-50 text-orange-700' },
+          { label: 'Peak hour', value: peakHour ? peakHour[0] : 'None', icon: Clock3, tone: 'bg-amber-50 text-amber-700' },
+          { label: 'Top payment', value: topPaymentMethod, icon: WalletCards, tone: 'bg-slate-50 text-slate-700' },
+          { label: 'Cancelled', value: cancelledBills, icon: Search, tone: 'bg-rose-50 text-rose-700' },
+        ].map((stat) => (
+          <div key={stat.label} className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${stat.tone}`}>
+              <stat.icon className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] text-slate-500 font-black uppercase tracking-wider">{stat.label}</p>
+              <p className="truncate text-lg font-black text-slate-800">{stat.value}</p>
+            </div>
           </div>
-          <div className="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center text-green-600">
-            <FileText className="w-6 h-6" />
-          </div>
-        </div>
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-slate-500 text-sm font-medium">Total Orders</p>
-            <p className="text-2xl font-black text-slate-800">{orders.length}</p>
-          </div>
-          <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-600">
-            <Store className="w-6 h-6" />
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* Data Table */}

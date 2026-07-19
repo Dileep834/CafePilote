@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Button, IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
+import { Box, Button, IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem } from '@mui/material';
 import type { GridColDef } from '@mui/x-data-grid';
 import { Add, Edit, Delete } from '@mui/icons-material';
 import DataTable from '../../components/DataTable';
 import { supabase } from '../../lib/supabase';
 import { useFeedback } from '../../hooks/useFeedback';
+import { PLAN_LIMITS, normalizePlanId, type SubscriptionPlanId } from '@/lib/planLimits';
+import { useAuthStore } from '@/store/useAuthStore';
+import { isSuperAdmin } from '@/lib/access';
 
 const Companies: React.FC = () => {
   const { showFeedback, FeedbackComponent } = useFeedback();
+  const user = useAuthStore((s) => s.user);
   const [companies, setCompanies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -15,6 +19,7 @@ const Companies: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<any>({ is_active: true });
+  const canManageSubscriptions = isSuperAdmin(user);
 
   useEffect(() => {
     fetchCompanies();
@@ -24,7 +29,39 @@ const Companies: React.FC = () => {
     try {
       const { data, error } = await supabase.from('companies').select('*').order('name');
       if (error) throw error;
-      if (data) setCompanies(data);
+      let subscriptions = new Map<string, { plan_id?: string | null; status?: string | null }>();
+
+      try {
+        const ids = (data || []).map((company) => String(company.id));
+        if (ids.length > 0) {
+          const { data: subData, error: subError } = await supabase
+            .from('company_subscriptions')
+            .select('company_id, plan_id, status')
+            .in('company_id', ids);
+          if (subError) throw subError;
+          subscriptions = new Map(
+            (subData || []).map((sub: any) => [
+              String(sub.company_id),
+              { plan_id: sub.plan_id, status: sub.status },
+            ])
+          );
+        }
+      } catch (subscriptionError) {
+        console.warn('Company subscriptions not available yet:', subscriptionError);
+      }
+
+      if (data) {
+        setCompanies(
+          data.map((company) => {
+            const subscription = subscriptions.get(String(company.id));
+            return {
+              ...company,
+              subscription_plan_id: normalizePlanId(subscription?.plan_id),
+              subscription_status: subscription?.status || 'active',
+            };
+          })
+        );
+      }
     } catch (error) {
       console.error('Error fetching companies:', error);
     } finally {
@@ -89,9 +126,77 @@ const Companies: React.FC = () => {
     }
   };
 
+  const handlePlanChange = async (companyId: string, planId: SubscriptionPlanId) => {
+    if (!canManageSubscriptions) return;
+    const previous = companies;
+    setCompanies((rows) =>
+      rows.map((company) =>
+        company.id === companyId
+          ? { ...company, subscription_plan_id: planId, subscription_status: 'active' }
+          : company
+      )
+    );
+
+    try {
+      const { error } = await supabase.from('company_subscriptions').upsert(
+        {
+          company_id: String(companyId),
+          plan_id: planId,
+          status: 'active',
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'company_id' }
+      );
+      if (error) throw error;
+      showFeedback(`Subscription updated to ${PLAN_LIMITS[planId].label}.`, 'success');
+    } catch (error: any) {
+      setCompanies(previous);
+      showFeedback(
+        'Could not update subscription. Run ensure_hq_company.sql or saas_tenant_floor_patch.sql first.',
+        'error'
+      );
+      console.error('Error updating subscription', error);
+    }
+  };
+
   const columns: GridColDef[] = [
     { field: 'name', headerName: 'Company Name', flex: 1, minWidth: 200 },
     { field: 'subdomain', headerName: 'Subdomain', width: 200 },
+    {
+      field: 'subscription_plan_id',
+      headerName: 'Subscription',
+      width: 190,
+      renderCell: (params: any) => (
+        <TextField
+          select
+          size="small"
+          value={normalizePlanId(params.value)}
+          disabled={!canManageSubscriptions}
+          onChange={(event) =>
+            void handlePlanChange(params.row.id, event.target.value as SubscriptionPlanId)
+          }
+          sx={{ minWidth: 155 }}
+        >
+          {(Object.keys(PLAN_LIMITS) as SubscriptionPlanId[]).map((planId) => (
+            <MenuItem key={planId} value={planId}>
+              {PLAN_LIMITS[planId].label}
+            </MenuItem>
+          ))}
+        </TextField>
+      ),
+    },
+    {
+      field: 'subscription_status',
+      headerName: 'Billing',
+      width: 120,
+      renderCell: (params: any) => (
+        <Chip
+          label={params.value || 'active'}
+          color={params.value === 'active' ? 'success' : 'warning'}
+          size="small"
+        />
+      ),
+    },
     { 
       field: 'is_active', 
       headerName: 'Status', 
