@@ -8,7 +8,7 @@ import { usePOSStore } from '../store/usePOSStore';
 import { useTableBillStore } from '@/modules/tables/store/useTableBillStore';
 import { usePOSFavoritesStore } from '../store/usePOSFavoritesStore';
 import { formatCurrency } from '@/utils/format';
-import { ShoppingCart, Search, ChevronRight } from 'lucide-react';
+import { ShoppingCart, Search, ChevronRight, X, ArrowUp } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { getTenantOutletId, useTenantStore } from '@/store/useTenantStore';
 import { POSToolRail, type PosView } from '../components/POSToolRail';
@@ -33,6 +33,12 @@ export function POSDashboard() {
   const { user } = useAuthStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const mobileScrollRef = React.useRef<HTMLDivElement | null>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [showMobileGreeting, setShowMobileGreeting] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return window.sessionStorage.getItem('cafepilots-pos-greeting-hidden') !== '1';
+  });
   const [posView, setPosView] = useState<PosView>(() =>
     parsePosView(searchParams.get('view'))
   );
@@ -85,6 +91,19 @@ export function POSDashboard() {
 
   const showMobileSearch = posView === 'menu' || posView === 'favorites';
 
+  const dismissMobileGreeting = () => {
+    setShowMobileGreeting(false);
+    window.sessionStorage.setItem('cafepilots-pos-greeting-hidden', '1');
+  };
+
+  const handleMobileContentScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    setShowScrollTop(event.currentTarget.scrollTop > 220);
+  };
+
+  const scrollMobileToTop = () => {
+    mobileScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const leftPane = useMemo(() => {
     if (posView === 'history') return <POSOrderHistory variant="panel" />;
     if (posView === 'held')
@@ -92,8 +111,6 @@ export function POSDashboard() {
     if (posView === 'favorites') return <ProductGrid favoritesOnly />;
     return <ProductGrid />;
   }, [posView, handleViewChange]);
-
-  const hasCartItems = cart.length > 0 || (heldOrders && heldOrders.length > 0);
 
   return (
     /*
@@ -103,16 +120,33 @@ export function POSDashboard() {
     <div className="absolute inset-0 flex flex-col md:flex-row bg-slate-100 font-sans pos-crisp-text overflow-hidden">
 
       {/* ── Left pane: tool rail + filters + product grid ── */}
-      <div className="flex flex-1 flex-col overflow-hidden min-h-0">
+      <div
+        ref={mobileScrollRef}
+        onScroll={handleMobileContentScroll}
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-smooth md:overflow-hidden"
+      >
 
         {/* Mobile greeting bar */}
-        <div className="md:hidden flex items-center justify-between px-3 pt-3 pb-1 shrink-0">
-          <div>
-            <h2 className="text-sm font-bold tracking-tight text-slate-800 leading-none">
+        <div
+          className={cn(
+            'flex shrink-0 items-start justify-between gap-3 px-3 pb-1 pt-3 md:hidden',
+            !showMobileGreeting && 'hidden'
+          )}
+        >
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-bold leading-none tracking-tight text-slate-800">
               {greetingForHour(new Date().getHours())}, {firstName} 👋
             </h2>
-            <p className="text-slate-400 text-[10px] font-medium mt-0.5">Ready to take the next order</p>
+            <p className="mt-0.5 truncate text-[10px] font-medium text-slate-400">Ready to take the next order</p>
           </div>
+          <button
+            type="button"
+            onClick={dismissMobileGreeting}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 shadow-sm active:bg-slate-50"
+            aria-label="Hide greeting"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
         </div>
 
         {/* Tool rail (Menu / Favorites / History / Held + New Order) */}
@@ -144,12 +178,23 @@ export function POSDashboard() {
         )}
 
         {/* Product grid / history / held — fills all remaining vertical space */}
-        <div className="flex-1 min-h-0 overflow-hidden px-3 pb-20 md:pb-3">
-          <Card className="h-full flex flex-col border-none sm:border sm:border-slate-200 bg-white overflow-hidden p-0 sm:p-4 shadow-none sm:shadow-sm">
+        <div className="min-h-0 px-3 pb-24 md:flex-1 md:overflow-hidden md:pb-3">
+          <Card className="flex h-auto flex-col overflow-visible border-none bg-white p-0 shadow-none sm:border sm:border-slate-200 sm:p-4 sm:shadow-sm md:h-full md:overflow-hidden">
             {leftPane}
           </Card>
         </div>
       </div>
+
+      {showScrollTop && (
+        <button
+          type="button"
+          onClick={scrollMobileToTop}
+          className="absolute bottom-[calc(5.25rem+env(safe-area-inset-bottom))] right-4 z-40 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-lg shadow-slate-900/15 transition active:scale-95 md:hidden"
+          aria-label="Scroll menu to top"
+        >
+          <ArrowUp className="h-4 w-4" />
+        </button>
+      )}
 
       {/* ── Desktop right pane: Cart ── */}
       <div className="hidden md:flex w-96 flex-col p-4 pl-0">
@@ -199,8 +244,15 @@ export function POSDashboard() {
               </button>
             }
           />
-          <SheetContent side="bottom" className="h-[85vh] p-0 rounded-t-3xl border-none">
-            <Cart onOpenHeld={() => handleViewChange('held')} />
+          <SheetContent
+            side="bottom"
+            showCloseButton={false}
+            className="h-[92svh] max-h-[92svh] gap-0 overflow-hidden rounded-t-3xl border-none p-0"
+          >
+            <Cart
+              onOpenHeld={() => handleViewChange('held')}
+              onClose={() => setIsCartOpen(false)}
+            />
           </SheetContent>
         </Sheet>
       </div>

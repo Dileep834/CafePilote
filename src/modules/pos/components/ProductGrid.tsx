@@ -174,7 +174,7 @@ export function ProductGrid({ favoritesOnly = false }: ProductGridProps) {
   const activeOutletId = useTenantStore((s) => s.activeOutletId);
   const companyId = getScopedCompanyId(user);
   const userKey = user?.id || user?.email || 'local-staff';
-  const favList = byUser[userKey] || [];
+  const favList = useMemo(() => byUser[userKey] || [], [byUser, userKey]);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedDiet, setSelectedDiet] = useState<string>('All');
   const [selectedProductForAddons, setSelectedProductForAddons] = useState<any | null>(null);
@@ -246,7 +246,7 @@ export function ProductGrid({ favoritesOnly = false }: ProductGridProps) {
   }
 
   return (
-    <div className="flex flex-col h-full gap-2 sm:gap-4 min-h-0">
+    <div className="flex min-h-0 flex-col gap-2 pb-3 sm:gap-4 md:h-full md:overflow-hidden md:pb-0">
       {favoritesOnly && (
         <div className="px-0.5 sm:px-0">
           <p className="text-sm font-bold text-brand-navy">Your favorites</p>
@@ -384,7 +384,7 @@ export function ProductGrid({ favoritesOnly = false }: ProductGridProps) {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-4">
+      <div className="shrink-0 pb-24 md:min-h-0 md:flex-1 md:overflow-y-auto md:overscroll-contain md:pb-4">
         {filteredProducts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center text-slate-400">
             <UtensilsCrossed className="w-10 h-10 opacity-30 mb-2" />

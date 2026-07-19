@@ -54,6 +54,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { usePermissionsStore } from '@/store/usePermissionsStore';
 import { useTenantStore } from '@/store/useTenantStore';
 import { useKitchenStore } from '@/modules/kitchen/store/useKitchenStore';
+import { usePOSStore } from '@/modules/pos/store/usePOSStore';
 import { useTableBillStore } from '@/modules/tables/store/useTableBillStore';
 import { useTableStore } from '@/modules/tables/store/useTableStore';
 import { formatCurrency } from '@/utils/format';
@@ -693,7 +694,7 @@ function OpsAlertsPanel({
       ? { title: 'Kitchen delay', detail: `${kitchenQueue} tickets in service`, tone: 'amber', icon: ChefHat }
       : null,
     showTables && openBills > 8
-      ? { title: 'Pending payments', detail: `${openBills} running table checks`, tone: 'orange', icon: ReceiptText }
+      ? { title: 'Pending payments', detail: `${openBills} running bills`, tone: 'orange', icon: ReceiptText }
       : null,
     showPurchase && metrics.draftPurchaseOrders > 0
       ? { title: 'Purchase follow-up', detail: `${metrics.draftPurchaseOrders} open purchase orders`, tone: 'sky', icon: Truck }
@@ -838,6 +839,9 @@ export function ERPHome() {
   const hydrateOpenBills = useTableBillStore((s) => s.hydrateOpenBills);
   const kitchenOrders = useKitchenStore((s) => s.orders);
   const fetchKitchenOrders = useKitchenStore((s) => s.fetchOrders);
+  const posCart = usePOSStore((s) => s.cart);
+  const activeTableId = usePOSStore((s) => s.activeTableId);
+  const lastOrder = usePOSStore((s) => s.lastOrder);
 
   const activeOutlet = outlets.find((outlet) => outlet.id === activeOutletId);
   const canAccess = (permission: PermissionId, planModule?: PlanModuleId) =>
@@ -871,9 +875,18 @@ export function ERPHome() {
   const metricsQuery = useQuery({
     queryKey: ['erp-home-metrics', activeOutletId],
     queryFn: () => fetchDashboardMetrics(activeOutletId),
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
+    staleTime: 0,
+    refetchInterval: 15_000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
+  const refetchMetrics = metricsQuery.refetch;
+
+  useEffect(() => {
+    const refreshAfterOrder = () => void refetchMetrics();
+    window.addEventListener('cafepilots:orders-updated', refreshAfterOrder);
+    return () => window.removeEventListener('cafepilots:orders-updated', refreshAfterOrder);
+  }, [refetchMetrics]);
 
   const metrics = metricsQuery.data || EMPTY_METRICS;
 
@@ -908,6 +921,80 @@ export function ERPHome() {
   );
 
   const openBillTotal = openBills.reduce((sum, bill) => sum + getBillTotal(bill), 0);
+  const highestOpenBillTotal = openBills.reduce(
+    (highest, bill) => Math.max(highest, getBillTotal(bill)),
+    0
+  );
+  const activeTableBill = activeTableId
+    ? openBills.find((bill) => bill.tableId === activeTableId)
+    : undefined;
+  const activeTableBillTotal = activeTableBill ? getBillTotal(activeTableBill) : 0;
+  const activeTableBillItems =
+    activeTableBill?.items.reduce((sum, item) => sum + item.quantity, 0) || 0;
+  const openBillItemCount = openBills.reduce(
+    (sum, bill) => sum + bill.items.reduce((qty, item) => qty + item.quantity, 0),
+    0
+  );
+  const posCartTotal = posCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const posCartItems = posCart.reduce((sum, item) => sum + item.quantity, 0);
+  const cartNeedsOwnCheck = posCart.length > 0 && !activeTableBill;
+  const liveOpenChecks = openBills.length + (cartNeedsOwnCheck ? 1 : 0);
+  const liveOpenBillTotal =
+    activeTableId && activeTableBill
+      ? openBillTotal - activeTableBillTotal + Math.max(activeTableBillTotal, posCartTotal)
+      : openBillTotal + posCartTotal;
+  const liveOpenItemCount =
+    activeTableId && activeTableBill
+      ? openBillItemCount - activeTableBillItems + Math.max(activeTableBillItems, posCartItems)
+      : openBillItemCount + posCartItems;
+  const lastOrderId = lastOrder?.id ? String(lastOrder.id) : '';
+  const lastOrderTotal = Number(lastOrder?.totalAmount) || 0;
+  const lastOrderTimestamp = String(lastOrder?.timestamp || '');
+  const lastOrderAlreadySynced = Boolean(
+    lastOrderId && metrics.recentActivity.some((activity) => activity.id === lastOrderId)
+  );
+  const lastOrderMatchesOutlet =
+    !activeOutletId ||
+    activeOutletId === 'current-outlet' ||
+    !lastOrder?.outletId ||
+    lastOrder.outletId === activeOutletId;
+  const showSettledOrderPreview =
+    lastOrderTotal > 0 &&
+    lastOrderTimestamp >= startOfTodayIso() &&
+    lastOrderMatchesOutlet &&
+    !lastOrderAlreadySynced;
+  const livePendingPayments = Math.max(metrics.pendingPayments, liveOpenChecks);
+  const displayCompletedOrders = metrics.completedOrders + (showSettledOrderPreview ? 1 : 0);
+  const displayTodayRevenue =
+    metrics.todayRevenue + (showSettledOrderPreview ? lastOrderTotal : 0);
+  const displayMetrics = {
+    ...metrics,
+    todayRevenue: displayTodayRevenue,
+    completedOrders: displayCompletedOrders,
+    pendingPayments: livePendingPayments,
+    averageOrderValue:
+      displayCompletedOrders > 0 ? displayTodayRevenue / displayCompletedOrders : 0,
+    highestTableBill: Math.max(
+      metrics.highestTableBill,
+      highestOpenBillTotal,
+      posCartTotal,
+      showSettledOrderPreview ? lastOrderTotal : 0
+    ),
+    recentActivity: showSettledOrderPreview
+      ? [
+          {
+            id: lastOrderId || `local-${lastOrderTimestamp}`,
+            label: lastOrder?.tableLabel
+              ? `Table ${lastOrder.tableLabel}`
+              : lastOrder?.customer?.name || 'Walk-in order',
+            detail: `completed - ${String(lastOrder?.paymentMethod || 'paid')}`,
+            amount: lastOrderTotal,
+            time: shortTimeLabel(lastOrderTimestamp),
+          },
+          ...metrics.recentActivity,
+        ].slice(0, 6)
+      : metrics.recentActivity,
+  };
   const pendingKitchen = kitchenOrders.filter((order) => order.kitchen_status === 'pending').length;
   const preparingKitchen = kitchenOrders.filter((order) => order.kitchen_status === 'preparing').length;
   const readyKitchen = kitchenOrders.filter((order) => order.kitchen_status === 'ready').length;
@@ -966,13 +1053,13 @@ export function ERPHome() {
   const visibleMetrics = [
     {
       label: 'Today sales',
-      value: formatCurrency(metrics.todayRevenue),
-      detail: `${metrics.completedOrders} paid orders`,
-      trend: trendPercent(metrics.todayRevenue, metrics.yesterdayRevenue),
-      comparison: `Yesterday ${formatCurrency(metrics.yesterdayRevenue)}`,
+      value: formatCurrency(displayMetrics.todayRevenue),
+      detail: `${displayMetrics.completedOrders} paid, ${liveOpenChecks} running`,
+      trend: trendPercent(displayMetrics.todayRevenue, displayMetrics.yesterdayRevenue),
+      comparison: `Yesterday ${formatCurrency(displayMetrics.yesterdayRevenue)}`,
       icon: BarChart3,
       tone: 'emerald' as const,
-      status: metrics.todayRevenue >= metrics.yesterdayRevenue ? 'good' as const : 'watch' as const,
+      status: displayMetrics.todayRevenue >= displayMetrics.yesterdayRevenue ? 'good' as const : 'watch' as const,
       permissions: [PERMISSIONS.POS_ACCESS, PERMISSIONS.REPORTS_VIEW],
       planModule: 'pos' as const,
     },
@@ -999,13 +1086,13 @@ export function ERPHome() {
       planModule: 'kitchen' as const,
     },
     {
-      label: 'Open checks',
-      value: String(openBills.length),
-      detail: formatCurrency(openBillTotal),
-      comparison: `${metrics.pendingPayments} payment follow-ups`,
+      label: 'Running bills',
+      value: String(liveOpenChecks),
+      detail: `${liveOpenItemCount} items - ${formatCurrency(liveOpenBillTotal)}`,
+      comparison: `${livePendingPayments} payment follow-ups`,
       icon: ReceiptText,
-      tone: (openBills.length > 0 ? 'orange' : 'slate') as const,
-      status: openBills.length > 8 ? 'danger' as const : openBills.length > 0 ? 'watch' as const : 'good' as const,
+      tone: (liveOpenChecks > 0 ? 'orange' : 'slate') as const,
+      status: liveOpenChecks > 8 ? 'danger' as const : liveOpenChecks > 0 ? 'watch' as const : 'good' as const,
       permissions: [PERMISSIONS.POS_ACCESS, PERMISSIONS.TABLES_MANAGE],
       planModule: 'pos' as const,
     },
@@ -1045,10 +1132,10 @@ export function ERPHome() {
           planModule: 'kitchen' as const,
         }
       : null,
-    openBills.length > 0
+    liveOpenChecks > 0
       ? {
-          title: `${openBills.length} open table checks`,
-          detail: `${formatCurrency(openBillTotal)} currently unpaid`,
+          title: `${liveOpenChecks} running bills in service`,
+          detail: `${liveOpenItemCount} items - ${formatCurrency(liveOpenBillTotal)} unpaid`,
           path: '/erp/tables',
           icon: ReceiptText,
           tone: 'bg-sky-50 text-sky-700',
@@ -1139,7 +1226,7 @@ export function ERPHome() {
         {(metrics.hadError || metricsQuery.isError) && (
           <div className="mt-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
             <AlertTriangle className="h-4 w-4 shrink-0" />
-            Some live metrics could not refresh. Local tables and open checks are still shown.
+            Some live metrics could not refresh. Local tables and running bills are still shown.
           </div>
         )}
       </section>
@@ -1147,7 +1234,7 @@ export function ERPHome() {
       <div className="grid gap-6 lg:grid-cols-3">
         <section className="flex flex-col gap-6 lg:col-span-2">
           {canAccessAny([PERMISSIONS.POS_ACCESS, PERMISSIONS.REPORTS_VIEW]) && (
-            <SalesPulsePanel metrics={metrics} />
+            <SalesPulsePanel metrics={displayMetrics} />
           )}
 
           {quickActions.length > 0 && (
@@ -1210,17 +1297,17 @@ export function ERPHome() {
 
         <aside className="flex flex-col gap-4 lg:col-span-1">
           <QuickInsightsPanel
-            metrics={metrics}
-            openBills={openBills.length}
+            metrics={displayMetrics}
+            openBills={liveOpenChecks}
             kitchenQueue={kitchenQueue}
             showTables={canAccess(PERMISSIONS.TABLES_MANAGE, 'tables')}
             showKitchen={canAccess(PERMISSIONS.KITCHEN_ACCESS, 'kitchen')}
           />
 
           <OpsAlertsPanel
-            metrics={metrics}
+            metrics={displayMetrics}
             kitchenQueue={kitchenQueue}
-            openBills={openBills.length}
+            openBills={liveOpenChecks}
             showInventory={canAccess(PERMISSIONS.INVENTORY_VIEW, 'inventory')}
             showKitchen={canAccess(PERMISSIONS.KITCHEN_ACCESS, 'kitchen')}
             showTables={canAccess(PERMISSIONS.TABLES_MANAGE, 'tables')}
@@ -1283,7 +1370,7 @@ export function ERPHome() {
             </Card>
           )}
 
-          <RecentActivityPanel metrics={metrics} />
+          <RecentActivityPanel metrics={displayMetrics} />
         </aside>
       </div>
     </div>

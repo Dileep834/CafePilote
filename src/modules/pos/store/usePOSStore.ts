@@ -106,6 +106,11 @@ function cartToBillItems(cart: CartItem[]): TableBillItem[] {
   }));
 }
 
+function cloudOutletId(outletId?: string | null) {
+  if (!outletId || outletId === 'current-outlet' || outletId.startsWith('local')) return null;
+  return outletId;
+}
+
 export const usePOSStore = create<POSState>((set, get) => ({
   cart: [],
   heldOrders: [],
@@ -261,7 +266,13 @@ export const usePOSStore = create<POSState>((set, get) => ({
   processCheckout: async (paymentReference) => {
     const state = get();
     const { user } = useAuthStore.getState();
-    const outletId = user?.outletId;
+    const tableBill = state.activeTableId
+      ? useTableBillStore.getState().getOpenBill(state.activeTableId)
+      : undefined;
+    const outletId =
+      cloudOutletId(tableBill?.outletId) ||
+      cloudOutletId(getTenantOutletId(user)) ||
+      cloudOutletId(user?.outletId);
 
     const subtotal = state.cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const discountAmount =
@@ -390,10 +401,19 @@ export const usePOSStore = create<POSState>((set, get) => ({
         changeDue,
         paymentReference,
         tableLabel,
+        outletId,
         customer: { name: state.customerName, phone: state.customerPhone },
         timestamp: new Date().toISOString(),
       },
     });
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('cafepilots:orders-updated', {
+          detail: { orderId, outletId, totalAmount },
+        })
+      );
+    }
   },
 
   holdCurrentOrder: async (note: string) => {
@@ -415,7 +435,7 @@ export const usePOSStore = create<POSState>((set, get) => ({
     }
 
     const { user } = useAuthStore.getState();
-    const outletId = user?.outletId;
+    const outletId = cloudOutletId(getTenantOutletId(user)) || cloudOutletId(user?.outletId);
     const subtotal = state.cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const taxAmount = subtotal * state.taxRate;
     const totalAmount = subtotal + taxAmount;
@@ -475,7 +495,8 @@ export const usePOSStore = create<POSState>((set, get) => ({
         .eq('status', 'held')
         .order('created_at', { ascending: false });
 
-      if (user?.outletId) query = query.eq('outlet_id', user.outletId);
+      const outletId = cloudOutletId(getTenantOutletId(user)) || cloudOutletId(user?.outletId);
+      if (outletId) query = query.eq('outlet_id', outletId);
       else query = query.is('outlet_id', null);
 
       const { data, error } = await query;

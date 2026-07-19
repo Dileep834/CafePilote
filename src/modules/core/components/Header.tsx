@@ -61,7 +61,7 @@ export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center gap-2 border-b bg-white px-3 shadow-sm sm:gap-3 sm:px-6 overflow-hidden">
+    <header className="sticky top-0 z-40 flex h-16 w-full shrink-0 items-center gap-2 overflow-hidden border-b bg-white px-3 shadow-sm sm:gap-3 sm:px-6">
       {/* Left: nav + logo */}
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>

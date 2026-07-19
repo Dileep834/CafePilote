@@ -469,23 +469,23 @@ export function CheckoutPage() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-64px)] md:h-[calc(100vh-64px)] w-full bg-white flex-col md:flex-row -m-4 sm:-m-6 lg:-m-8 shadow-inner overflow-hidden">
+    <div className="flex min-h-[calc(100vh-64px)] w-full flex-col bg-slate-50 pb-28 shadow-inner -m-4 overflow-visible sm:-m-6 md:h-[calc(100vh-64px)] md:flex-row md:overflow-hidden md:bg-white md:pb-0 lg:-m-8">
       
       {/* LEFT COLUMN: Order Summary */}
-      <div className="w-full md:w-1/3 bg-slate-50/50 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col md:h-full z-10 relative">
+      <div className="relative z-10 flex w-full flex-col border-b border-slate-200 bg-white md:h-full md:w-1/3 md:border-b-0 md:border-r md:bg-slate-50/50">
         
         {/* Header */}
-        <div className="p-6 flex items-center gap-4 bg-transparent border-b border-slate-200/60">
+        <div className="flex items-center gap-3 border-b border-slate-200/60 bg-transparent p-3 sm:p-4 md:gap-4 md:p-6">
           <Button 
             variant="ghost" 
             size="icon" 
             onClick={() => navigate('/erp/pos')}
-            className="text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 rounded-full h-10 w-10 transition-colors"
+            className="h-9 w-9 rounded-full text-slate-500 transition-colors hover:bg-slate-200/50 hover:text-slate-900 md:h-10 md:w-10"
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
-            <h1 className="text-xl font-bold text-slate-800 tracking-tight">Checkout</h1>
+            <h1 className="text-lg font-bold tracking-tight text-slate-800 md:text-xl">Checkout</h1>
             {activeTableLabel && (
               <p className="text-xs font-bold text-brand-orange mt-0.5">Table {activeTableLabel}</p>
             )}
@@ -493,49 +493,49 @@ export function CheckoutPage() {
         </div>
 
         {/* Total Summary Header */}
-        <div className="px-4 xl:px-8 pt-8 pb-6 flex flex-col items-center justify-center text-center w-full overflow-hidden">
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Total Amount</span>
-          <div className="text-3xl sm:text-4xl lg:text-5xl font-black text-brand-orange tracking-tighter drop-shadow-sm truncate max-w-full px-2">
+        <div className="flex w-full items-center justify-between gap-3 overflow-hidden px-3 py-3 text-left md:flex-col md:justify-center md:px-8 md:pb-6 md:pt-8 md:text-center">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 md:mb-2 md:text-xs">Total Amount</span>
+          <div className="max-w-full truncate px-1 text-2xl font-black tracking-tighter text-brand-orange drop-shadow-sm sm:text-3xl lg:text-5xl">
             {formatCurrency(total)}
           </div>
         </div>
         
         {/* Cart List */}
-        <ScrollArea className="flex-1 min-h-0 px-8 max-h-[40vh] md:max-h-none border-t border-b border-slate-200/50 bg-white/40">
-          <div className="space-y-1 py-4">
+        <ScrollArea className="min-h-0 max-h-32 border-y border-slate-200/50 bg-white/60 px-3 md:max-h-none md:flex-1 md:px-8">
+          <div className="space-y-1 py-2 md:py-4">
             {cart.map((item) => (
-              <div key={item.id} className="flex justify-between items-center py-2.5 border-b border-slate-100 last:border-0 group">
-                <div className="flex flex-col">
-                  <span className="font-semibold text-slate-700 group-hover:text-brand-orange transition-colors">{item.name}</span>
+              <div key={item.id} className="group flex items-center justify-between gap-3 border-b border-slate-100 py-2 last:border-0 md:py-2.5">
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate text-sm font-semibold text-slate-700 transition-colors group-hover:text-brand-orange md:text-base">{item.name}</span>
                   <span className="text-xs font-medium text-slate-400">{item.quantity} x {formatCurrency(item.price)}</span>
                 </div>
-                <span className="font-bold text-slate-900">{formatCurrency(item.price * item.quantity)}</span>
+                <span className="shrink-0 text-sm font-bold text-slate-900 md:text-base">{formatCurrency(item.price * item.quantity)}</span>
               </div>
             ))}
           </div>
         </ScrollArea>
         
         {/* Tax & Discount Summary */}
-        <div className="p-6 px-8 bg-transparent space-y-2 mt-auto">
-          <div className="flex justify-between text-sm font-medium text-slate-500">
+        <div className="mt-auto space-y-1.5 bg-transparent p-3 text-xs md:space-y-2 md:p-6 md:px-8 md:text-sm">
+          <div className="flex justify-between font-medium text-slate-500">
             <span>Subtotal</span>
             <span className="text-slate-700">{formatCurrency(subtotal)}</span>
           </div>
           {discountAmount > 0 && (
-            <div className="flex justify-between text-sm font-bold text-brand-orange">
+            <div className="flex justify-between font-bold text-brand-orange">
               <span>Discount</span>
               <span>-{formatCurrency(discountAmount)}</span>
             </div>
           )}
-          <div className="flex justify-between text-sm font-medium text-slate-500">
+          <div className="flex justify-between font-medium text-slate-500">
             <span>Tax (18%)</span>
             <span className="text-slate-700">{formatCurrency(tax)}</span>
           </div>
-          <div className="flex justify-between text-sm font-medium text-slate-500">
+          <div className={cn("justify-between font-medium text-slate-500", serviceCharge > 0 ? "flex" : "hidden md:flex")}>
             <span>Service Charge</span>
             <span className="text-slate-700">{formatCurrency(serviceCharge)}</span>
           </div>
-          <div className="flex justify-between text-sm font-medium text-slate-500">
+          <div className={cn("justify-between font-medium text-slate-500", roundOff > 0 ? "flex" : "hidden md:flex")}>
             <span>Round Off</span>
             <span className="text-slate-700">{formatCurrency(roundOff)}</span>
           </div>
@@ -561,35 +561,35 @@ export function CheckoutPage() {
       </div>
 
       {/* RIGHT COLUMN: Payment Processing */}
-      <div className="flex-1 flex flex-col bg-white overflow-y-auto p-4 lg:p-6 pb-24 md:pb-6">
-        <div className="max-w-2xl w-full mx-auto flex flex-col gap-4 lg:gap-5 min-h-min lg:h-full">
-          <div className="shrink-0 rounded-2xl border border-slate-800 bg-slate-950 p-4 text-white shadow-sm">
-            <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
+      <div className="flex-1 flex flex-col bg-white p-3 pb-4 md:overflow-y-auto md:p-4 md:pb-6 lg:p-6">
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 md:min-h-min lg:h-full lg:gap-5">
+          <div className="shrink-0 rounded-2xl border border-slate-800 bg-slate-950 p-3 text-white shadow-sm md:p-4">
+            <div className="grid grid-cols-[1fr_auto] items-start gap-3">
               <div>
                 <p className="text-[11px] font-black uppercase tracking-wider text-brand-orange">
                   Payment workspace
                 </p>
-                <h2 className="mt-1 text-xl font-black tracking-tight">
+                <h2 className="mt-1 text-lg font-black tracking-tight md:text-xl">
                   {activeTableLabel ? `Table ${activeTableLabel}` : 'Counter order'}
                 </h2>
-                <p className="mt-1 text-xs font-semibold text-slate-400">
+                <p className="mt-1 hidden text-xs font-semibold text-slate-400 sm:block">
                   Use Settle from POS for fast payments. Use this page for customer, split, gateway, and receipt control.
                 </p>
               </div>
-              <div className="sm:text-right">
+              <div className="text-right">
                 <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">
                   Grand total
                 </p>
-                <p className="mt-1 text-3xl font-black text-brand-orange">{formatCurrency(total)}</p>
+                <p className="mt-1 text-2xl font-black text-brand-orange md:text-3xl">{formatCurrency(total)}</p>
               </div>
             </div>
-            <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+            <div className="mt-3 grid grid-cols-3 gap-1.5 text-[10px] md:mt-4 md:gap-2 md:text-xs">
               {[
                 { label: 'Paid', value: formatCurrency(paidAmount), tone: 'text-emerald-300' },
                 { label: 'Remaining', value: formatCurrency(remainingAmount), tone: 'text-amber-300' },
                 { label: 'Change', value: formatCurrency(changeDue), tone: 'text-slate-200' },
               ].map((item) => (
-                <div key={item.label} className="rounded-xl bg-white/8 px-3 py-2">
+                <div key={item.label} className="rounded-xl bg-white/8 px-2 py-2 md:px-3">
                   <p className="font-black uppercase tracking-wider text-slate-500">{item.label}</p>
                   <p className={`mt-1 truncate font-black ${item.tone}`}>{item.value}</p>
                 </div>
@@ -599,14 +599,14 @@ export function CheckoutPage() {
           
           {/* Customer Details */}
           <div className="shrink-0 space-y-2">
-            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Customer <span className="font-normal text-slate-400 lowercase">(optional)</span></h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 md:text-sm">Customer <span className="font-normal lowercase text-slate-400">(optional)</span></h2>
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 md:gap-3">
               <div className="relative group">
                 <User className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400 group-focus-within:text-brand-orange transition-colors" />
                 <Input 
                   type="text" 
                   placeholder="Full Name" 
-                  className="pl-10 h-10 bg-slate-50/50 border-slate-200 focus-visible:ring-brand-orange shadow-none rounded-xl"
+                  className="h-9 rounded-xl border-slate-200 bg-slate-50/50 pl-10 text-sm shadow-none focus-visible:ring-brand-orange md:h-10"
                   value={customerName}
                   onChange={(e) => setCustomerDetails(e.target.value, customerPhone)}
                 />
@@ -616,22 +616,22 @@ export function CheckoutPage() {
                 <Input 
                   type="tel" 
                   placeholder="Phone Number" 
-                  className="pl-10 h-10 bg-slate-50/50 border-slate-200 focus-visible:ring-brand-orange shadow-none rounded-xl"
+                  className="h-9 rounded-xl border-slate-200 bg-slate-50/50 pl-10 text-sm shadow-none focus-visible:ring-brand-orange md:h-10"
                   value={customerPhone}
                   onChange={(e) => setCustomerDetails(customerName, e.target.value)}
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <div className="grid grid-cols-4 gap-1.5 md:gap-2">
               {[
                 { label: 'Loyalty', value: customerPhone ? 'Gold' : 'Walk-in' },
                 { label: 'Points', value: customerPhone ? '240' : '0' },
                 { label: 'Last Visit', value: customerPhone ? '12 days' : 'New' },
                 { label: 'Credit', value: formatCurrency(0) },
               ].map((item) => (
-                <div key={item.label} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{item.label}</p>
-                  <p className="truncate text-sm font-black text-slate-800">{item.value}</p>
+                <div key={item.label} className="min-w-0 rounded-xl border border-slate-100 bg-slate-50 px-2 py-1.5 md:px-3 md:py-2">
+                  <p className="truncate text-[9px] font-black uppercase tracking-wider text-slate-400 md:text-[10px]">{item.label}</p>
+                  <p className="truncate text-xs font-black text-slate-800 md:text-sm">{item.value}</p>
                 </div>
               ))}
             </div>
@@ -639,14 +639,14 @@ export function CheckoutPage() {
           
           {/* Promo Code */}
           <div className="shrink-0 space-y-2">
-            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Promo Code</h2>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 md:text-sm">Promo Code</h2>
             <div className="flex gap-2 relative">
               <div className="relative flex-1 group">
                 <Ticket className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400 group-focus-within:text-brand-orange transition-colors" />
                 <Input 
                   type="text" 
                   placeholder="Enter Code" 
-                  className={`pl-10 h-10 bg-slate-50/50 uppercase border-slate-200 focus-visible:ring-brand-orange shadow-none rounded-xl ${promoError ? 'border-red-300 focus-visible:ring-red-500' : ''}`}
+                  className={`h-9 rounded-xl border-slate-200 bg-slate-50/50 pl-10 text-sm uppercase shadow-none focus-visible:ring-brand-orange md:h-10 ${promoError ? 'border-red-300 focus-visible:ring-red-500' : ''}`}
                   value={promoCode}
                   onChange={(e) => {
                     setPromoCode(e.target.value);
@@ -658,7 +658,7 @@ export function CheckoutPage() {
               <Button 
                 onClick={handleApplyPromo} 
                 disabled={isApplyingPromo}
-                className="bg-slate-900 text-white hover:bg-slate-800 h-10 rounded-xl px-6 font-bold"
+                className="h-9 rounded-xl bg-slate-900 px-4 font-bold text-white hover:bg-slate-800 md:h-10 md:px-6"
               >
                 Apply
               </Button>
@@ -668,9 +668,9 @@ export function CheckoutPage() {
           </div>
 
           {/* Payment Methods */}
-          <div className="shrink-0 space-y-2 mt-2">
-            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Payment Method</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-1 bg-slate-100/80 rounded-xl">
+          <div className="mt-1 shrink-0 space-y-2 md:mt-2">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 md:text-sm">Payment Method</h2>
+            <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-slate-100/80 p-1 sm:grid-cols-3">
               {availablePaymentMethods.map((method) => {
                 const Icon = method.icon;
                 const isActive = paymentMethod === method.id;
@@ -679,16 +679,16 @@ export function CheckoutPage() {
                     key={method.id}
                     onClick={() => handlePaymentMethodChange(method.id)}
                     className={cn(
-                      "min-h-14 flex items-center justify-center gap-2 px-2 py-2 rounded-lg transition-all duration-300",
+                      "min-h-12 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg transition-all duration-300 md:min-h-14 md:gap-2",
                       isActive 
                         ? "bg-white text-brand-orange shadow-[0_2px_10px_rgba(0,0,0,0.06)] font-bold scale-[1.02]" 
                         : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 font-medium"
                     )}
                   >
                     <Icon className={cn("w-4 h-4", isActive ? "text-brand-orange" : "text-slate-400")} />
-                    <span className="leading-tight">
-                      <span className="block text-sm">{method.label}</span>
-                      <span className="block text-[10px] font-semibold text-slate-400">{method.helper}</span>
+                      <span className="min-w-0 leading-tight">
+                      <span className="block truncate text-xs md:text-sm">{method.label}</span>
+                      <span className="hidden text-[10px] font-semibold text-slate-400 sm:block">{method.helper}</span>
                     </span>
                   </button>
                 )
@@ -918,7 +918,7 @@ export function CheckoutPage() {
             <Button 
               size="lg" 
               className={cn(
-                "w-full h-14 text-lg font-black rounded-xl transition-all duration-300",
+                "hidden md:flex w-full h-14 text-lg font-black rounded-xl transition-all duration-300",
                 isReady 
                   ? "bg-slate-900 text-white hover:bg-slate-800 shadow-[0_8px_30px_rgba(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgba(0,0,0,0.16)] hover:-translate-y-1" 
                   : "bg-slate-100 text-slate-400 cursor-not-allowed opacity-70 shadow-none"
@@ -941,6 +941,46 @@ export function CheckoutPage() {
           </div>
 
         </div>
+      </div>
+
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-12px_32px_rgba(15,23,42,0.12)] backdrop-blur md:hidden">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Grand total</p>
+            <p className="truncate text-xl font-black text-brand-orange">{formatCurrency(total)}</p>
+          </div>
+          <div className="shrink-0 text-right">
+            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              {remainingAmount > 0 ? 'Remaining' : 'Change'}
+            </p>
+            <p className={cn('text-sm font-black', remainingAmount > 0 ? 'text-amber-600' : 'text-emerald-600')}>
+              {formatCurrency(remainingAmount > 0 ? remainingAmount : changeDue)}
+            </p>
+          </div>
+        </div>
+        <Button
+          size="lg"
+          className={cn(
+            'h-12 w-full rounded-xl text-base font-black transition-all duration-300',
+            isReady
+              ? 'bg-slate-900 text-white shadow-[0_8px_26px_rgba(0,0,0,0.16)] hover:bg-slate-800'
+              : 'cursor-not-allowed bg-slate-100 text-slate-400 opacity-70 shadow-none'
+          )}
+          disabled={!isReady || isCompleting}
+          onClick={handleCompleteOrder}
+        >
+          {isCompleting ? (
+            <>
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Completing
+            </>
+          ) : (
+            <>
+              Complete Order
+              <ArrowLeft className="ml-2 h-5 w-5 rotate-180" />
+            </>
+          )}
+        </Button>
       </div>
     </div>
   );

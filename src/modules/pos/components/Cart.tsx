@@ -27,6 +27,8 @@ import { useNavigate } from 'react-router-dom';
 type Props = {
   /** Switch POS workspace to Held tab */
   onOpenHeld?: () => void;
+  /** Close the mobile cart sheet */
+  onClose?: () => void;
 };
 
 const quickManualMethods: Array<{
@@ -54,7 +56,7 @@ function getFastCashAmounts(total: number) {
   return Array.from(new Set(amounts)).slice(0, 4);
 }
 
-export function Cart({ onOpenHeld }: Props) {
+export function Cart({ onOpenHeld, onClose }: Props) {
   const {
     cart,
     removeItem,
@@ -157,11 +159,21 @@ export function Cart({ onOpenHeld }: Props) {
   return (
     <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
       <div className="p-5 bg-white border-b border-slate-100 flex flex-col gap-3 shrink-0 shadow-[0_2px_10px_rgba(0,0,0,0.02)] z-10">
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="group -mt-3 -mb-1 mx-auto flex h-7 w-20 items-center justify-center rounded-full md:hidden"
+            aria-label="Close order sheet"
+          >
+            <span className="h-1.5 w-12 rounded-full bg-slate-300 transition group-active:bg-slate-400" />
+          </button>
+        )}
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-brand-navy tracking-tight">
             {activeTableLabel ? `Table ${activeTableLabel}` : 'Current Order'}
           </h2>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             {cart.length > 0 && (
               <>
                 <Button
@@ -181,6 +193,18 @@ export function Cart({ onOpenHeld }: Props) {
                   Clear All
                 </Button>
               </>
+            )}
+            {onClose && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={onClose}
+                className="h-8 w-8 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 md:hidden"
+                aria-label="Close order sheet"
+              >
+                <X className="h-4 w-4" />
+              </Button>
             )}
           </div>
         </div>
@@ -266,8 +290,8 @@ export function Cart({ onOpenHeld }: Props) {
         )}
       </ScrollArea>
 
-      <div className="p-4 bg-white border-t border-slate-100 space-y-3 shrink-0">
-        <div className="space-y-1 text-sm">
+      <div className="sticky bottom-0 z-20 shrink-0 space-y-2 border-t border-slate-100 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur sm:space-y-3 sm:p-4 sm:pb-4">
+        <div className="space-y-0.5 text-xs sm:space-y-1 sm:text-sm">
           <div className="flex justify-between text-slate-500">
             <span>Subtotal</span>
             <span className="font-semibold text-slate-700">{formatCurrency(subtotal)}</span>
@@ -282,7 +306,7 @@ export function Cart({ onOpenHeld }: Props) {
             <span>Tax (18%)</span>
             <span className="font-semibold text-slate-700">{formatCurrency(tax)}</span>
           </div>
-          <div className="flex justify-between text-lg font-black text-brand-navy pt-1">
+          <div className="flex justify-between pt-1 text-base font-black text-brand-navy sm:text-lg">
             <span>TOTAL</span>
             <span className="text-brand-orange">{formatCurrency(total)}</span>
           </div>
@@ -300,17 +324,17 @@ export function Cart({ onOpenHeld }: Props) {
           </p>
         )}
 
-        <div className="flex gap-2">
+        <div className={activeTableId ? 'grid grid-cols-2 gap-2' : 'grid grid-cols-1 gap-2'}>
           {activeTableId && (
             <Button
               type="button"
               variant="outline"
               disabled={firing || unfiredCount === 0}
               onClick={() => void handleSendKitchen()}
-              className="h-12 rounded-xl font-bold border-slate-200"
+              className="h-11 min-w-0 rounded-xl border-slate-200 px-2 text-xs font-bold sm:h-12 sm:px-3 sm:text-sm"
             >
-              <ChefHat className="w-4 h-4 mr-1.5" />
-              Kitchen{unfiredCount > 0 ? ` (${unfiredCount})` : ''}
+              <ChefHat className="mr-1.5 h-4 w-4 shrink-0" />
+              <span className="truncate">Kitchen{unfiredCount > 0 ? ` (${unfiredCount})` : ''}</span>
             </Button>
           )}
           <Button
@@ -322,9 +346,9 @@ export function Cart({ onOpenHeld }: Props) {
               syncActiveTableBill();
               navigate('/erp/pos/checkout');
             }}
-            className="relative flex-1 h-12 rounded-xl font-bold border-slate-200 text-transparent hover:bg-slate-50 disabled:opacity-50 before:absolute before:inset-0 before:flex before:items-center before:justify-center before:text-slate-700 before:content-['Full_checkout']"
+            className="h-11 min-w-0 rounded-xl border-slate-200 px-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50 sm:h-12 sm:px-3 sm:text-sm"
           >
-            Pay bill →
+            Full checkout
           </Button>
         </div>
 
@@ -335,7 +359,7 @@ export function Cart({ onOpenHeld }: Props) {
             setQuickSettleError(null);
             setQuickSettleOpen(true);
           }}
-          className="w-full h-14 rounded-xl bg-brand-orange text-base font-black text-white hover:bg-[#e55f00] shadow-[0_10px_28px_rgba(255,106,0,0.24)] disabled:opacity-50"
+          className="h-12 w-full rounded-xl bg-brand-orange text-sm font-black text-white shadow-[0_10px_28px_rgba(255,106,0,0.24)] hover:bg-[#e55f00] disabled:opacity-50 sm:h-14 sm:text-base"
         >
           <Zap className="w-4 h-4 mr-2" />
           Settle
