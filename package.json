@@ -28,6 +28,7 @@
     "framer-motion": "^12.42.2",
     "konva": "^10.3.0",
     "lucide-react": "^1.24.0",
+    "paytmchecksum": "^1.5.1",
     "qrcode": "^1.5.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

@@ -15,7 +15,16 @@ export interface CartItem {
   notes?: string;
 }
 
-export type PaymentMethod = 'cash' | 'card' | 'upi';
+export type OnlinePaymentMethod = 'paytm' | 'phonepe' | 'amazonpay';
+export type PaymentMethod = 'cash' | 'card' | 'upi' | OnlinePaymentMethod;
+
+export interface CheckoutPaymentReference {
+  gateway: OnlinePaymentMethod;
+  providerOrderId: string;
+  providerSessionId?: string;
+  providerTransactionId?: string;
+  status?: string;
+}
 
 export interface HeldOrder {
   id: string;
@@ -56,7 +65,7 @@ interface POSState {
   setPaymentMethod: (method: PaymentMethod) => void;
   setTenderedAmount: (amount: string) => void;
   setCustomerDetails: (name: string, phone: string) => void;
-  processCheckout: () => Promise<void>;
+  processCheckout: (paymentReference?: CheckoutPaymentReference) => Promise<void>;
 
   attachTable: (table: Table, allTables: Table[]) => void;
   detachTable: () => void;
@@ -226,7 +235,7 @@ export const usePOSStore = create<POSState>((set, get) => ({
     return useTableBillStore.getState().fireKitchenTicket(state.activeTableId, undefined, 'pos');
   },
 
-  processCheckout: async () => {
+  processCheckout: async (paymentReference) => {
     const state = get();
     const { user } = useAuthStore.getState();
     const outletId = user?.outletId;
@@ -240,8 +249,9 @@ export const usePOSStore = create<POSState>((set, get) => ({
     const taxAmount = discountedSubtotal * state.taxRate;
     const totalAmount = discountedSubtotal + taxAmount;
 
-    const tenderedNumeric = parseFloat(state.tenderedAmount) || 0;
-    const changeDue = Math.max(0, tenderedNumeric - totalAmount);
+    const tenderedNumeric =
+      state.paymentMethod === 'cash' ? parseFloat(state.tenderedAmount) || 0 : totalAmount;
+    const changeDue = state.paymentMethod === 'cash' ? Math.max(0, tenderedNumeric - totalAmount) : 0;
 
     let orderId: string | null = null;
     const cartSnapshot = [...state.cart];
@@ -250,6 +260,19 @@ export const usePOSStore = create<POSState>((set, get) => ({
 
     // Table sales: kitchen already got (or will get) tickets via settleBill
     const kitchenStatus = tableId ? 'delivered' : 'pending';
+
+    const gatewayNote = paymentReference
+      ? [
+          `Gateway ${paymentReference.gateway.toUpperCase()}`,
+          paymentReference.providerOrderId,
+          paymentReference.providerTransactionId,
+        ]
+          .filter(Boolean)
+          .join(' - ')
+      : null;
+    const notes =
+      [tableLabel ? `Paid dine-in - ${tableLabel}` : null, gatewayNote].filter(Boolean).join(' | ') ||
+      null;
 
     const fullRow = {
       outlet_id: outletId,
@@ -265,7 +288,7 @@ export const usePOSStore = create<POSState>((set, get) => ({
       table_id: tableId || null,
       table_number: tableLabel || null,
       order_source: 'pos',
-      notes: tableLabel ? `Paid dine-in · ${tableLabel}` : null,
+      notes,
     };
 
     const legacyRow = {
@@ -279,7 +302,7 @@ export const usePOSStore = create<POSState>((set, get) => ({
       change_due: changeDue,
       status: 'completed',
       kitchen_status: kitchenStatus,
-      notes: tableLabel ? `Paid dine-in · ${tableLabel}` : null,
+      notes,
     };
 
     try {
@@ -342,6 +365,7 @@ export const usePOSStore = create<POSState>((set, get) => ({
         discountAmount,
         totalAmount,
         changeDue,
+        paymentReference,
         tableLabel,
         customer: { name: state.customerName, phone: state.customerPhone },
         timestamp: new Date().toISOString(),

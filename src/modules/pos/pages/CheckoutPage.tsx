@@ -1,19 +1,59 @@
-import React, { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { usePOSStore, type PaymentMethod } from '../store/usePOSStore';
-import { Card } from '@/components/ui/card';
+import { usePOSStore, type OnlinePaymentMethod, type PaymentMethod } from '../store/usePOSStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Banknote, CreditCard, Smartphone, Delete, CheckCircle2, User, Phone, Printer, Plus, MessageSquare, Ticket } from 'lucide-react';
+import { ArrowLeft, Banknote, CreditCard, Smartphone, Delete, CheckCircle2, User, Phone, Printer, Plus, MessageSquare, Ticket, Loader2, ExternalLink, RefreshCw, ShieldCheck, AlertCircle } from 'lucide-react';
 import { formatCurrency } from '@/utils/format';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ThermalReceipt } from '../components/ThermalReceipt';
 import { useSettingsStore } from '../../settings/store/useSettingsStore';
 import { useVoucherStore } from '../../marketing/store/useVoucherStore';
+import {
+  checkGatewayPaymentStatus,
+  createGatewayPayment,
+  fetchOutletGatewaySettings,
+  invokePaytmCheckout,
+  isOnlinePaymentMethod,
+  type GatewayPaymentSession,
+  type GatewayPaymentStatus,
+} from '../services/paymentGatewayService';
+import { useAuthStore } from '@/store/useAuthStore';
+import { getTenantOutletId, useTenantStore } from '@/store/useTenantStore';
+
+type GatewayUiState =
+  | { status: 'idle'; message: string; session: null; verification: null }
+  | { status: 'starting'; message: string; session: null; verification: null }
+  | { status: 'started'; message: string; session: GatewayPaymentSession; verification: null }
+  | { status: 'checking'; message: string; session: GatewayPaymentSession; verification: GatewayPaymentStatus | null }
+  | { status: 'verified'; message: string; session: GatewayPaymentSession; verification: GatewayPaymentStatus }
+  | { status: 'failed'; message: string; session: GatewayPaymentSession | null; verification: GatewayPaymentStatus | null }
+  | { status: 'error'; message: string; session: GatewayPaymentSession | null; verification: GatewayPaymentStatus | null };
+
+const paymentMethods: Array<{
+  id: PaymentMethod;
+  icon: typeof Banknote;
+  label: string;
+  helper: string;
+}> = [
+  { id: 'cash', icon: Banknote, label: 'Cash', helper: 'Counter cash' },
+  { id: 'card', icon: CreditCard, label: 'Card', helper: 'Manual terminal' },
+  { id: 'upi', icon: Smartphone, label: 'UPI', helper: 'Manual QR' },
+  { id: 'paytm', icon: Smartphone, label: 'Paytm', helper: 'JS Checkout' },
+  { id: 'phonepe', icon: Smartphone, label: 'PhonePe', helper: 'Standard Checkout' },
+  { id: 'amazonpay', icon: CreditCard, label: 'Amazon Pay', helper: 'Checkout v2' },
+];
+
+function getPaymentMethodLabel(method: PaymentMethod) {
+  return paymentMethods.find((item) => item.id === method)?.label || method;
+}
 
 export function CheckoutPage() {
   const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
+  const activeOutletId = useTenantStore((state) => state.activeOutletId);
+  const outletId = activeOutletId || getTenantOutletId(user);
   const [isSuccess, setIsSuccess] = useState(false);
   
   const { 
@@ -38,12 +78,59 @@ export function CheckoutPage() {
   const [promoCode, setPromoCode] = useState('');
   const [promoError, setPromoError] = useState('');
   const [isApplyingPromo, setIsApplyingPromo] = useState(false);
+  const [gatewayState, setGatewayState] = useState<GatewayUiState>({
+    status: 'idle',
+    message: 'Choose an online gateway to start a secure payment.',
+    session: null,
+    verification: null,
+  });
+  const [enabledGateways, setEnabledGateways] = useState<OnlinePaymentMethod[]>([]);
+  const [gatewaySettingsError, setGatewaySettingsError] = useState('');
 
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const discountAmount = discountType === 'percentage' ? (subtotal * discountValue) / 100 : discountValue;
   const discountedSubtotal = Math.max(0, subtotal - discountAmount);
   const tax = discountedSubtotal * taxRate;
   const total = discountedSubtotal + tax;
+  const availablePaymentMethods = useMemo(
+    () =>
+      paymentMethods.filter((method) => {
+        if (!isOnlinePaymentMethod(method.id)) return true;
+        return enabledGateways.includes(method.id);
+      }),
+    [enabledGateways]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    setGatewaySettingsError('');
+
+    fetchOutletGatewaySettings(outletId)
+      .then((settings) => {
+        if (cancelled) return;
+        const configured = settings.gateways
+          .filter((gateway) => gateway.isEnabled && gateway.configured)
+          .map((gateway) => gateway.gateway);
+        setEnabledGateways(configured);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setEnabledGateways([]);
+        setGatewaySettingsError(
+          error instanceof Error ? error.message : 'Payment gateway settings are unavailable.'
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [outletId]);
+
+  useEffect(() => {
+    if (isOnlinePaymentMethod(paymentMethod) && !enabledGateways.includes(paymentMethod)) {
+      setPaymentMethod('cash');
+    }
+  }, [enabledGateways, paymentMethod, setPaymentMethod]);
 
   const handleApplyPromo = async () => {
     if (!promoCode.trim()) {
@@ -86,9 +173,147 @@ export function CheckoutPage() {
     setTenderedAmount(amount.toString());
   };
 
+  const handlePaymentMethodChange = (method: PaymentMethod) => {
+    setPaymentMethod(method);
+    setGatewayState({
+      status: 'idle',
+      message: isOnlinePaymentMethod(method)
+        ? `Start ${getPaymentMethodLabel(method)} payment for this order.`
+        : 'Choose an online gateway to start a secure payment.',
+      session: null,
+      verification: null,
+    });
+  };
+
+  const handleStartGatewayPayment = async () => {
+    if (!isOnlinePaymentMethod(paymentMethod)) return;
+
+    setGatewayState({
+      status: 'starting',
+      message: `Starting ${getPaymentMethodLabel(paymentMethod)} payment...`,
+      session: null,
+      verification: null,
+    });
+
+    try {
+      const session = await createGatewayPayment({
+        gateway: paymentMethod,
+        outletId,
+        amount: total,
+        currency: 'INR',
+        customer: {
+          name: customerName,
+          phone: customerPhone,
+        },
+        order: {
+          tableLabel: activeTableLabel,
+          itemCount: cart.reduce((sum, item) => sum + item.quantity, 0),
+        },
+      });
+
+      setGatewayState({
+        status: 'started',
+        message:
+          session.nextAction === 'paytm_checkout'
+            ? 'Paytm checkout opened. Complete payment, then check status.'
+            : 'Gateway checkout opened. Complete payment, then check status.',
+        session,
+        verification: null,
+      });
+
+      if (session.nextAction === 'paytm_checkout') {
+        await invokePaytmCheckout(session, (eventName) => {
+          setGatewayState((current) =>
+            current.session?.providerOrderId === session.providerOrderId
+              ? {
+                  ...current,
+                  message: `Paytm reported ${eventName}. Check status before completing the order.`,
+                }
+              : current
+          );
+        });
+        return;
+      }
+
+      if (session.redirectUrl) {
+        window.open(session.redirectUrl, '_blank', 'noopener,noreferrer');
+      }
+    } catch (error) {
+      setGatewayState({
+        status: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Payment gateway could not be started. Check server configuration.',
+        session: null,
+        verification: null,
+      });
+    }
+  };
+
+  const handleCheckGatewayStatus = async () => {
+    const session = gatewayState.session;
+    if (!session) return;
+
+    setGatewayState({
+      status: 'checking',
+      message: 'Checking final payment status...',
+      session,
+      verification: gatewayState.verification,
+    });
+
+    try {
+      const verification = await checkGatewayPaymentStatus(session);
+      if (verification.status === 'success') {
+        setGatewayState({
+          status: 'verified',
+          message: 'Payment verified successfully. You can complete the order.',
+          session,
+          verification,
+        });
+        return;
+      }
+
+      if (verification.status === 'failed') {
+        setGatewayState({
+          status: 'failed',
+          message: 'Payment failed or expired. Start a new gateway payment or choose another method.',
+          session,
+          verification,
+        });
+        return;
+      }
+
+      setGatewayState({
+        status: 'started',
+        message: 'Payment is still pending. Wait a moment and check status again.',
+        session,
+        verification: null,
+      });
+    } catch (error) {
+      setGatewayState({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Payment status check failed.',
+        session,
+        verification: null,
+      });
+    }
+  };
+
   const handleCompleteOrder = async () => {
     if (!isReady) return;
-    await processCheckout();
+    const paymentReference =
+      gatewayState.status === 'verified' && gatewayState.session
+        ? {
+            gateway: gatewayState.session.gateway,
+            providerOrderId: gatewayState.session.providerOrderId,
+            providerSessionId: gatewayState.session.providerSessionId,
+            providerTransactionId: gatewayState.verification.providerTransactionId,
+            status: gatewayState.verification.rawStatus || gatewayState.verification.status,
+          }
+        : undefined;
+
+    await processCheckout(paymentReference);
     setIsSuccess(true);
   };
 
@@ -99,9 +324,17 @@ export function CheckoutPage() {
 
   const tenderedNumeric = parseFloat(tenderedAmount) || 0;
   const changeDue = Math.max(0, tenderedNumeric - total);
+  const isOnlineGateway = isOnlinePaymentMethod(paymentMethod);
+  const selectedGatewaySession =
+    gatewayState.session?.gateway === paymentMethod ? gatewayState.session : null;
   
   // Is the order ready to complete?
-  const isReady = paymentMethod !== 'cash' || tenderedNumeric >= total;
+  const isReady =
+    paymentMethod === 'cash'
+      ? tenderedNumeric >= total
+      : isOnlineGateway
+        ? gatewayState.status === 'verified' && selectedGatewaySession !== null
+        : true;
 
   const settings = useSettingsStore();
 
@@ -330,31 +563,35 @@ export function CheckoutPage() {
           {/* Payment Methods */}
           <div className="shrink-0 space-y-2 mt-2">
             <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Payment Method</h2>
-            <div className="flex p-1 bg-slate-100/80 rounded-xl">
-              {[
-                { id: 'cash', icon: Banknote, label: 'Cash' },
-                { id: 'card', icon: CreditCard, label: 'Card' },
-                { id: 'upi', icon: Smartphone, label: 'UPI' }
-              ].map((method) => {
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-1 bg-slate-100/80 rounded-xl">
+              {availablePaymentMethods.map((method) => {
                 const Icon = method.icon;
                 const isActive = paymentMethod === method.id;
                 return (
                   <button
                     key={method.id}
-                    onClick={() => setPaymentMethod(method.id as PaymentMethod)}
+                    onClick={() => handlePaymentMethodChange(method.id)}
                     className={cn(
-                      "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg transition-all duration-300",
+                      "min-h-14 flex items-center justify-center gap-2 px-2 py-2 rounded-lg transition-all duration-300",
                       isActive 
                         ? "bg-white text-brand-orange shadow-[0_2px_10px_rgba(0,0,0,0.06)] font-bold scale-[1.02]" 
                         : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 font-medium"
                     )}
                   >
                     <Icon className={cn("w-4 h-4", isActive ? "text-brand-orange" : "text-slate-400")} />
-                    <span>{method.label}</span>
+                    <span className="leading-tight">
+                      <span className="block text-sm">{method.label}</span>
+                      <span className="block text-[10px] font-semibold text-slate-400">{method.helper}</span>
+                    </span>
                   </button>
                 )
               })}
             </div>
+            {gatewaySettingsError && (
+              <p className="text-[11px] font-semibold text-amber-600">
+                Online gateways are hidden: {gatewaySettingsError}
+              </p>
+            )}
           </div>
 
           {/* Cash Input & Numpad */}
@@ -427,14 +664,98 @@ export function CheckoutPage() {
             </div>
           )}
 
-          {/* Non-Cash Placeholder */}
-          {paymentMethod !== 'cash' && (
+          {/* Manual Card / UPI */}
+          {paymentMethod !== 'cash' && !isOnlineGateway && (
             <div className="flex-1 flex flex-col items-center justify-center bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-200 text-slate-500 min-h-0 py-12">
               <div className="w-20 h-20 bg-white shadow-sm rounded-full flex items-center justify-center mb-6">
                 {paymentMethod === 'card' ? <CreditCard className="w-8 h-8 text-brand-orange" /> : <Smartphone className="w-8 h-8 text-brand-orange" />}
               </div>
               <h3 className="text-xl font-bold text-slate-800 mb-2">Process {paymentMethod.toUpperCase()} Payment</h3>
               <p className="text-center text-slate-500 max-w-sm">Please use your external terminal to collect <span className="font-bold text-slate-900">{formatCurrency(total)}</span>. Once successful, click below to complete the order.</p>
+            </div>
+          )}
+
+          {/* Online Gateway */}
+          {isOnlineGateway && (
+            <div className="flex-1 flex flex-col justify-center bg-slate-50/70 rounded-3xl border border-slate-200 text-slate-600 min-h-0 py-8 px-5">
+              <div className="max-w-xl mx-auto w-full space-y-5">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 bg-white shadow-sm rounded-2xl flex items-center justify-center">
+                    <ShieldCheck className="w-8 h-8 text-brand-orange" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900">
+                      {getPaymentMethodLabel(paymentMethod)} secure checkout
+                    </h3>
+                    <p className="text-sm text-slate-500">
+                      Collect {formatCurrency(total)} through the outlet gateway.
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  className={cn(
+                    "rounded-2xl border p-4 text-sm font-semibold flex items-start gap-3",
+                    gatewayState.status === 'verified'
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : gatewayState.status === 'error' || gatewayState.status === 'failed'
+                        ? "border-red-200 bg-red-50 text-red-700"
+                        : "border-slate-200 bg-white text-slate-600"
+                  )}
+                >
+                  {gatewayState.status === 'verified' ? (
+                    <CheckCircle2 className="w-5 h-5 shrink-0" />
+                  ) : gatewayState.status === 'error' || gatewayState.status === 'failed' ? (
+                    <AlertCircle className="w-5 h-5 shrink-0" />
+                  ) : (
+                    <ShieldCheck className="w-5 h-5 shrink-0 text-brand-orange" />
+                  )}
+                  <span>{gatewayState.message}</span>
+                </div>
+
+                {selectedGatewaySession && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                      <span className="block font-bold text-slate-400 uppercase">Gateway order</span>
+                      <span className="font-black text-slate-800 break-all">{selectedGatewaySession.providerOrderId}</span>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                      <span className="block font-bold text-slate-400 uppercase">Mode</span>
+                      <span className="font-black text-slate-800 uppercase">{selectedGatewaySession.gateway}</span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Button
+                    type="button"
+                    onClick={handleStartGatewayPayment}
+                    disabled={gatewayState.status === 'starting' || gatewayState.status === 'checking'}
+                    className="h-12 rounded-xl bg-slate-900 text-white hover:bg-slate-800 font-bold"
+                  >
+                    {gatewayState.status === 'starting' ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                    )}
+                    Start payment
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleCheckGatewayStatus}
+                    disabled={!selectedGatewaySession || gatewayState.status === 'checking'}
+                    className="h-12 rounded-xl border-slate-300 font-bold"
+                  >
+                    {gatewayState.status === 'checking' ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                    )}
+                    Check status
+                  </Button>
+                </div>
+              </div>
             </div>
           )}
 

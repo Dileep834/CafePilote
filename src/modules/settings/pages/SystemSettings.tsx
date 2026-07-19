@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useSettingsStore } from '../store/useSettingsStore';
-import type { PrinterSize, TableViewMode, TableBoardLayout } from '../store/useSettingsStore';
+import type { TableViewMode, TableBoardLayout } from '../store/useSettingsStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useTenantStore } from '@/store/useTenantStore';
 import { PLAN_LIMITS, type SubscriptionPlanId } from '@/lib/planLimits';
 import { Settings, Printer, Store, Save, FileText, CheckCircle2, Shield, LayoutGrid, Map, List, CreditCard } from 'lucide-react';
 import { ThermalReceipt } from '../../pos/components/ThermalReceipt';
 import { RolesPermissions } from '../components/RolesPermissions';
+import { PaymentGatewaySettings } from '../components/PaymentGatewaySettings';
 import { BRAND, HQ_COMPANY_NAME } from '@/constants';
 import { PERMISSIONS } from '@/constants/permissions';
 import { cn } from '@/lib/utils';
@@ -37,7 +38,7 @@ export function SystemSettings() {
     tableBoardLayout: settings.tableBoardLayout,
   });
   const [isSaved, setIsSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState<'general' | 'permissions'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'payments' | 'permissions'>('general');
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,6 +100,17 @@ export function SystemSettings() {
         >
           <Shield className="w-4 h-4" />
           Roles & Permissions
+        </button>
+        <button
+          onClick={() => setActiveTab('payments')}
+          className={`px-6 py-3 font-bold text-sm transition-colors border-b-2 -mb-px flex items-center gap-2 ${
+            activeTab === 'payments'
+              ? 'border-orange-600 text-orange-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          Payment Gateways
         </button>
       </div>
 
@@ -424,6 +436,10 @@ export function SystemSettings() {
           </div>
         </div>
       </div>
+      ) : activeTab === 'payments' ? (
+        <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+          <PaymentGatewaySettings />
+        </div>
       ) : (
         <div className="animate-in fade-in slide-in-from-right-4 duration-300">
           <RolesPermissions />
