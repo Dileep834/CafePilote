@@ -11,6 +11,8 @@ import { isSuperAdmin } from '@/lib/access';
 import { hasPlanModule } from '@/lib/planLimits';
 import { NAV_GROUPS } from './navConfig';
 
+const DEFAULT_OPEN_GROUPS = new Set(['service', 'menu']);
+
 function pathMatches(pathname: string, href: string, end?: boolean) {
   if (end) return pathname === href || pathname === `${href}/`;
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -52,7 +54,9 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {};
-    for (const g of NAV_GROUPS) init[g.id] = true;
+    for (const g of NAV_GROUPS) {
+      init[g.id] = DEFAULT_OPEN_GROUPS.has(g.id) || activeGroupIds.includes(g.id);
+    }
     return init;
   });
 
@@ -99,6 +103,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
               <button
                 type="button"
                 onClick={() => toggleGroup(group.id)}
+                aria-expanded={open}
                 className={cn(
                   'w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors',
                   groupActive ? 'text-orange-300' : 'text-slate-400 hover:text-slate-200'

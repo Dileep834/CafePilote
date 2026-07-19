@@ -119,10 +119,10 @@ export function POSDashboard() {
      * POS is a full-bleed page — escape the main container's padding via absolute inset-0
      * so we control 100% of the viewport below the header.
      */
-    <div className="absolute inset-0 flex flex-col md:flex-row bg-slate-100 font-sans pos-crisp-text overflow-hidden">
+    <div className="absolute inset-0 flex min-h-0 flex-col bg-slate-100 font-sans pos-crisp-text overflow-hidden xl:flex-row">
 
       {/* ── Left pane: tool rail + filters + product grid ── */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
 
         {/* Mobile greeting bar */}
         <div
@@ -179,7 +179,7 @@ export function POSDashboard() {
         <div
           ref={mobileScrollRef}
           onScroll={handleMobileContentScroll}
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 scroll-smooth xl:overflow-hidden"
+          className="min-h-0 flex-1 basis-0 overflow-y-auto overscroll-contain px-3 pb-3 scroll-smooth xl:overflow-hidden"
         >
           <Card className="flex h-auto flex-col overflow-visible border-none bg-white p-0 shadow-none sm:border sm:border-slate-200 sm:p-4 sm:shadow-sm xl:h-full xl:overflow-hidden">
             {leftPane}
@@ -187,7 +187,7 @@ export function POSDashboard() {
         </div>
 
         {/* Compact/tablet cart bottom bar anchored in the POS layout */}
-        <div className="shrink-0 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] pt-2 xl:hidden">
+        <div className="sticky bottom-0 z-[70] mt-auto shrink-0 bg-slate-100 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] pt-2 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] xl:hidden">
           <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
             <SheetTrigger
               render={
