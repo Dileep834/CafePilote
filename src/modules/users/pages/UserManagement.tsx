@@ -29,6 +29,8 @@ export function UserManagement() {
     outlet_id: '',
     password: '',
   });
+  const [formError, setFormError] = useState('');
+  const [actionError, setActionError] = useState('');
   const roleOptions = user?.role === Role.SUPER_ADMIN
     ? SUPER_ADMIN_ASSIGNABLE_ROLES
     : TENANT_ADMIN_ASSIGNABLE_ROLES;
@@ -40,25 +42,56 @@ export function UserManagement() {
       alert(userLimitGate.message);
       return;
     }
+    setFormError('');
+    setActionError('');
     setIsModalOpen(true);
   };
 
   useEffect(() => {
-    fetchUsers();
-    fetchOutlets();
-  }, []);
+    void fetchUsers();
+    void fetchOutlets();
+  }, [fetchOutlets, fetchUsers]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim() || !formData.email.trim() || formData.password.length < 6) return;
+    if (selectedRoleNeedsOutlet && !formData.outlet_id) {
+      setFormError('Please assign this staff member to a branch.');
+      return;
+    }
     if (!isSuperAdmin(user) && !userLimitGate.ok) {
       alert(userLimitGate.message);
       return;
     }
 
-    await addUser(formData, formData.password);
-    setIsModalOpen(false);
-    setFormData({ name: '', email: '', role: Role.CASHIER, outlet_id: '', password: '' });
+    setFormError('');
+    setActionError('');
+    try {
+      await addUser(formData, formData.password);
+      setIsModalOpen(false);
+      setFormData({ name: '', email: '', role: Role.CASHIER, outlet_id: '', password: '' });
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Could not create staff account.');
+    }
+  };
+
+  const handleToggleStatus = async (id: string, currentStatus: boolean) => {
+    setActionError('');
+    try {
+      await toggleUserStatus(id, currentStatus);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Could not update staff status.');
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this user?')) return;
+    setActionError('');
+    try {
+      await deleteUser(id);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Could not delete staff account.');
+    }
   };
 
   if (!canManageUsers) {
@@ -128,6 +161,11 @@ export function UserManagement() {
 
       {/* Grid */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        {actionError && (
+          <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            {actionError}
+          </div>
+        )}
         {isLoading ? (
           <div className="p-8 text-center text-slate-500 font-medium">Loading staff accounts...</div>
         ) : error ? (
@@ -193,7 +231,7 @@ export function UserManagement() {
                       </td>
                       <td className="px-6 py-4 text-right space-x-2">
                         <button
-                          onClick={() => toggleUserStatus(u.id, u.is_active)}
+                          onClick={() => void handleToggleStatus(u.id, u.is_active)}
                           className={`text-sm font-medium px-3 py-1.5 rounded transition-colors ${
                             u.is_active
                               ? 'text-amber-600 hover:bg-amber-50'
@@ -203,11 +241,7 @@ export function UserManagement() {
                           {u.is_active ? 'Suspend' : 'Activate'}
                         </button>
                         <button
-                          onClick={() => {
-                            if(confirm('Are you sure you want to delete this user?')) {
-                              deleteUser(u.id);
-                            }
-                          }}
+                          onClick={() => void handleDeleteUser(u.id)}
                           className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded transition-colors"
                           title="Delete User"
                         >
@@ -259,7 +293,7 @@ export function UserManagement() {
 
                   <div className="flex justify-end gap-2 pt-3 border-t border-slate-50">
                     <button
-                      onClick={() => toggleUserStatus(u.id, u.is_active)}
+                      onClick={() => void handleToggleStatus(u.id, u.is_active)}
                       className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded transition-colors ${
                         u.is_active
                           ? 'text-amber-600 bg-amber-50'
@@ -269,11 +303,7 @@ export function UserManagement() {
                       {u.is_active ? 'Suspend' : 'Activate'}
                     </button>
                     <button
-                      onClick={() => {
-                        if(confirm('Are you sure you want to delete this user?')) {
-                          deleteUser(u.id);
-                        }
-                      }}
+                      onClick={() => void handleDeleteUser(u.id)}
                       className="text-red-500 bg-red-50 p-1.5 rounded transition-colors"
                       title="Delete User"
                     >
@@ -297,6 +327,11 @@ export function UserManagement() {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {formError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+                  {formError}
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Full Name *</label>
                 <input
