@@ -21,6 +21,7 @@ import {
 } from '../services/paymentGatewayService';
 import { useAuthStore } from '@/store/useAuthStore';
 import { getTenantOutletId, useTenantStore } from '@/store/useTenantStore';
+import { useVisualViewportBottom } from '@/hooks/useVisualViewportBottom';
 
 type GatewayUiState =
   | { status: 'idle'; message: string; session: null; verification: null }
@@ -55,6 +56,7 @@ function getPaymentMethodLabel(method: PaymentMethod) {
 }
 
 export function CheckoutPage() {
+  useVisualViewportBottom();
   const navigate = useNavigate();
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
@@ -469,7 +471,15 @@ export function CheckoutPage() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-64px)] w-full flex-col bg-slate-50 pb-28 shadow-inner -m-4 overflow-visible sm:-m-6 md:h-[calc(100vh-64px)] md:flex-row md:overflow-hidden md:bg-white md:pb-0 lg:-m-8">
+    <div
+      className="flex min-h-[calc(100vh-64px)] w-full flex-col bg-slate-50 pb-[var(--checkout-mobile-footer-space)] shadow-inner -m-4 overflow-visible sm:-m-6 md:h-[calc(100vh-64px)] md:flex-row md:overflow-hidden md:bg-white md:pb-0 lg:-m-8"
+      style={
+        {
+          '--checkout-mobile-footer-space':
+            'calc(8.5rem + var(--cafepilots-visual-bottom, 0px) + env(safe-area-inset-bottom, 0px))',
+        } as React.CSSProperties
+      }
+    >
       
       {/* LEFT COLUMN: Order Summary */}
       <div className="relative z-10 flex w-full flex-col border-b border-slate-200 bg-white md:h-full md:w-1/3 md:border-b-0 md:border-r md:bg-slate-50/50">
@@ -943,7 +953,13 @@ export function CheckoutPage() {
         </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-12px_32px_rgba(15,23,42,0.12)] backdrop-blur md:hidden">
+      <div
+        className="fixed inset-x-0 z-[70] border-t border-slate-200 bg-white/95 p-3 shadow-[0_-12px_32px_rgba(15,23,42,0.12)] backdrop-blur md:hidden"
+        style={{
+          bottom:
+            'calc(var(--cafepilots-visual-bottom, 0px) + env(safe-area-inset-bottom, 0px))',
+        }}
+      >
         <div className="mb-2 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Grand total</p>

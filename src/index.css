@@ -21,6 +21,7 @@
   --sans: 'Poppins', system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: 'Poppins', system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
+  --cafepilots-visual-bottom: 0px;
 
   color-scheme: light dark;
   color: var(--text);

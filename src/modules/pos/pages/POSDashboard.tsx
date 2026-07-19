@@ -15,6 +15,7 @@ import { POSToolRail, type PosView } from '../components/POSToolRail';
 import { POSOrderHistory } from '../components/POSOrderHistory';
 import { POSHeldOrders } from '../components/POSHeldOrders';
 import { cn } from '@/lib/utils';
+import { useVisualViewportBottom } from '@/hooks/useVisualViewportBottom';
 
 function greetingForHour(hour: number) {
   if (hour < 12) return 'Good Morning';
@@ -28,6 +29,7 @@ function parsePosView(raw: string | null): PosView {
 }
 
 export function POSDashboard() {
+  useVisualViewportBottom();
   const { cart, heldOrders, taxRate, clearCart, searchQuery, setSearchQuery, reloadActiveTableBill } =
     usePOSStore();
   const { user } = useAuthStore();
@@ -178,7 +180,15 @@ export function POSDashboard() {
         )}
 
         {/* Product grid / history / held — fills all remaining vertical space */}
-        <div className="min-h-0 px-3 pb-24 md:flex-1 md:overflow-hidden md:pb-3">
+        <div
+          className="min-h-0 px-3 pb-[var(--pos-mobile-footer-space)] md:flex-1 md:overflow-hidden md:pb-3"
+          style={
+            {
+              '--pos-mobile-footer-space':
+                'calc(7rem + var(--cafepilots-visual-bottom, 0px) + env(safe-area-inset-bottom, 0px))',
+            } as React.CSSProperties
+          }
+        >
           <Card className="flex h-auto flex-col overflow-visible border-none bg-white p-0 shadow-none sm:border sm:border-slate-200 sm:p-4 sm:shadow-sm md:h-full md:overflow-hidden">
             {leftPane}
           </Card>
@@ -189,7 +199,11 @@ export function POSDashboard() {
         <button
           type="button"
           onClick={scrollMobileToTop}
-          className="absolute bottom-[calc(5.25rem+env(safe-area-inset-bottom))] right-4 z-40 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-lg shadow-slate-900/15 transition active:scale-95 md:hidden"
+          className="fixed right-4 z-[65] flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-lg shadow-slate-900/15 transition active:scale-95 md:hidden"
+          style={{
+            bottom:
+              'calc(5.25rem + var(--cafepilots-visual-bottom, 0px) + env(safe-area-inset-bottom, 0px))',
+          }}
           aria-label="Scroll menu to top"
         >
           <ArrowUp className="h-4 w-4" />
@@ -206,13 +220,19 @@ export function POSDashboard() {
       </div>
 
       {/* ── Mobile cart bottom bar (fixed) ── */}
-      <div className="md:hidden absolute bottom-0 left-0 right-0 z-50 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div
+        className="pointer-events-none fixed inset-x-0 z-[70] px-3 md:hidden"
+        style={{
+          bottom:
+            'calc(0.75rem + var(--cafepilots-visual-bottom, 0px) + env(safe-area-inset-bottom, 0px))',
+        }}
+      >
         <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
           <SheetTrigger
             render={
               <button
                 type="button"
-                className="w-full h-14 rounded-2xl bg-slate-900 flex items-center justify-between p-1.5 pr-3 shadow-[0_10px_40px_rgba(13,27,42,0.35)] border border-slate-700"
+                className="pointer-events-auto h-14 w-full rounded-2xl border border-slate-700 bg-slate-900 flex items-center justify-between p-1.5 pr-3 shadow-[0_10px_40px_rgba(13,27,42,0.35)]"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className={cn(

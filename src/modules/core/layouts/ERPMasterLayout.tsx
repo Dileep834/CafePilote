@@ -8,11 +8,11 @@ export function ERPMasterLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   return (
-    <div className="flex h-screen w-full bg-slate-50 overflow-hidden">
+    <div className="flex h-[100dvh] min-h-0 w-full bg-slate-50 overflow-hidden">
       {/* Desktop Sidebar */}
       <div 
         className={cn(
-          "hidden lg:block lg:flex-shrink-0 transition-all duration-300 ease-in-out",
+          "hidden h-full min-h-0 lg:block lg:flex-shrink-0 transition-all duration-300 ease-in-out",
           isSidebarOpen ? "lg:w-72" : "lg:w-0 overflow-hidden"
         )}
       >
