@@ -132,8 +132,10 @@ export const usePurchaseStore = create<PurchaseState>((set, get) => ({
 
   createPurchaseOrder: async (po, items) => {
     const { user } = useAuthStore.getState();
-    const outletId = user?.outletId || po.outlet_id;
-    if (!outletId) throw new Error("Outlet ID is required to create a PO");
+    const outletId = user?.outletId || po.outlet_id || getTenantOutletId(user);
+    if (!outletId || outletId === 'current-outlet') {
+      throw new Error("Active outlet is required to create a PO");
+    }
 
     try {
       // 1. Calculate total
@@ -183,12 +185,63 @@ export const usePurchaseStore = create<PurchaseState>((set, get) => ({
 
   updatePOStatus: async (id, status) => {
     try {
+      const current = get().purchaseOrders.find((po) => po.id === id);
+      const shouldReceiveStock = status === 'Received' && current?.status !== 'Received';
+
       const { error } = await supabase
         .from('purchase_orders')
         .update({ status })
         .eq('id', id);
         
       if (error) throw error;
+
+      if (shouldReceiveStock) {
+        const { data: poData, error: poFetchError } = await supabase
+          .from('purchase_orders')
+          .select(`
+            outlet_id,
+            items:purchase_order_items(
+              id,
+              product_id,
+              quantity,
+              received_quantity
+            )
+          `)
+          .eq('id', id)
+          .single();
+
+        if (poFetchError) throw poFetchError;
+        const outletId = poData?.outlet_id;
+        if (!outletId || outletId === 'current-outlet') {
+          throw new Error('Cannot receive stock without an active outlet.');
+        }
+
+        for (const item of (poData.items || []) as PurchaseOrderItem[]) {
+          const quantity = Number(item.received_quantity || item.quantity || 0);
+          if (!item.product_id || quantity <= 0) continue;
+
+          const { data: invData, error: invFetchError } = await supabase
+            .from('inventory')
+            .select('current_quantity')
+            .eq('outlet_id', outletId)
+            .eq('product_id', item.product_id)
+            .maybeSingle();
+
+          if (invFetchError) throw invFetchError;
+
+          const currentQty = Number(invData?.current_quantity || 0);
+          const { error: inventoryError } = await supabase.from('inventory').upsert(
+            {
+              outlet_id: outletId,
+              product_id: item.product_id,
+              current_quantity: currentQty + quantity,
+            },
+            { onConflict: 'outlet_id, product_id' }
+          );
+
+          if (inventoryError) throw inventoryError;
+        }
+      }
 
       // Optimistic update
       set((state) => ({

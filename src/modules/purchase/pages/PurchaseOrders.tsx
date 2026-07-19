@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { usePurchaseStore } from '../store/usePurchaseStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { supabase } from '@/lib/supabase';
+import { getScopedCompanyId } from '@/lib/tenantScope';
 import { ShoppingCart, Plus, FileText, Check, Clock, X, Package } from 'lucide-react';
 import { formatCurrency } from '@/utils/format';
 import dayjs from 'dayjs';
@@ -20,7 +21,10 @@ export function PurchaseOrders() {
   const [poItems, setPoItems] = useState<{product_id: string, quantity: number, unit_price: number}[]>([]);
 
   const fetchProducts = useCallback(async () => {
-    const { data } = await supabase.from('products').select('id, name, unit').eq('is_active', true);
+    const companyId = getScopedCompanyId(useAuthStore.getState().user);
+    let query = supabase.from('products').select('id, name, unit').eq('is_active', true).order('name');
+    if (companyId) query = query.eq('company_id', companyId);
+    const { data } = await query;
     if (data) setProducts(data);
   }, []);
 

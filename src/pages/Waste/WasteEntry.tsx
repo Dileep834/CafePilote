@@ -40,9 +40,10 @@ const WasteEntry: React.FC = () => {
   };
 
   const fetchWasteLogs = async () => {
+    const outletId = getTenantOutletId(user) || user?.outletId;
     setLoading(true);
     try {
-      const { data } = await supabase
+      let query = supabase
         .from('waste_logs')
         .select(`
           id, date, quantity, reason, logged_by,
@@ -50,6 +51,13 @@ const WasteEntry: React.FC = () => {
         `)
         .order('date', { ascending: false })
         .limit(50);
+
+      if (outletId && outletId !== 'current-outlet') {
+        query = query.eq('outlet_id', outletId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
         
       if (data) {
         setRows(data.map(item => ({
@@ -74,9 +82,10 @@ const WasteEntry: React.FC = () => {
       return;
     }
 
+    const companyId = getScopedCompanyId(user);
     const { error } = await supabase.from('waste_logs').insert([{
       outlet_id: outletId,
-      company_id: user?.companyId,
+      company_id: companyId,
       product_id: productId,
       quantity: parseFloat(quantity),
       reason: reason,

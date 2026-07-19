@@ -19,7 +19,11 @@ const StockAdjustments: React.FC = () => {
   const [adjustment, setAdjustment] = useState('');
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success' as 'success' | 'warning' | 'error',
+  });
 
   const handleCloseSnackbar = () => setSnackbar({ ...snackbar, open: false });
 
@@ -73,9 +77,10 @@ const StockAdjustments: React.FC = () => {
 
     try {
       // 1. Insert into stock_adjustments
+      const companyId = getScopedCompanyId(user);
       const { error: insertErr } = await supabase.from('stock_adjustments').insert([{
         outlet_id: outletId,
-        company_id: user.companyId,
+        company_id: companyId,
         product_id: productId,
         adjustment: adjValue,
         reason: reason,

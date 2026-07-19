@@ -74,6 +74,7 @@ export function Cart({ onOpenHeld, onClose }: Props) {
     setPaymentMethod,
     setTenderedAmount,
     processCheckout,
+    taxRate,
   } = usePOSStore();
   const getOpenBill = useTableBillStore((s) => s.getOpenBill);
   const getUnfiredItems = useTableBillStore((s) => s.getUnfiredItems);
@@ -126,7 +127,7 @@ export function Cart({ onOpenHeld, onClose }: Props) {
   const discountAmount =
     discountType === 'percentage' ? (subtotal * discountValue) / 100 : discountValue;
   const discountedSubtotal = Math.max(0, subtotal - discountAmount);
-  const tax = discountedSubtotal * 0.18;
+  const tax = discountedSubtotal * taxRate;
   const total = discountedSubtotal + tax;
   const fastCashAmounts = useMemo(() => getFastCashAmounts(total), [total]);
 
