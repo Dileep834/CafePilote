@@ -331,7 +331,7 @@ export function Cart({ onOpenHeld, onClose }: Props) {
               variant="outline"
               disabled={firing || unfiredCount === 0}
               onClick={() => void handleSendKitchen()}
-              className="h-11 min-w-0 rounded-xl border-slate-200 px-2 text-xs font-bold sm:h-12 sm:px-3 sm:text-sm"
+              className="h-11 w-full min-w-0 shrink overflow-hidden rounded-xl border-slate-200 px-2 text-xs font-bold sm:h-12 sm:px-3 sm:text-sm"
             >
               <ChefHat className="mr-1.5 h-4 w-4 shrink-0" />
               <span className="truncate">Kitchen{unfiredCount > 0 ? ` (${unfiredCount})` : ''}</span>
@@ -346,9 +346,10 @@ export function Cart({ onOpenHeld, onClose }: Props) {
               syncActiveTableBill();
               navigate('/erp/pos/checkout');
             }}
-            className="h-11 min-w-0 rounded-xl border-slate-200 px-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50 sm:h-12 sm:px-3 sm:text-sm"
+            className="h-11 w-full min-w-0 shrink overflow-hidden rounded-xl border-slate-200 px-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50 sm:h-12 sm:px-3 sm:text-sm"
           >
-            Full checkout
+            <span className="hidden min-w-0 truncate sm:inline">Full checkout</span>
+            <span className="min-w-0 truncate sm:hidden">Checkout</span>
           </Button>
         </div>
 

@@ -77,7 +77,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
     .join('') || 'CP';
 
   return (
-    <div className={cn('flex h-full min-h-0 flex-col text-slate-50', className)} style={{ backgroundColor: BRAND.navy }}>
+    <div className={cn('flex h-full min-h-0 flex-col overflow-hidden text-slate-50', className)} style={{ backgroundColor: BRAND.navy }}>
       <div className="flex h-16 items-center px-5 border-b border-white/10 shrink-0">
         <Link
           to="/erp"
@@ -89,7 +89,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         </Link>
       </div>
 
-      <nav className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-2.5 py-3 pb-5">
+      <nav className="min-h-0 flex-1 touch-pan-y space-y-3 overflow-y-auto overscroll-contain px-2.5 py-3 pb-5 [-webkit-overflow-scrolling:touch]">
         {visibleGroups.map((group) => {
           const open = openGroups[group.id] !== false;
           const groupActive = activeGroupIds.includes(group.id);

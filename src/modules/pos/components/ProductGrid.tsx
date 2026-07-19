@@ -246,7 +246,7 @@ export function ProductGrid({ favoritesOnly = false }: ProductGridProps) {
   }
 
   return (
-    <div className="flex min-h-0 flex-col gap-2 pb-3 sm:gap-4 md:h-full md:overflow-hidden md:pb-0">
+    <div className="flex min-h-0 flex-col gap-2 pb-3 sm:gap-4 xl:h-full xl:overflow-hidden xl:pb-0">
       {favoritesOnly && (
         <div className="px-0.5 sm:px-0">
           <p className="text-sm font-bold text-brand-navy">Your favorites</p>
@@ -384,7 +384,7 @@ export function ProductGrid({ favoritesOnly = false }: ProductGridProps) {
         </div>
       </div>
 
-      <div className="shrink-0 pb-24 md:min-h-0 md:flex-1 md:overflow-y-auto md:overscroll-contain md:pb-4">
+      <div className="shrink-0 pb-24 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-contain xl:pb-4">
         {filteredProducts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center text-slate-400">
             <UtensilsCrossed className="w-10 h-10 opacity-30 mb-2" />

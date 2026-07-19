@@ -12,8 +12,8 @@ export function ERPMasterLayout() {
       {/* Desktop Sidebar */}
       <div 
         className={cn(
-          "hidden h-full min-h-0 lg:block lg:flex-shrink-0 transition-all duration-300 ease-in-out",
-          isSidebarOpen ? "lg:w-72" : "lg:w-0 overflow-hidden"
+          "hidden h-full min-h-0 xl:block xl:flex-shrink-0 transition-all duration-300 ease-in-out",
+          isSidebarOpen ? "xl:w-72" : "xl:w-0 overflow-hidden"
         )}
       >
         <Sidebar />

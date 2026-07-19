@@ -125,7 +125,7 @@ export function POSDashboard() {
       <div
         ref={mobileScrollRef}
         onScroll={handleMobileContentScroll}
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-smooth md:overflow-hidden"
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-smooth xl:overflow-hidden"
       >
 
         {/* Mobile greeting bar */}
@@ -181,7 +181,7 @@ export function POSDashboard() {
 
         {/* Product grid / history / held — fills all remaining vertical space */}
         <div
-          className="min-h-0 px-3 pb-[var(--pos-mobile-footer-space)] md:flex-1 md:overflow-hidden md:pb-3"
+          className="min-h-0 px-3 pb-[var(--pos-mobile-footer-space)] xl:flex-1 xl:overflow-hidden xl:pb-3"
           style={
             {
               '--pos-mobile-footer-space':
@@ -189,7 +189,7 @@ export function POSDashboard() {
             } as React.CSSProperties
           }
         >
-          <Card className="flex h-auto flex-col overflow-visible border-none bg-white p-0 shadow-none sm:border sm:border-slate-200 sm:p-4 sm:shadow-sm md:h-full md:overflow-hidden">
+          <Card className="flex h-auto flex-col overflow-visible border-none bg-white p-0 shadow-none sm:border sm:border-slate-200 sm:p-4 sm:shadow-sm xl:h-full xl:overflow-hidden">
             {leftPane}
           </Card>
         </div>
@@ -199,7 +199,7 @@ export function POSDashboard() {
         <button
           type="button"
           onClick={scrollMobileToTop}
-          className="fixed right-4 z-[65] flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-lg shadow-slate-900/15 transition active:scale-95 md:hidden"
+          className="fixed right-4 z-[65] flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-lg shadow-slate-900/15 transition active:scale-95 xl:hidden"
           style={{
             bottom:
               'calc(5.25rem + var(--cafepilots-visual-bottom, 0px) + env(safe-area-inset-bottom, 0px))',
@@ -211,7 +211,7 @@ export function POSDashboard() {
       )}
 
       {/* ── Desktop right pane: Cart ── */}
-      <div className="hidden md:flex w-96 flex-col p-4 pl-0">
+      <div className="hidden w-96 flex-col p-4 pl-0 xl:flex">
         <Card className="flex-1 border-slate-200 bg-white overflow-hidden shadow-sm">
           <CardContent className="p-0 h-full">
             <Cart onOpenHeld={() => handleViewChange('held')} />
@@ -219,9 +219,9 @@ export function POSDashboard() {
         </Card>
       </div>
 
-      {/* ── Mobile cart bottom bar (fixed) ── */}
+      {/* ── Compact/tablet cart bottom bar (fixed) ── */}
       <div
-        className="pointer-events-none fixed inset-x-0 z-[70] px-3 md:hidden"
+        className="pointer-events-none fixed inset-x-0 z-[70] px-3 xl:hidden"
         style={{
           bottom:
             'calc(0.75rem + var(--cafepilots-visual-bottom, 0px) + env(safe-area-inset-bottom, 0px))',

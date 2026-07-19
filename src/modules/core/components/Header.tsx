@@ -67,13 +67,13 @@ export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
           <SheetTrigger
             render={
-              <Button variant="ghost" size="icon" className="lg:hidden shrink-0">
+              <Button variant="ghost" size="icon" className="shrink-0 xl:hidden">
                 <Menu className="h-5 w-5" />
                 <span className="sr-only">Toggle navigation menu</span>
               </Button>
             }
           />
-          <SheetContent side="left" className="w-72 p-0">
+          <SheetContent side="left" className="h-[100dvh] max-h-[100dvh] w-[82vw] max-w-72 overflow-hidden p-0">
             <Sidebar onNavigate={() => setMobileMenuOpen(false)} />
           </SheetContent>
         </Sheet>
@@ -81,7 +81,7 @@ export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
         <Button
           variant="ghost"
           size="icon"
-          className="hidden shrink-0 text-slate-500 hover:bg-slate-100 lg:flex"
+          className="hidden shrink-0 text-slate-500 hover:bg-slate-100 xl:flex"
           onClick={onToggleSidebar}
         >
           <Menu className="h-5 w-5" />
@@ -93,7 +93,7 @@ export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
           aria-label="Go to dashboard"
           className={cn(
             'min-w-0 rounded-md outline-none transition-opacity hover:opacity-85 focus-visible:ring-2 focus-visible:ring-orange-300',
-            isSidebarOpen ? 'lg:hidden' : 'lg:flex'
+            isSidebarOpen ? 'xl:hidden' : 'xl:flex'
           )}
         >
           {/* Icon-only on very narrow; wordmark from sm up */}
