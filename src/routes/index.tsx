@@ -14,6 +14,7 @@ import { ERPMasterLayout } from '../modules/core/layouts/ERPMasterLayout';
 import { ERPHome } from '../modules/core/pages/ERPHome';
 import { POSDashboard } from '../modules/pos/pages/POSDashboard';
 import { CheckoutPage } from '../modules/pos/pages/CheckoutPage';
+import { OnlineOrdersPage } from '../modules/pos/pages/OnlineOrdersPage';
 import { CurrentInventory as ERPCurrentInventory } from '../modules/inventory/pages/CurrentInventory';
 import { KitchenDisplay } from '../modules/kitchen/pages/KitchenDisplay';
 import { OrderHistory } from '../modules/reports/pages/OrderHistory';
@@ -149,6 +150,14 @@ const AppRoutes = () => {
             element={
               <ProtectedRoute requiredPermission={PERMISSIONS.POS_ACCESS} requiredPlanModule="pos">
                 <POSDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="online-orders"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.POS_ACCESS} requiredPlanModule="pos">
+                <OnlineOrdersPage />
               </ProtectedRoute>
             }
           />

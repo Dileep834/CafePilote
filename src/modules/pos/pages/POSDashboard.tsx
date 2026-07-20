@@ -63,6 +63,11 @@ export function POSDashboard() {
   const [onlinePlatformFilter, setOnlinePlatformFilter] = useState<
     OnlinePlatformId | 'all'
   >('all');
+
+  // Keep view in sync when navigating via sidebar / deep links (?view=online)
+  useEffect(() => {
+    setPosView(parsePosView(searchParams.get('view')));
+  }, [searchParams]);
   const hydrateOpenBills = useTableBillStore((s) => s.hydrateOpenBills);
   const activeOutletId = useTenantStore((s) => s.activeOutletId);
   const outletId = getTenantOutletId(user);

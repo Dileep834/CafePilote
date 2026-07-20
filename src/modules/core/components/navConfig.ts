@@ -5,6 +5,7 @@ import {
   Building2,
   ChefHat,
   ClipboardList,
+  Globe2,
   LayoutDashboard,
   LayoutGrid,
   Map,
@@ -47,6 +48,13 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { name: 'Dashboard', href: '/erp', icon: LayoutDashboard, end: true, requiredPermission: PERMISSIONS.DASHBOARD_ACCESS },
       { name: 'POS (Billing)', href: '/erp/pos', icon: ShoppingCart, requiredPermission: PERMISSIONS.POS_ACCESS, requiredPlanModule: 'pos' },
+      {
+        name: 'Online Orders',
+        href: '/erp/online-orders',
+        icon: Globe2,
+        requiredPermission: PERMISSIONS.POS_ACCESS,
+        requiredPlanModule: 'pos',
+      },
       { name: 'Tables', href: '/erp/tables', icon: LayoutGrid, end: true, requiredPermission: PERMISSIONS.TABLES_MANAGE, requiredPlanModule: 'tables' },
       { name: 'Floor Designer', href: '/erp/floor', icon: Map, requiredPermission: PERMISSIONS.FLOOR_MANAGE, requiredPlanModule: 'floorDesigner' },
       { name: 'Kitchen (KDS)', href: '/erp/kitchen', icon: ChefHat, end: true, requiredPermission: PERMISSIONS.KITCHEN_ACCESS, requiredPlanModule: 'kitchen' },

@@ -69,7 +69,13 @@ export function POSToolRail({
                 onClick={() => onViewChange(id)}
                 className={cn(
                   'relative inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 text-xs font-semibold transition-colors sm:px-3.5 sm:text-sm',
-                  active ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
+                  active
+                    ? id === 'online'
+                      ? 'bg-[#FF6A00] text-white'
+                      : 'bg-slate-900 text-white'
+                    : id === 'online'
+                      ? 'bg-orange-50 text-[#FF6A00] hover:bg-orange-100'
+                      : 'text-slate-600 hover:bg-slate-50'
                 )}
                 aria-pressed={active}
               >
