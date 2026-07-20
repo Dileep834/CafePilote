@@ -24,7 +24,7 @@ export function OnlineOrdersPage() {
   }, [simulatorOn, pushIncomingOrder]);
 
   return (
-    <div className="absolute inset-0 flex min-h-0 flex-col overflow-hidden bg-slate-100 p-3 sm:p-4">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-100 p-3 sm:p-4">
       <OnlineOrderToasts />
       <div className="min-h-0 flex-1 overflow-hidden">
         <OnlineOrderHub />

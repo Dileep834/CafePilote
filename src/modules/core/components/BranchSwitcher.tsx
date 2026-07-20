@@ -64,14 +64,14 @@ export function BranchSwitcher({ className, onBranchChange }: Props) {
       >
         <MapPin className="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5" style={{ color: BRAND.orange }} />
         {!canSelect ? (
-          <span className="max-w-[72px] truncate text-[11px] font-bold text-[#0D1B2A] sm:max-w-[140px] sm:text-xs md:max-w-[200px]">
+          <span className="max-w-[72px] truncate text-[11px] font-bold text-[#0D1B2A] sm:max-w-[120px] sm:text-xs md:max-w-[180px] lg:max-w-[220px]">
             {active?.name || 'Branch'}
           </span>
         ) : (
           <label className="flex min-w-0 max-w-full items-center gap-1">
             <span className="sr-only">Branch</span>
             <select
-              className="max-w-[72px] cursor-pointer truncate border-0 bg-transparent text-[11px] font-bold text-[#0D1B2A] focus:outline-none sm:max-w-[140px] sm:text-xs md:max-w-[200px]"
+              className="max-w-[72px] cursor-pointer truncate border-0 bg-transparent text-[11px] font-bold text-[#0D1B2A] focus:outline-none sm:max-w-[120px] sm:text-xs md:max-w-[180px] lg:max-w-[220px]"
               value={activeOutletId || ''}
               disabled={isLoading}
               onChange={(e) => {

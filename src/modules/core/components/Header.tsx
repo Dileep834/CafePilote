@@ -24,6 +24,8 @@ import { CommandPalette } from './CommandPalette';
 interface HeaderProps {
   onToggleSidebar?: () => void;
   isSidebarOpen?: boolean;
+  /** When true, always show the menu button (overlay nav on POS etc.) */
+  forceMenuButton?: boolean;
 }
 
 function initialsFromName(name?: string | null, email?: string | null) {
@@ -35,7 +37,11 @@ function initialsFromName(name?: string | null, email?: string | null) {
   return raw.slice(0, 2).toUpperCase();
 }
 
-export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
+export function Header({
+  onToggleSidebar,
+  isSidebarOpen = true,
+  forceMenuButton = false,
+}: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [commandOpen, setCommandOpen] = React.useState(false);
   const { logout, user } = useAuthStore();
@@ -60,29 +66,42 @@ export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  // On overlay pages (POS), desktop toggle drives the overlay — hide the Sheet duplicate.
+  const useSheetNav = !forceMenuButton;
+
   return (
-    <header className="sticky top-0 z-40 flex h-16 w-full shrink-0 items-center gap-2 overflow-hidden border-b bg-white px-3 shadow-sm sm:gap-3 sm:px-6">
+    <header className="relative z-[80] flex h-14 w-full shrink-0 items-center gap-2 overflow-x-hidden border-b bg-white px-3 shadow-sm sm:h-16 sm:gap-3 sm:px-6">
       {/* Left: nav + logo */}
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
-        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-          <SheetTrigger
-            render={
-              <Button variant="ghost" size="icon" className="shrink-0 xl:hidden">
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Toggle navigation menu</span>
-              </Button>
-            }
-          />
-          <SheetContent side="left" className="h-[100dvh] max-h-[100dvh] w-[82vw] max-w-72 overflow-hidden p-0">
-            <Sidebar onNavigate={() => setMobileMenuOpen(false)} />
-          </SheetContent>
-        </Sheet>
+        {useSheetNav ? (
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger
+              render={
+                <Button variant="ghost" size="icon" className="shrink-0 xl:hidden">
+                  <Menu className="h-5 w-5" />
+                  <span className="sr-only">Toggle navigation menu</span>
+                </Button>
+              }
+            />
+            <SheetContent
+              side="left"
+              showCloseButton={false}
+              className="h-[100dvh] max-h-[100dvh] w-[82vw] max-w-72 overflow-hidden p-0"
+            >
+              <Sidebar onNavigate={() => setMobileMenuOpen(false)} />
+            </SheetContent>
+          </Sheet>
+        ) : null}
 
         <Button
           variant="ghost"
           size="icon"
-          className="hidden shrink-0 text-slate-500 hover:bg-slate-100 xl:flex"
+          className={cn(
+            'shrink-0 text-slate-500 hover:bg-slate-100',
+            forceMenuButton ? 'flex' : 'hidden xl:flex'
+          )}
           onClick={onToggleSidebar}
+          aria-expanded={isSidebarOpen}
         >
           <Menu className="h-5 w-5" />
           <span className="sr-only">Toggle sidebar</span>
@@ -93,10 +112,13 @@ export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
           aria-label="Go to dashboard"
           className={cn(
             'min-w-0 rounded-md outline-none transition-opacity hover:opacity-85 focus-visible:ring-2 focus-visible:ring-orange-300',
-            isSidebarOpen ? 'xl:hidden' : 'xl:flex'
+            forceMenuButton
+              ? 'flex'
+              : isSidebarOpen
+                ? 'xl:hidden'
+                : 'xl:flex'
           )}
         >
-          {/* Icon-only on very narrow; wordmark from sm up */}
           <CafePilotsLogo
             size={32}
             withWordmark
@@ -112,8 +134,8 @@ export function Header({ onToggleSidebar, isSidebarOpen = true }: HeaderProps) {
         <BranchSwitcher className="min-w-0 max-w-full" />
       </div>
 
-      {/* Right: actions — always shrink-0, never overflow */}
-      <div className="relative z-10 flex shrink-0 items-center gap-0.5 bg-white sm:gap-1.5">
+      {/* Right: actions — always above page content; menu portals at z-100 */}
+      <div className="relative z-[90] flex shrink-0 items-center gap-0.5 bg-white sm:gap-1.5">
         <Button
           type="button"
           variant="outline"

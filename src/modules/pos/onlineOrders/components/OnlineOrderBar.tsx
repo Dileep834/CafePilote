@@ -29,7 +29,7 @@ export function OnlineOrderBar({ onOpenHub, className }: Props) {
   return (
     <div
       className={cn(
-        'sticky top-0 z-[60] shrink-0 border-b border-slate-200/80 bg-white/95 backdrop-blur-md',
+        'relative z-10 shrink-0 border-b border-slate-200/80 bg-white',
         className
       )}
     >

@@ -198,14 +198,14 @@ export function POSDashboard() {
 
   return (
     /*
-     * POS is a full-bleed page — escape the main container's padding via absolute inset-0
-     * so we control 100% of the viewport below the header.
+     * POS fills the full-bleed main area (no ERP padding). Keep overflow clipped
+     * so the cart footer and product grid stay within the viewport.
      */
-    <div className="absolute inset-0 flex min-h-0 flex-col bg-slate-100 font-sans pos-crisp-text overflow-hidden xl:flex-row">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-100 font-sans pos-crisp-text xl:flex-row">
       <OnlineOrderToasts />
 
       {/* ── Left pane: tool rail + filters + product grid ── */}
-      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <OnlineOrderBar onOpenHub={openOnlineHub} />
 
         {/* Mobile greeting bar */}
@@ -256,7 +256,7 @@ export function POSDashboard() {
 
         {/* Compact/tablet cart bottom bar anchored in the POS layout */}
         {showCartPane && (
-        <div className="sticky bottom-0 z-[70] mt-auto shrink-0 bg-slate-100 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] pt-2 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] xl:hidden">
+        <div className="sticky bottom-0 z-20 mt-auto shrink-0 bg-slate-100 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] pt-2 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] xl:hidden">
           <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
             <SheetTrigger
               render={
@@ -318,7 +318,7 @@ export function POSDashboard() {
         <button
           type="button"
           onClick={scrollMobileToTop}
-          className="absolute right-4 z-[65] flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-lg shadow-slate-900/15 transition active:scale-95 xl:hidden"
+          className="absolute right-4 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-lg shadow-slate-900/15 transition active:scale-95 xl:hidden"
           style={{
             bottom: 'calc(5.25rem + env(safe-area-inset-bottom, 0px))',
           }}
