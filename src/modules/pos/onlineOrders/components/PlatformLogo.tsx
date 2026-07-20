@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils';
-import type { OnlinePlatformId } from './types';
-import { getPlatform } from './platforms';
+import type { OnlinePlatformId } from '../types';
+import { getPlatform } from '../platforms';
 
 type Props = {
   platformId: OnlinePlatformId;
