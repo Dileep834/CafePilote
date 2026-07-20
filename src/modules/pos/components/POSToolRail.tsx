@@ -7,15 +7,17 @@ import {
   History,
   Clock,
   Plus,
+  Globe2,
 } from 'lucide-react';
 
-export type PosView = 'menu' | 'favorites' | 'history' | 'held';
+export type PosView = 'menu' | 'favorites' | 'history' | 'held' | 'online';
 
 type Props = {
   view: PosView;
   onViewChange: (view: PosView) => void;
   heldCount?: number;
   favoritesCount?: number;
+  onlineCount?: number;
   onNewOrder: () => void;
   className?: string;
 };
@@ -27,6 +29,7 @@ const TOOLS: {
 }[] = [
   { id: 'menu', label: 'Menu', Icon: LayoutGrid },
   { id: 'favorites', label: 'Favorites', Icon: Heart },
+  { id: 'online', label: 'Online', Icon: Globe2 },
   { id: 'history', label: 'History', Icon: History },
   { id: 'held', label: 'Held', Icon: Clock },
 ];
@@ -36,6 +39,7 @@ export function POSToolRail({
   onViewChange,
   heldCount = 0,
   favoritesCount = 0,
+  onlineCount = 0,
   onNewOrder,
   className,
 }: Props) {
@@ -51,7 +55,13 @@ export function POSToolRail({
           {TOOLS.map(({ id, label, Icon }) => {
             const active = view === id;
             const badge =
-              id === 'held' ? heldCount : id === 'favorites' ? favoritesCount : 0;
+              id === 'held'
+                ? heldCount
+                : id === 'favorites'
+                  ? favoritesCount
+                  : id === 'online'
+                    ? onlineCount
+                    : 0;
             return (
               <button
                 key={id}
@@ -74,7 +84,11 @@ export function POSToolRail({
                   <span
                     className={cn(
                       'min-w-[1.15rem] h-[1.15rem] px-1 rounded-full text-[10px] font-bold inline-flex items-center justify-center',
-                      active ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-700'
+                      active
+                        ? 'bg-white/25 text-white'
+                        : id === 'online'
+                          ? 'bg-[#FF6A00] text-white'
+                          : 'bg-slate-100 text-slate-700'
                     )}
                   >
                     {badge}

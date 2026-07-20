@@ -13,6 +13,13 @@ import { getTenantOutletId, useTenantStore } from '@/store/useTenantStore';
 import { POSToolRail, type PosView } from '../components/POSToolRail';
 import { POSOrderHistory } from '../components/POSOrderHistory';
 import { POSHeldOrders } from '../components/POSHeldOrders';
+import {
+  OnlineOrderBar,
+  OnlineOrderHub,
+  OnlineOrderToasts,
+  useOnlineOrdersStore,
+  type OnlinePlatformId,
+} from '../onlineOrders';
 import { cn } from '@/lib/utils';
 import { useVisualViewportBottom } from '@/hooks/useVisualViewportBottom';
 
@@ -23,7 +30,14 @@ function greetingForHour(hour: number) {
 }
 
 function parsePosView(raw: string | null): PosView {
-  if (raw === 'favorites' || raw === 'history' || raw === 'held' || raw === 'menu') return raw;
+  if (
+    raw === 'favorites' ||
+    raw === 'history' ||
+    raw === 'held' ||
+    raw === 'menu' ||
+    raw === 'online'
+  )
+    return raw;
   return 'menu';
 }
 
@@ -46,12 +60,39 @@ export function POSDashboard() {
   const [posView, setPosView] = useState<PosView>(() =>
     parsePosView(searchParams.get('view'))
   );
+  const [onlinePlatformFilter, setOnlinePlatformFilter] = useState<
+    OnlinePlatformId | 'all'
+  >('all');
   const hydrateOpenBills = useTableBillStore((s) => s.hydrateOpenBills);
   const activeOutletId = useTenantStore((s) => s.activeOutletId);
   const outletId = getTenantOutletId(user);
   const byUser = usePOSFavoritesStore((s) => s.byUser);
   const userKey = user?.id || user?.email || 'local-staff';
   const favoritesCount = (byUser[userKey] || []).length;
+  const onlineOrders = useOnlineOrdersStore((s) => s.orders);
+  const onlineActiveCount = useMemo(
+    () =>
+      onlineOrders.filter((o) =>
+        ['new', 'accepted', 'preparing', 'ready'].includes(o.status)
+      ).length,
+    [onlineOrders]
+  );
+  const tickTimeouts = useOnlineOrdersStore((s) => s.tickTimeouts);
+  const pushIncomingOrder = useOnlineOrdersStore((s) => s.pushIncomingOrder);
+  const simulatorOn = useOnlineOrdersStore((s) => s.simulatorOn);
+
+  useEffect(() => {
+    const t = window.setInterval(() => tickTimeouts(), 1000);
+    return () => window.clearInterval(t);
+  }, [tickTimeouts]);
+
+  useEffect(() => {
+    if (!simulatorOn) return;
+    const t = window.setInterval(() => {
+      if (Math.random() > 0.78) pushIncomingOrder();
+    }, 32000);
+    return () => window.clearInterval(t);
+  }, [simulatorOn, pushIncomingOrder]);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 639px)');
@@ -96,6 +137,17 @@ export function POSDashboard() {
     [setSearchParams]
   );
 
+  const openOnlineHub = useCallback(
+    (platform: OnlinePlatformId | 'all' = 'all') => {
+      setOnlinePlatformFilter(platform);
+      useOnlineOrdersStore.getState().setFilters({
+        platform: platform === 'all' ? 'all' : platform,
+      });
+      handleViewChange('online');
+    },
+    [handleViewChange]
+  );
+
   const subtotal = cart.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
   const tax = subtotal * taxRate;
   const total = subtotal + tax;
@@ -115,6 +167,13 @@ export function POSDashboard() {
   };
 
   const leftPane = useMemo(() => {
+    if (posView === 'online')
+      return (
+        <OnlineOrderHub
+          initialPlatform={onlinePlatformFilter}
+          onBack={() => handleViewChange('menu')}
+        />
+      );
     if (posView === 'history') return <POSOrderHistory variant="panel" />;
     if (posView === 'held')
       return <POSHeldOrders onResumed={() => handleViewChange('menu')} />;
@@ -128,7 +187,9 @@ export function POSDashboard() {
     return (
       <ProductGrid onOpenFavorites={() => handleViewChange('favorites')} />
     );
-  }, [posView, handleViewChange]);
+  }, [posView, handleViewChange, onlinePlatformFilter]);
+
+  const showCartPane = posView !== 'online';
 
   return (
     /*
@@ -136,9 +197,11 @@ export function POSDashboard() {
      * so we control 100% of the viewport below the header.
      */
     <div className="absolute inset-0 flex min-h-0 flex-col bg-slate-100 font-sans pos-crisp-text overflow-hidden xl:flex-row">
+      <OnlineOrderToasts />
 
       {/* ── Left pane: tool rail + filters + product grid ── */}
       <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+        <OnlineOrderBar onOpenHub={openOnlineHub} />
 
         {/* Mobile greeting bar */}
         <div
@@ -163,13 +226,14 @@ export function POSDashboard() {
           </button>
         </div>
 
-        {/* Tool rail (Menu / Favorites / History / Held + New Order) */}
-        <div className="px-3 pb-2 shrink-0">
+        {/* Tool rail (Menu / Favorites / Online / History / Held + New Order) */}
+        <div className="px-3 pb-2 pt-2 shrink-0">
           <POSToolRail
             view={posView}
             onViewChange={handleViewChange}
             heldCount={heldOrders?.length || 0}
             favoritesCount={favoritesCount}
+            onlineCount={onlineActiveCount}
             onNewOrder={clearCart}
           />
         </div>
@@ -186,6 +250,7 @@ export function POSDashboard() {
         </div>
 
         {/* Compact/tablet cart bottom bar anchored in the POS layout */}
+        {showCartPane && (
         <div className="sticky bottom-0 z-[70] mt-auto shrink-0 bg-slate-100 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] pt-2 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] xl:hidden">
           <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
             <SheetTrigger
@@ -241,9 +306,10 @@ export function POSDashboard() {
             </SheetContent>
           </Sheet>
         </div>
+        )}
       </div>
 
-      {showScrollTop && (
+      {showScrollTop && showCartPane && (
         <button
           type="button"
           onClick={scrollMobileToTop}
@@ -257,12 +323,14 @@ export function POSDashboard() {
         </button>
       )}
 
-      {/* ── Desktop right pane: Cart (420px) ── */}
+      {/* ── Desktop right pane: Cart (420px) — hidden on Online Hub for full-width ops ── */}
+      {showCartPane && (
       <div className="hidden w-[420px] shrink-0 flex-col py-4 pr-4 xl:flex">
         <div className="h-full overflow-hidden rounded-2xl bg-white shadow-sm">
           <Cart onOpenHeld={() => handleViewChange('held')} />
         </div>
       </div>
+      )}
 
     </div>
   );
