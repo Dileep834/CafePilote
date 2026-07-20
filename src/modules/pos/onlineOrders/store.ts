@@ -194,10 +194,11 @@ export const useOnlineOrdersStore = create<OnlineOrdersState>()(
 
       acceptOrder: (id) => {
         const { settings } = get();
+        const order = get().orders.find((o) => o.id === id);
         set((s) => {
-          const order = s.orders.find((o) => o.id === id);
-          if (!order || order.status !== 'new') return s;
-          const accepted = withKitchenOnAccept(order, settings);
+          const current = s.orders.find((o) => o.id === id);
+          if (!current || current.status !== 'new') return s;
+          const accepted = withKitchenOnAccept(current, settings);
           const preparing = { ...accepted, status: 'preparing' as const };
           return {
             orders: s.orders.map((o) => (o.id === id ? preparing : o)),
@@ -205,25 +206,50 @@ export const useOnlineOrdersStore = create<OnlineOrdersState>()(
             alerts: pushAlert(s.alerts, {
               kind: 'new_order',
               title: 'Kitchen ticket created',
-              body: `#${order.externalId} · queue updated · customer notified`,
+              body: `#${current.externalId} · queue updated · customer notified`,
               orderId: id,
-              platformId: order.platformId,
+              platformId: current.platformId,
             }),
             selectedOrderId: s.selectedOrderId || id,
           };
         });
+        if (order && order.status === 'new') {
+          void import('@/modules/ops/services/notificationService').then(({ pushAppNotification }) =>
+            pushAppNotification({
+              kind: 'order_accepted',
+              title: `Accepted · ${order.platformId}`,
+              body: `#${order.externalId}`,
+              entityType: 'online_order',
+              entityId: id,
+            })
+          );
+        }
       },
 
       rejectOrder: (id) => {
+        const order = get().orders.find((o) => o.id === id);
         set((s) => ({
           orders: s.orders.map((o) =>
             o.id === id && o.status === 'new' ? { ...o, status: 'rejected' as const } : o
           ),
           toasts: s.toasts.filter((t) => t.orderId !== id),
         }));
+        if (order?.status === 'new') {
+          void import('@/modules/ops/services/notificationService').then(({ pushAppNotification }) =>
+            pushAppNotification({
+              kind: 'order_rejected',
+              title: `Rejected · ${order.platformId}`,
+              body: `#${order.externalId}`,
+              entityType: 'online_order',
+              entityId: id,
+              severity: 'warn',
+            })
+          );
+        }
       },
 
       setOrderStatus: (id, status) => {
+        const prev = get().orders.find((o) => o.id === id);
         set((s) => {
           const order = s.orders.find((o) => o.id === id);
           if (!order) return s;
@@ -255,6 +281,17 @@ export const useOnlineOrdersStore = create<OnlineOrdersState>()(
             alerts,
           };
         });
+        if (prev && (status === 'ready' || status === 'delivered')) {
+          void import('@/modules/ops/services/notificationService').then(({ pushAppNotification }) =>
+            pushAppNotification({
+              kind: status === 'ready' ? 'kitchen_ready' : 'order_delivered',
+              title: status === 'ready' ? 'Online order ready' : 'Online order delivered',
+              body: `#${prev.externalId} · ${prev.platformId}`,
+              entityType: 'online_order',
+              entityId: id,
+            })
+          );
+        }
       },
 
       dismissToast: (toastId) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== toastId) })),

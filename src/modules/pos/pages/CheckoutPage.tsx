@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { usePOSStore, type OnlinePaymentMethod, type PaymentMethod } from '../store/usePOSStore';
 import { Button } from '@/components/ui/button';
@@ -54,6 +54,14 @@ import { getTenantOutletId, useTenantStore } from '@/store/useTenantStore';
 import { useVisualViewportBottom } from '@/hooks/useVisualViewportBottom';
 import { supabase } from '@/lib/supabase';
 import { getScopedCompanyId } from '@/lib/tenantScope';
+import { ManagerPinDialog } from '@/modules/ops/components/ManagerPinDialog';
+import {
+  createIdempotencyKey,
+  loadOpsSettings,
+  needsManagerPinForDiscount,
+  validateCashTender,
+  validateSplitPayment,
+} from '@/modules/ops';
 
 type GatewayUiState =
   | { status: 'idle'; message: string; session: null; verification: null }
@@ -130,6 +138,10 @@ export function CheckoutPage() {
   const outletId = activeOutletId || getTenantOutletId(user);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [checkoutError, setCheckoutError] = useState('');
+  const [pinOpen, setPinOpen] = useState(false);
+  const [pendingApprovalId, setPendingApprovalId] = useState<string | null>(null);
+  const idempotencyRef = useRef<string>('');
   const [receiptPref, setReceiptPref] = useState<ReceiptPref>('print');
   const [receiptStatus, setReceiptStatus] = useState('Not sent');
 
@@ -531,8 +543,48 @@ export function CheckoutPage() {
             ? gatewayState.status === 'verified' && selectedGatewaySession !== null
             : true;
 
-  const handleCompleteOrder = async () => {
+  const handleCompleteOrder = async (managerApprovalId?: string | null) => {
     if (!isReady || isCompleting) return;
+    setCheckoutError('');
+
+    if (paymentMethod === 'cash') {
+      const v = validateCashTender(total, tenderedNumeric);
+      if (!v.ok) {
+        setCheckoutError(v.message);
+        return;
+      }
+    }
+    if (paymentMethod === 'split') {
+      const lines = splits.map((s) => ({ method: s.method, amount: Number(s.amount) || 0 }));
+      const v = validateSplitPayment(total, lines);
+      if (!v.ok) {
+        setCheckoutError(v.message);
+        return;
+      }
+    }
+
+    // High discount → manager PIN
+    const discountPct = subtotal > 0 ? (discountAmount / subtotal) * 100 : 0;
+    const settings = await loadOpsSettings(outletId);
+    if (
+      !managerApprovalId &&
+      needsManagerPinForDiscount(discountPct, settings.discountPinThresholdPct)
+    ) {
+      setPinOpen(true);
+      return;
+    }
+
+    if (!idempotencyRef.current) {
+      idempotencyRef.current = createIdempotencyKey([
+        outletId || 'x',
+        activeTableLabel || 'counter',
+        total.toFixed(2),
+        paymentMethod,
+        cart.map((c) => `${c.productId}:${c.quantity}`).join('|'),
+        Date.now(),
+      ]);
+    }
+
     setIsCompleting(true);
     const paymentReference =
       gatewayState.status === 'verified' && gatewayState.session
@@ -549,7 +601,16 @@ export function CheckoutPage() {
       if (paymentMethod === 'cash' || paymentMethod === 'split') {
         setTenderedAmount(String(Math.max(tenderedNumeric, splitPaid, total)));
       }
-      await processCheckout(paymentReference);
+      await processCheckout(paymentReference, {
+        idempotencyKey: idempotencyRef.current,
+        managerApprovalId: managerApprovalId || pendingApprovalId,
+        splitLines:
+          paymentMethod === 'split'
+            ? splits.map((s) => ({ method: s.method, amount: Number(s.amount) || 0 }))
+            : undefined,
+      });
+      idempotencyRef.current = '';
+      setPendingApprovalId(null);
       const statusMap: Record<ReceiptPref, string> = {
         print: 'Printed',
         whatsapp: 'Sent on WhatsApp',
@@ -561,6 +622,8 @@ export function CheckoutPage() {
       if (receiptPref === 'print') window.setTimeout(() => window.print(), 400);
       if (receiptPref === 'whatsapp') window.setTimeout(() => handleWhatsAppReceipt(), 400);
       setIsSuccess(true);
+    } catch (err) {
+      setCheckoutError((err as Error)?.message || 'Checkout failed. Please try again.');
     } finally {
       setIsCompleting(false);
     }
@@ -1535,6 +1598,11 @@ export function CheckoutPage() {
                 </>
               )}
             </Button>
+            {checkoutError && (
+              <p className="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+                {checkoutError}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -1592,6 +1660,23 @@ export function CheckoutPage() {
           )}
         </Button>
       </div>
+
+      <ManagerPinDialog
+        open={pinOpen}
+        title="Discount requires approval"
+        description="Discount exceeds the configured threshold."
+        action="discount"
+        outletId={outletId}
+        userId={user?.id}
+        entityType="checkout"
+        payload={{ discountAmount, discountPct: subtotal > 0 ? (discountAmount / subtotal) * 100 : 0 }}
+        onCancel={() => setPinOpen(false)}
+        onApproved={(approvalId) => {
+          setPinOpen(false);
+          setPendingApprovalId(approvalId);
+          void handleCompleteOrder(approvalId);
+        }}
+      />
     </div>
   );
 }

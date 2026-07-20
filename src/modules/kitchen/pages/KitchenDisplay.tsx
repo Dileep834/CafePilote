@@ -5,12 +5,15 @@ import {
   CheckCircle,
   Clock,
   GripVertical,
+  RotateCcw,
   TimerReset,
   Utensils,
+  Zap,
   type LucideIcon,
 } from 'lucide-react';
 import { useKitchenStore } from '../store/useKitchenStore';
 import type { KitchenOrder, KitchenStatus } from '../store/useKitchenStore';
+import { DEFAULT_KITCHEN_STATIONS, orderMatchesStation } from '../lib/stations';
 import { cn } from '@/lib/utils';
 import dayjs from 'dayjs';
 
@@ -47,17 +50,25 @@ function priorityLabel(age: number, status: KitchenStatus) {
 export function KitchenDisplay() {
   const {
     orders,
+    completedToday,
     fetchOrders,
+    fetchCompletedToday,
     subscribeToOrders,
     unsubscribeFromOrders,
     updateOrderStatus,
+    bumpOrder,
+    recallOrder,
+    selectedStation,
+    setSelectedStation,
     isLoading,
   } = useKitchenStore();
   const [draggingOrderId, setDraggingOrderId] = useState<string | null>(null);
   const [nowLabel, setNowLabel] = useState(() => dayjs().format('HH:mm:ss'));
+  const [showCompleted, setShowCompleted] = useState(false);
 
   useEffect(() => {
     fetchOrders();
+    fetchCompletedToday();
     subscribeToOrders();
 
     const timer = window.setInterval(() => setNowLabel(dayjs().format('HH:mm:ss')), 1000);
@@ -65,20 +76,35 @@ export function KitchenDisplay() {
       window.clearInterval(timer);
       unsubscribeFromOrders();
     };
-  }, [fetchOrders, subscribeToOrders, unsubscribeFromOrders]);
+  }, [fetchOrders, fetchCompletedToday, subscribeToOrders, unsubscribeFromOrders]);
+
+  const stationFiltered = useMemo(() => {
+    return orders.filter((order) =>
+      orderMatchesStation(
+        selectedStation,
+        (order.items || []).map((i) => i.product_name)
+      )
+    );
+  }, [orders, selectedStation]);
 
   const grouped = useMemo(
     () => ({
-      pending: orders.filter((o) => o.kitchen_status === 'pending'),
-      preparing: orders.filter((o) => o.kitchen_status === 'preparing'),
-      ready: orders.filter((o) => o.kitchen_status === 'ready'),
+      pending: stationFiltered.filter((o) => o.kitchen_status === 'pending'),
+      preparing: stationFiltered.filter((o) => o.kitchen_status === 'preparing'),
+      ready: stationFiltered.filter((o) => o.kitchen_status === 'ready'),
     }),
-    [orders]
+    [stationFiltered]
   );
 
-  const delayedCount = orders.filter((order) => orderAgeMinutes(order) >= 15 && order.kitchen_status !== 'ready').length;
-  const activeQty = orders.reduce(
+  const delayedCount = stationFiltered.filter(
+    (order) => orderAgeMinutes(order) >= 15 && order.kitchen_status !== 'ready'
+  ).length;
+  const activeQty = stationFiltered.reduce(
     (sum, order) => sum + (order.items?.reduce((itemSum, item) => itemSum + item.quantity, 0) || 0),
+    0
+  );
+  const allDayCount = activeQty + completedToday.reduce(
+    (sum, order) => sum + (order.items?.reduce((s, i) => s + i.quantity, 0) || 0),
     0
   );
 
@@ -174,6 +200,15 @@ export function KitchenDisplay() {
         </div>
 
         <div className="flex gap-2 bg-slate-900/50 p-3">
+          <button
+            type="button"
+            onClick={() => void bumpOrder(order.id)}
+            className="inline-flex h-11 items-center justify-center gap-1 rounded-lg bg-slate-700 px-3 text-xs font-black text-white hover:bg-slate-600"
+            title="Bump"
+          >
+            <Zap className="h-4 w-4" />
+            Bump
+          </button>
           {column.next && (
             <button
               type="button"
@@ -215,6 +250,10 @@ export function KitchenDisplay() {
             <p className="text-[10px] font-black uppercase text-slate-500">Items</p>
             <p className="text-lg font-black text-white">{activeQty}</p>
           </div>
+          <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-2">
+            <p className="text-[10px] font-black uppercase text-slate-500">All day</p>
+            <p className="text-lg font-black text-amber-300">{allDayCount}</p>
+          </div>
           <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-4 py-2">
             <span className="relative flex h-3 w-3">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -227,6 +266,66 @@ export function KitchenDisplay() {
           </div>
         </div>
       </div>
+
+      <div className="mb-4 flex flex-wrap gap-1.5">
+        {DEFAULT_KITCHEN_STATIONS.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => setSelectedStation(s.id)}
+            className={cn(
+              'rounded-xl px-3 py-1.5 text-xs font-bold transition',
+              selectedStation === s.id
+                ? 'bg-amber-500 text-slate-950'
+                : 'bg-slate-900 text-slate-300 ring-1 ring-slate-800 hover:bg-slate-800'
+            )}
+          >
+            {s.label}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => {
+            setShowCompleted((v) => !v);
+            void fetchCompletedToday();
+          }}
+          className={cn(
+            'ml-auto rounded-xl px-3 py-1.5 text-xs font-bold',
+            showCompleted ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-900 text-slate-400'
+          )}
+        >
+          Completed queue ({completedToday.length})
+        </button>
+      </div>
+
+      {showCompleted && (
+        <div className="mb-4 max-h-40 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-950 p-3">
+          <div className="space-y-2">
+            {completedToday.map((order) => (
+              <div
+                key={order.id}
+                className="flex items-center justify-between gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs"
+              >
+                <span className="font-black text-white">#{order.id.slice(0, 5).toUpperCase()}</span>
+                <span className="truncate text-slate-400">
+                  {order.table_number ? `T${order.table_number}` : order.customer_name || '—'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void recallOrder(order.id)}
+                  className="inline-flex items-center gap-1 rounded-lg bg-slate-800 px-2 py-1 font-bold text-amber-300"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Recall
+                </button>
+              </div>
+            ))}
+            {!completedToday.length && (
+              <p className="py-4 text-center text-slate-500">No completed tickets today</p>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid flex-1 grid-cols-1 gap-4 min-h-0 md:grid-cols-3 lg:gap-6">
         {COLUMNS.map((column) => {

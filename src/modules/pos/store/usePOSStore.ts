@@ -42,6 +42,12 @@ export interface CheckoutPaymentReference {
   status?: string;
 }
 
+export type CheckoutOptions = {
+  idempotencyKey?: string;
+  splitLines?: Array<{ method: string; amount: number; tendered?: number }>;
+  managerApprovalId?: string | null;
+};
+
 export interface HeldOrder {
   id: string;
   created_at: string;
@@ -87,7 +93,10 @@ interface POSState {
   setPaymentMethod: (method: PaymentMethod) => void;
   setTenderedAmount: (amount: string) => void;
   setCustomerDetails: (name: string, phone: string) => void;
-  processCheckout: (paymentReference?: CheckoutPaymentReference) => Promise<void>;
+  processCheckout: (
+    paymentReference?: CheckoutPaymentReference,
+    options?: CheckoutOptions
+  ) => Promise<void>;
 
   attachTable: (table: Table, allTables: Table[]) => void;
   detachTable: () => void;
@@ -304,7 +313,7 @@ export const usePOSStore = create<POSState>((set, get) => ({
     return useTableBillStore.getState().fireKitchenTicket(state.activeTableId, undefined, 'pos');
   },
 
-  processCheckout: async (paymentReference) => {
+  processCheckout: async (paymentReference, options) => {
     const state = get();
     const { user } = useAuthStore.getState();
     const tableBill = state.activeTableId
@@ -328,134 +337,411 @@ export const usePOSStore = create<POSState>((set, get) => ({
       state.paymentMethod === 'cash' ? parseFloat(state.tenderedAmount) || 0 : totalAmount;
     const changeDue = state.paymentMethod === 'cash' ? Math.max(0, tenderedNumeric - totalAmount) : 0;
 
-    let orderId: string | null = null;
-    const cartSnapshot = [...state.cart];
-    const tableLabel = state.activeTableLabel;
-    const tableId = state.activeTableId;
+    // --- Phase 1: payment validation (cash / split) ---
+    const { validateCashTender, validateSplitPayment, createIdempotencyKey } = await import(
+      '@/modules/ops/lib/validators'
+    );
+    if (state.paymentMethod === 'cash') {
+      const v = validateCashTender(totalAmount, tenderedNumeric);
+      if (!v.ok) throw new Error(v.message);
+    }
+    if (state.paymentMethod === 'split' && options?.splitLines) {
+      const v = validateSplitPayment(totalAmount, options.splitLines);
+      if (!v.ok) throw new Error(v.message);
+    }
 
-    // Table sales: kitchen already got (or will get) tickets via settleBill
-    const kitchenStatus = tableId ? 'delivered' : 'pending';
+    const idempotencyKey =
+      options?.idempotencyKey ||
+      createIdempotencyKey([
+        outletId || 'no-outlet',
+        state.activeTableId || 'counter',
+        totalAmount.toFixed(2),
+        state.paymentMethod,
+        state.cart.map((c) => `${c.productId}x${c.quantity}`).join(','),
+        // bucket to nearest 2s to collapse double-clicks, still unique per order shape
+        Math.floor(Date.now() / 2000),
+      ]);
 
-    const gatewayNote = paymentReference
-      ? [
-          `Gateway ${paymentReference.gateway.toUpperCase()}`,
-          paymentReference.providerOrderId,
-          paymentReference.providerTransactionId,
-        ]
-          .filter(Boolean)
-          .join(' - ')
-      : null;
-    const notes =
-      [tableLabel ? `Paid dine-in - ${tableLabel}` : null, gatewayNote].filter(Boolean).join(' | ') ||
-      null;
+    const {
+      createOrGetPaymentIntent,
+      completePaymentIntent,
+      failPaymentIntent,
+      acquireCheckoutLock,
+      releaseCheckoutLock,
+    } = await import('@/modules/ops/services/paymentIntentService');
 
-    const fullRow = {
-      outlet_id: outletId,
-      customer_name: state.customerName || (tableLabel ? `Table ${tableLabel}` : null),
-      customer_phone: state.customerPhone || null,
-      total_amount: totalAmount,
-      tax_amount: taxAmount,
-      payment_method: state.paymentMethod,
-      tendered_amount: tenderedNumeric,
-      change_due: changeDue,
-      status: 'completed',
-      kitchen_status: kitchenStatus,
-      table_id: tableId || null,
-      table_number: tableLabel || null,
-      order_source: 'pos',
-      notes,
-    };
+    if (!acquireCheckoutLock(idempotencyKey)) {
+      throw new Error('Checkout already in progress. Please wait.');
+    }
 
-    const legacyRow = {
-      outlet_id: outletId,
-      customer_name: state.customerName || (tableLabel ? `Table ${tableLabel}` : null),
-      customer_phone: state.customerPhone || null,
-      total_amount: totalAmount,
-      tax_amount: taxAmount,
-      payment_method: state.paymentMethod,
-      tendered_amount: tenderedNumeric,
-      change_due: changeDue,
-      status: 'completed',
-      kitchen_status: kitchenStatus,
-      notes,
-    };
+    let intentId: string | null = null;
 
     try {
-      let { data: orderData, error: orderError } = await supabase
-        .from('pos_orders')
-        .insert([fullRow])
-        .select()
-        .single();
+      const { intent, reused } = await createOrGetPaymentIntent({
+        idempotencyKey,
+        outletId,
+        amount: totalAmount,
+        paymentMethod: state.paymentMethod,
+        splitLines: options?.splitLines,
+        gatewayPayload: paymentReference
+          ? (paymentReference as unknown as Record<string, unknown>)
+          : undefined,
+        createdBy: user?.id || null,
+      });
 
-      if (orderError) {
-        ({ data: orderData, error: orderError } = await supabase
-          .from('pos_orders')
-          .insert([legacyRow])
-          .select()
-          .single());
+      intentId = intent?.id || null;
+
+      if (reused && intent?.status === 'succeeded' && intent.order_id) {
+        // Idempotent replay — order already paid
+        set({
+          cart: [],
+          tenderedAmount: '',
+          paymentMethod: 'cash',
+          customerName: '',
+          customerPhone: '',
+          discountValue: 0,
+          serviceCharge: 0,
+          orderNotes: '',
+          activeTableId: null,
+          activeTableLabel: null,
+          lastOrder: {
+            id: intent.order_id,
+            cart: [...state.cart],
+            paymentMethod: state.paymentMethod,
+            tenderedAmount: state.tenderedAmount,
+            taxAmount,
+            discountAmount,
+            totalAmount,
+            changeDue,
+            paymentReference,
+            tableLabel: state.activeTableLabel,
+            outletId,
+            customer: { name: state.customerName, phone: state.customerPhone },
+            timestamp: new Date().toISOString(),
+          },
+        });
+        return;
       }
 
-      if (orderError) throw orderError;
-      orderId = orderData.id;
-
-      const orderItems = cartSnapshot.map((item) => ({
-        order_id: orderId,
-        product_id: item.productId,
-        product_name: item.notes ? `${item.name} (${item.notes})` : item.name,
+      // --- Phase 1: inventory availability (block before sale) ---
+      const saleLines = state.cart.map((item) => ({
+        productId: item.productId,
+        name: item.name,
         quantity: item.quantity,
-        unit_price: item.price,
-        total_price: item.price * item.quantity,
+        unitPrice: item.price,
+        notes: item.notes,
       }));
 
-      const { error: itemsError } = await supabase.from('pos_order_items').insert(orderItems);
-      if (itemsError) throw itemsError;
-    } catch (error) {
-      console.error('Error processing checkout:', error);
-      if (!tableId) {
-        alert('Failed to save order to database. Please try again.');
-        throw error;
+      if (outletId) {
+        const { checkInventoryForSale } = await import(
+          '@/modules/ops/services/recipeDeductionService'
+        );
+        const stockCheck = await checkInventoryForSale({ outletId, lines: saleLines });
+        if (!stockCheck.ok) {
+          if (intentId) await failPaymentIntent(intentId, stockCheck.message);
+          throw new Error(stockCheck.message);
+        }
       }
-      orderId = `local-paid-${Date.now()}`;
-    }
 
-    if (tableId) {
-      await useTableBillStore.getState().settleBill(tableId, orderId || undefined);
-    }
+      let orderId: string | null = null;
+      const cartSnapshot = [...state.cart];
+      const tableLabel = state.activeTableLabel;
+      const tableId = state.activeTableId;
+      const kitchenStatus = tableId ? 'delivered' : 'pending';
 
-    set({
-      cart: [],
-      tenderedAmount: '',
-      paymentMethod: 'cash',
-      customerName: '',
-      customerPhone: '',
-      discountValue: 0,
-      serviceCharge: 0,
-      orderNotes: '',
-      activeTableId: null,
-      activeTableLabel: null,
-      lastOrder: {
-        id: orderId,
-        cart: cartSnapshot,
-        paymentMethod: state.paymentMethod,
-        tenderedAmount: state.tenderedAmount,
-        taxAmount,
-        discountAmount,
-        totalAmount,
-        changeDue,
-        paymentReference,
-        tableLabel,
-        outletId,
-        customer: { name: state.customerName, phone: state.customerPhone },
-        timestamp: new Date().toISOString(),
-      },
-    });
+      const gatewayNote = paymentReference
+        ? [
+            `Gateway ${paymentReference.gateway.toUpperCase()}`,
+            paymentReference.providerOrderId,
+            paymentReference.providerTransactionId,
+          ]
+            .filter(Boolean)
+            .join(' - ')
+        : null;
+      const notes =
+        [tableLabel ? `Paid dine-in - ${tableLabel}` : null, gatewayNote].filter(Boolean).join(' | ') ||
+        null;
 
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(
-        new CustomEvent('cafepilots:orders-updated', {
-          detail: { orderId, outletId, totalAmount },
-        })
-      );
+      const fullRow = {
+        outlet_id: outletId,
+        customer_name: state.customerName || (tableLabel ? `Table ${tableLabel}` : null),
+        customer_phone: state.customerPhone || null,
+        total_amount: totalAmount,
+        tax_amount: taxAmount,
+        payment_method: state.paymentMethod,
+        tendered_amount: tenderedNumeric,
+        change_due: changeDue,
+        status: 'completed',
+        kitchen_status: kitchenStatus,
+        table_id: tableId || null,
+        table_number: tableLabel || null,
+        order_source: 'pos' as const,
+        notes,
+        idempotency_key: idempotencyKey,
+        payment_intent_id: intentId && !intentId.startsWith('local-') ? intentId : null,
+      };
+
+      const legacyRow = {
+        outlet_id: outletId,
+        customer_name: state.customerName || (tableLabel ? `Table ${tableLabel}` : null),
+        customer_phone: state.customerPhone || null,
+        total_amount: totalAmount,
+        tax_amount: taxAmount,
+        payment_method: state.paymentMethod,
+        tendered_amount: tenderedNumeric,
+        change_due: changeDue,
+        status: 'completed',
+        kitchen_status: kitchenStatus,
+        notes,
+      };
+
+      try {
+        let { data: orderData, error: orderError } = await supabase
+          .from('pos_orders')
+          .insert([fullRow])
+          .select()
+          .single();
+
+        if (orderError) {
+          // Idempotency unique hit — fetch existing
+          if (orderError.code === '23505' && idempotencyKey) {
+            const { data: existing } = await supabase
+              .from('pos_orders')
+              .select('*')
+              .eq('idempotency_key', idempotencyKey)
+              .maybeSingle();
+            if (existing) {
+              orderId = existing.id;
+              orderData = existing;
+              orderError = null;
+            }
+          }
+        }
+
+        if (orderError) {
+          ({ data: orderData, error: orderError } = await supabase
+            .from('pos_orders')
+            .insert([legacyRow])
+            .select()
+            .single());
+        }
+
+        if (orderError) throw orderError;
+        orderId = orderData.id;
+
+        const orderItems = cartSnapshot.map((item) => ({
+          order_id: orderId,
+          product_id: item.productId,
+          product_name: item.notes ? `${item.name} (${item.notes})` : item.name,
+          quantity: item.quantity,
+          unit_price: item.price,
+          total_price: item.price * item.quantity,
+        }));
+
+        // Avoid duplicate items on idempotent replay
+        const { count } = await supabase
+          .from('pos_order_items')
+          .select('id', { count: 'exact', head: true })
+          .eq('order_id', orderId);
+        if (!count) {
+          const { error: itemsError } = await supabase.from('pos_order_items').insert(orderItems);
+          if (itemsError) throw itemsError;
+        }
+      } catch (error) {
+        console.error('Error processing checkout:', error);
+        if (intentId) await failPaymentIntent(intentId, (error as Error)?.message || 'checkout failed');
+        if (!tableId) {
+          alert('Failed to save order to database. Please try again.');
+          throw error;
+        }
+        orderId = `local-paid-${Date.now()}`;
+      }
+
+      if (orderId && intentId) {
+        const tenderLines =
+          state.paymentMethod === 'split' && options?.splitLines?.length
+            ? options.splitLines.map((l) => ({
+                method: l.method,
+                amount: l.amount,
+                tendered: l.tendered ?? l.amount,
+                changeDue: 0,
+                providerRef: paymentReference?.providerTransactionId,
+              }))
+            : [
+                {
+                  method: state.paymentMethod,
+                  amount: totalAmount,
+                  tendered: tenderedNumeric,
+                  changeDue,
+                  providerRef: paymentReference?.providerTransactionId,
+                },
+              ];
+
+        await completePaymentIntent({
+          intentId,
+          orderId,
+          outletId,
+          tenderLines,
+        });
+      }
+
+      // --- Phase 1: inventory deduction after successful payment ---
+      if (outletId && orderId && !String(orderId).startsWith('local-')) {
+        try {
+          const { deductInventoryForSale } = await import(
+            '@/modules/ops/services/recipeDeductionService'
+          );
+          await deductInventoryForSale({
+            outletId,
+            orderId,
+            lines: saleLines,
+            createdBy: user?.id || null,
+            orderSource: 'pos',
+          });
+        } catch (invErr) {
+          console.error('[checkout] inventory deduction failed after payment', invErr);
+          // Payment already captured — surface warning but do not roll back sale
+          alert(
+            `Order saved, but inventory update failed: ${(invErr as Error)?.message || 'unknown'}. Adjust stock manually.`
+          );
+        }
+      }
+
+      // --- Phase 1: shift + audit ---
+      if (outletId && orderId) {
+        try {
+          const { attachSaleToOpenShift } = await import('@/modules/ops/services/shiftService');
+          const shiftId = await attachSaleToOpenShift({
+            outletId,
+            orderId,
+            amount: totalAmount,
+            paymentMethod: state.paymentMethod,
+            userId: user?.id || null,
+          });
+          if (shiftId && !String(orderId).startsWith('local-')) {
+            await supabase.from('pos_orders').update({ shift_id: shiftId }).eq('id', orderId);
+          }
+        } catch (shiftErr) {
+          console.warn('[checkout] shift attach skipped', shiftErr);
+        }
+
+        try {
+          const { writeAuditLog } = await import('@/modules/ops/services/auditService');
+          await writeAuditLog({
+            outletId,
+            userId: user?.id,
+            userName: user?.name,
+            userRole: user?.role,
+            action: 'checkout',
+            entityType: 'pos_order',
+            entityId: orderId,
+            newValue: {
+              totalAmount,
+              paymentMethod: state.paymentMethod,
+              discountAmount,
+              taxAmount,
+              itemCount: cartSnapshot.length,
+            },
+            reason: discountAmount > 0 ? `Discount ${discountAmount}` : null,
+            managerApprovalId: options?.managerApprovalId,
+          });
+        } catch {
+          /* ignore */
+        }
+
+        // --- Phase 2: lifecycle + loyalty ---
+        if (!String(orderId).startsWith('local-')) {
+          try {
+            const { recordLifecycleTransition } = await import(
+              '@/modules/ops/services/orderLifecycleService'
+            );
+            await recordLifecycleTransition({
+              orderId,
+              outletId,
+              channel: tableId ? 'dine_in' : 'pos',
+              fromStatus: 'new',
+              toStatus: tableId ? 'completed' : 'accepted',
+              actorId: user?.id,
+              actorName: user?.name,
+            });
+          } catch {
+            /* optional */
+          }
+
+          try {
+            const { earnLoyaltyPoints } = await import('@/modules/ops/services/loyaltyService');
+            await earnLoyaltyPoints({
+              outletId,
+              customerPhone: state.customerPhone || null,
+              orderId,
+              spendAmount: totalAmount,
+              userId: user?.id || null,
+            });
+          } catch {
+            /* optional */
+          }
+
+          try {
+            const { pushAppNotification } = await import(
+              '@/modules/ops/services/notificationService'
+            );
+            if (!tableId) {
+              await pushAppNotification({
+                outletId,
+                kind: 'new_order',
+                title: 'New kitchen order',
+                body: `#${String(orderId).slice(0, 8)} · ${cartSnapshot.length} item(s)`,
+                entityType: 'pos_order',
+                entityId: orderId,
+              });
+            }
+          } catch {
+            /* optional */
+          }
+        }
+      }
+
+      if (tableId) {
+        await useTableBillStore.getState().settleBill(tableId, orderId || undefined);
+      }
+
+      set({
+        cart: [],
+        tenderedAmount: '',
+        paymentMethod: 'cash',
+        customerName: '',
+        customerPhone: '',
+        discountValue: 0,
+        serviceCharge: 0,
+        orderNotes: '',
+        activeTableId: null,
+        activeTableLabel: null,
+        lastOrder: {
+          id: orderId,
+          cart: cartSnapshot,
+          paymentMethod: state.paymentMethod,
+          tenderedAmount: state.tenderedAmount,
+          taxAmount,
+          discountAmount,
+          totalAmount,
+          changeDue,
+          paymentReference,
+          tableLabel,
+          outletId,
+          customer: { name: state.customerName, phone: state.customerPhone },
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('cafepilots:orders-updated', {
+            detail: { orderId, outletId, totalAmount },
+          })
+        );
+      }
+    } finally {
+      releaseCheckoutLock(idempotencyKey);
     }
   },
 

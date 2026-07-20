@@ -8,6 +8,8 @@ export const PERMISSIONS = {
   POS_CHECKOUT: 'pos.checkout',
   POS_DISCOUNT: 'pos.discount',
   POS_REFUND: 'pos.refund',
+  POS_SHIFT: 'pos.shift',
+  POS_AUDIT: 'pos.audit',
   TABLES_MANAGE: 'tables.manage',
   FLOOR_MANAGE: 'floor.manage',
 
@@ -29,6 +31,11 @@ export const PERMISSIONS = {
 
   REPORTS_VIEW: 'reports.view',
   REPORTS_EXPORT: 'reports.export',
+
+  SAAS_BI: 'saas.bi',
+  SAAS_AI: 'saas.ai',
+  SAAS_API: 'saas.api',
+  SAAS_PLATFORM: 'saas.platform',
 
   FRANCHISE_MANAGE: 'franchise.manage',
   USERS_MANAGE: 'users.manage',
@@ -65,6 +72,8 @@ export const PERMISSION_MODULES: PermissionModule[] = [
       { id: PERMISSIONS.POS_CHECKOUT, label: 'Process Checkout & Orders' },
       { id: PERMISSIONS.POS_DISCOUNT, label: 'Apply Custom Discounts' },
       { id: PERMISSIONS.POS_REFUND, label: 'Process Refunds / Voids' },
+      { id: PERMISSIONS.POS_SHIFT, label: 'Open / Close Cash Shifts' },
+      { id: PERMISSIONS.POS_AUDIT, label: 'View Audit Logs' },
       { id: PERMISSIONS.TABLES_MANAGE, label: 'Manage Table Board & Checks' },
       { id: PERMISSIONS.FLOOR_MANAGE, label: 'Manage Floor Designer' },
     ],
@@ -114,6 +123,16 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     ],
   },
   {
+    module: 'SaaS Platform',
+    description: 'BI, AI copilot, API keys, and platform operations',
+    permissions: [
+      { id: PERMISSIONS.SAAS_BI, label: 'Executive Intelligence Dashboard' },
+      { id: PERMISSIONS.SAAS_AI, label: 'AI Copilot' },
+      { id: PERMISSIONS.SAAS_API, label: 'Manage API Keys & Webhooks' },
+      { id: PERMISSIONS.SAAS_PLATFORM, label: 'Platform Ops (Transfers / Health)' },
+    ],
+  },
+  {
     module: 'Administration',
     description: 'Tenant, user, and platform governance',
     permissions: [
@@ -144,6 +163,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleType, PermissionId[]> = {
     PERMISSIONS.POS_CHECKOUT,
     PERMISSIONS.POS_DISCOUNT,
     PERMISSIONS.POS_REFUND,
+    PERMISSIONS.POS_SHIFT,
+    PERMISSIONS.POS_AUDIT,
     PERMISSIONS.TABLES_MANAGE,
     PERMISSIONS.FLOOR_MANAGE,
     PERMISSIONS.KITCHEN_ACCESS,
@@ -159,6 +180,10 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleType, PermissionId[]> = {
     PERMISSIONS.MARKETING_MANAGE,
     PERMISSIONS.REPORTS_VIEW,
     PERMISSIONS.REPORTS_EXPORT,
+    PERMISSIONS.SAAS_BI,
+    PERMISSIONS.SAAS_AI,
+    PERMISSIONS.SAAS_API,
+    PERMISSIONS.SAAS_PLATFORM,
     PERMISSIONS.FRANCHISE_MANAGE,
   ],
   [Role.OUTLET_MANAGER]: [
@@ -168,6 +193,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleType, PermissionId[]> = {
     PERMISSIONS.POS_CHECKOUT,
     PERMISSIONS.POS_DISCOUNT,
     PERMISSIONS.POS_REFUND,
+    PERMISSIONS.POS_SHIFT,
+    PERMISSIONS.POS_AUDIT,
     PERMISSIONS.TABLES_MANAGE,
     PERMISSIONS.FLOOR_MANAGE,
     PERMISSIONS.KITCHEN_ACCESS,
@@ -182,11 +209,15 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleType, PermissionId[]> = {
     PERMISSIONS.CRM_MANAGE,
     PERMISSIONS.MARKETING_MANAGE,
     PERMISSIONS.REPORTS_VIEW,
+    PERMISSIONS.SAAS_BI,
+    PERMISSIONS.SAAS_AI,
+    PERMISSIONS.SAAS_PLATFORM,
   ],
   [Role.CASHIER]: [
     PERMISSIONS.DASHBOARD_ACCESS,
     PERMISSIONS.POS_ACCESS,
     PERMISSIONS.POS_CHECKOUT,
+    PERMISSIONS.POS_REFUND,
     PERMISSIONS.TABLES_MANAGE,
     PERMISSIONS.CRM_MANAGE,
   ],
@@ -210,6 +241,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleType, PermissionId[]> = {
     PERMISSIONS.SUPPLIERS_MANAGE,
     PERMISSIONS.REPORTS_VIEW,
     PERMISSIONS.REPORTS_EXPORT,
+    PERMISSIONS.SAAS_BI,
+    PERMISSIONS.SAAS_PLATFORM,
   ],
   [Role.STAFF]: [
     PERMISSIONS.DASHBOARD_ACCESS,

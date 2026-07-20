@@ -1221,6 +1221,20 @@ export function ERPHome() {
     return () => window.removeEventListener('cafepilots:orders-updated', refreshAfterOrder);
   }, [refetchMetrics]);
 
+  useEffect(() => {
+    if (!activeOutletId || activeOutletId === 'current-outlet' || activeOutletId.startsWith('local')) {
+      return;
+    }
+    if (!metricsQuery.data || metricsQuery.data.lowStockItems <= 0) return;
+    const key = `cp-lowstock-notified-${activeOutletId}`;
+    const last = Number(sessionStorage.getItem(key) || 0);
+    if (Date.now() - last < 60 * 60 * 1000) return;
+    sessionStorage.setItem(key, String(Date.now()));
+    void import('@/modules/ops/services/inventoryAutomationService').then(({ notifyLowStock }) =>
+      notifyLowStock(activeOutletId)
+    );
+  }, [activeOutletId, metricsQuery.data]);
+
   const metrics = metricsQuery.data || EMPTY_METRICS;
 
   const scopedTables = useMemo(() => {

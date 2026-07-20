@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Bell, LogOut, Search } from 'lucide-react';
+import { Menu, LogOut, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import {
@@ -20,6 +20,7 @@ import { BranchSwitcher } from './BranchSwitcher';
 import { useTenantStore } from '@/store/useTenantStore';
 import { loginPath } from '@/lib/appHost';
 import { CommandPalette } from './CommandPalette';
+import { NotificationCenter } from '@/modules/ops/components/NotificationCenter';
 
 interface HeaderProps {
   onToggleSidebar?: () => void;
@@ -148,10 +149,7 @@ export function Header({
             Ctrl K
           </span>
         </Button>
-        <Button variant="ghost" size="icon" className="hidden text-slate-500 sm:inline-flex">
-          <Bell className="h-5 w-5" />
-          <span className="sr-only">View notifications</span>
-        </Button>
+        <NotificationCenter />
         {/* Avatar with Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

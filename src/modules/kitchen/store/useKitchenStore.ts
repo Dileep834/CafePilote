@@ -28,10 +28,16 @@ export interface KitchenOrder {
 
 interface KitchenState {
   orders: KitchenOrder[];
+  completedToday: KitchenOrder[];
   isLoading: boolean;
   error: string | null;
+  selectedStation: string;
+  setSelectedStation: (id: string) => void;
   fetchOrders: () => Promise<void>;
+  fetchCompletedToday: () => Promise<void>;
   updateOrderStatus: (orderId: string, status: KitchenStatus) => Promise<void>;
+  bumpOrder: (orderId: string) => Promise<void>;
+  recallOrder: (orderId: string) => Promise<void>;
   subscribeToOrders: () => void;
   unsubscribeFromOrders: () => void;
 }
@@ -55,8 +61,12 @@ function mapRows(data: any[]): KitchenOrder[] {
 
 export const useKitchenStore = create<KitchenState>((set, get) => ({
   orders: [],
+  completedToday: [],
   isLoading: false,
   error: null,
+  selectedStation: 'all',
+
+  setSelectedStation: (id) => set({ selectedStation: id }),
 
   fetchOrders: async () => {
     const { user } = useAuthStore.getState();
@@ -141,6 +151,7 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
 
   updateOrderStatus: async (orderId: string, status: KitchenStatus) => {
     try {
+      const prev = get().orders.find((o) => o.id === orderId);
       set((state) => ({
         orders: state.orders
           .map((order) => (order.id === orderId ? { ...order, kitchen_status: status } : order))
@@ -156,8 +167,96 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
         get().fetchOrders();
         throw error;
       }
+
+      // Phase 2 lifecycle + notifications
+      try {
+        const { recordLifecycleTransition, kitchenToLifecycle } = await import(
+          '@/modules/ops/services/orderLifecycleService'
+        );
+        const { pushAppNotification } = await import('@/modules/ops/services/notificationService');
+        const { user } = useAuthStore.getState();
+        await recordLifecycleTransition({
+          orderId,
+          outletId: getTenantOutletId(user),
+          fromStatus: prev ? kitchenToLifecycle(prev.kitchen_status) : null,
+          toStatus: kitchenToLifecycle(status),
+          actorId: user?.id,
+          actorName: user?.name,
+          startedAt: prev?.created_at,
+        });
+        if (status === 'ready') {
+          await pushAppNotification({
+            outletId: getTenantOutletId(user),
+            kind: 'kitchen_ready',
+            title: 'Order ready',
+            body: `#${orderId.slice(0, 8)} ready for handover`,
+            entityType: 'pos_order',
+            entityId: orderId,
+          });
+        }
+      } catch {
+        /* optional */
+      }
+
+      if (status === 'delivered') {
+        void get().fetchCompletedToday();
+      }
     } catch (err: any) {
       console.error('Error updating order status:', err);
+    }
+  },
+
+  bumpOrder: async (orderId) => {
+    const order = get().orders.find((o) => o.id === orderId);
+    if (!order) return;
+    const next: KitchenStatus | null =
+      order.kitchen_status === 'pending'
+        ? 'preparing'
+        : order.kitchen_status === 'preparing'
+          ? 'ready'
+          : order.kitchen_status === 'ready'
+            ? 'delivered'
+            : null;
+    if (next) await get().updateOrderStatus(orderId, next);
+  },
+
+  recallOrder: async (orderId) => {
+    try {
+      await supabase.from('pos_orders').update({ kitchen_status: 'ready' }).eq('id', orderId);
+      set((s) => ({
+        completedToday: s.completedToday.filter((o) => o.id !== orderId),
+      }));
+      await get().fetchOrders();
+    } catch (err) {
+      console.error('Recall failed', err);
+    }
+  },
+
+  fetchCompletedToday: async () => {
+    const { user } = useAuthStore.getState();
+    const outletId = getTenantOutletId(user);
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    try {
+      let q = supabase
+        .from('pos_orders')
+        .select(
+          `
+          id, customer_name, table_number, order_source, status, kitchen_status, created_at,
+          items:pos_order_items ( id, product_name, quantity )
+        `
+        )
+        .eq('kitchen_status', 'delivered')
+        .gte('created_at', start.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(40);
+      if (outletId && outletId !== 'current-outlet' && !outletId.startsWith('local')) {
+        q = q.eq('outlet_id', outletId);
+      }
+      const { data } = await q;
+      set({ completedToday: mapRows(data || []) });
+    } catch {
+      set({ completedToday: [] });
     }
   },
 

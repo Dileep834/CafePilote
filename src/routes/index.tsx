@@ -15,6 +15,13 @@ import { ERPHome } from '../modules/core/pages/ERPHome';
 import { POSDashboard } from '../modules/pos/pages/POSDashboard';
 import { CheckoutPage } from '../modules/pos/pages/CheckoutPage';
 import { OnlineOrdersPage } from '../modules/pos/pages/OnlineOrdersPage';
+import { ShiftManagementPage, RefundsPage, AuditLogsPage } from '../modules/ops';
+import {
+  ExecutiveBiPage,
+  AiCopilotPage,
+  ApiPlatformPage,
+  PlatformOpsPage,
+} from '../modules/saas';
 import { CurrentInventory as ERPCurrentInventory } from '../modules/inventory/pages/CurrentInventory';
 import { KitchenDisplay } from '../modules/kitchen/pages/KitchenDisplay';
 import { OrderHistory } from '../modules/reports/pages/OrderHistory';
@@ -162,6 +169,30 @@ const AppRoutes = () => {
             }
           />
           <Route
+            path="shifts"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.POS_SHIFT} requiredPlanModule="pos">
+                <ShiftManagementPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="refunds"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.POS_REFUND} requiredPlanModule="pos">
+                <RefundsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="audit"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.POS_AUDIT} requiredPlanModule="pos">
+                <AuditLogsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="pos/checkout"
             element={
               <ProtectedRoute requiredPermission={PERMISSIONS.POS_CHECKOUT} requiredPlanModule="posCheckout">
@@ -266,6 +297,41 @@ const AppRoutes = () => {
             element={
               <ProtectedRoute requiredPermission={PERMISSIONS.REPORTS_VIEW} requiredPlanModule="reports">
                 <OrderHistory />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="intelligence"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.SAAS_BI} requiredPlanModule="aiReports">
+                <ExecutiveBiPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="copilot"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.SAAS_AI} requiredPlanModule="aiCoach">
+                <AiCopilotPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="api-platform"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.SAAS_API} requiredPlanModule="api">
+                <ApiPlatformPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="platform"
+            element={
+              <ProtectedRoute
+                requiredPermission={PERMISSIONS.SAAS_PLATFORM}
+                requiredPlanModule="centralInventory"
+              >
+                <PlatformOpsPage />
               </ProtectedRoute>
             }
           />

@@ -256,11 +256,13 @@ export const usePurchaseStore = create<PurchaseState>((set, get) => ({
           .from('purchase_orders')
           .select(`
             outlet_id,
+            supplier_id,
             items:purchase_order_items(
               id,
               product_id,
               quantity,
-              received_quantity
+              received_quantity,
+              unit_price
             )
           `)
           .eq('id', id)
@@ -272,30 +274,58 @@ export const usePurchaseStore = create<PurchaseState>((set, get) => ({
           throw new Error('Cannot receive stock without an active outlet.');
         }
 
-        for (const item of (poData.items || []) as PurchaseOrderItem[]) {
-          const quantity = Number(item.received_quantity || item.quantity || 0);
-          if (!item.product_id || quantity <= 0) continue;
+        const receiveLines = ((poData.items || []) as PurchaseOrderItem[])
+          .map((item) => ({
+            productId: item.product_id,
+            quantity: Number(item.received_quantity || item.quantity || 0),
+            unitCost: Number(item.unit_price || 0) || undefined,
+          }))
+          .filter((line) => line.productId && line.quantity > 0);
 
-          const { data: invData, error: invFetchError } = await supabase
-            .from('inventory')
-            .select('current_quantity')
-            .eq('outlet_id', outletId)
-            .eq('product_id', item.product_id)
-            .maybeSingle();
+        // Prefer Phase 2 GRN path (ledger + notification); fall back to direct inventory upsert
+        let usedGrn = false;
+        try {
+          const { createGrn } = await import('@/modules/ops/services/purchaseAdvancedService');
+          const { user } = await import('@/store/useAuthStore').then((m) => m.useAuthStore.getState());
+          await createGrn({
+            outletId,
+            poId: id,
+            supplierId: poData.supplier_id || null,
+            items: receiveLines,
+            notes: `PO receive ${id}`,
+            userId: user?.id || null,
+          });
+          usedGrn = true;
+        } catch {
+          usedGrn = false;
+        }
 
-          if (invFetchError) throw invFetchError;
+        if (!usedGrn) {
+          for (const item of (poData.items || []) as PurchaseOrderItem[]) {
+            const quantity = Number(item.received_quantity || item.quantity || 0);
+            if (!item.product_id || quantity <= 0) continue;
 
-          const currentQty = Number(invData?.current_quantity || 0);
-          const { error: inventoryError } = await supabase.from('inventory').upsert(
-            {
-              outlet_id: outletId,
-              product_id: item.product_id,
-              current_quantity: currentQty + quantity,
-            },
-            { onConflict: 'outlet_id, product_id' }
-          );
+            const { data: invData, error: invFetchError } = await supabase
+              .from('inventory')
+              .select('current_quantity')
+              .eq('outlet_id', outletId)
+              .eq('product_id', item.product_id)
+              .maybeSingle();
 
-          if (inventoryError) throw inventoryError;
+            if (invFetchError) throw invFetchError;
+
+            const currentQty = Number(invData?.current_quantity || 0);
+            const { error: inventoryError } = await supabase.from('inventory').upsert(
+              {
+                outlet_id: outletId,
+                product_id: item.product_id,
+                current_quantity: currentQty + quantity,
+              },
+              { onConflict: 'outlet_id, product_id' }
+            );
+
+            if (inventoryError) throw inventoryError;
+          }
         }
       }
 
