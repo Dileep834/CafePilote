@@ -12,6 +12,16 @@ export interface Supplier {
   phone: string;
   address: string;
   is_active: boolean;
+  email?: string | null;
+  website?: string | null;
+  gst_number?: string | null;
+  city?: string | null;
+  state?: string | null;
+  pin_code?: string | null;
+  payment_terms?: string | null;
+  preferred_delivery_time?: string | null;
+  preferred_supplier?: boolean | null;
+  notes?: string | null;
 }
 
 export interface PurchaseOrderItem {
@@ -47,7 +57,9 @@ interface PurchaseState {
   error: string | null;
 
   fetchSuppliers: () => Promise<void>;
-  addSupplier: (supplier: Omit<Supplier, 'id' | 'is_active'>) => Promise<void>;
+  addSupplier: (
+    supplier: Omit<Supplier, 'id'> & Partial<Pick<Supplier, 'is_active'>>
+  ) => Promise<Supplier>;
   
   fetchPurchaseOrders: () => Promise<void>;
   createPurchaseOrder: (po: Partial<PurchaseOrder>, items: Omit<PurchaseOrderItem, 'id'|'po_id'|'total_price'>[]) => Promise<void>;
@@ -79,13 +91,56 @@ export const usePurchaseStore = create<PurchaseState>((set, get) => ({
     try {
       const user = useAuthStore.getState().user;
       const companyId = getScopedCompanyId(user);
-      const { data, error } = await supabase
-        .from('suppliers')
-        .insert([{ ...supplier, company_id: companyId }])
-        .select()
-        .single();
+
+      const fullRow = {
+        name: supplier.name,
+        category: supplier.category || null,
+        contact_name: supplier.contact_name || null,
+        phone: supplier.phone || null,
+        address: supplier.address || null,
+        is_active: supplier.is_active ?? true,
+        email: supplier.email ?? null,
+        website: supplier.website ?? null,
+        gst_number: supplier.gst_number ?? null,
+        city: supplier.city ?? null,
+        state: supplier.state ?? null,
+        pin_code: supplier.pin_code ?? null,
+        payment_terms: supplier.payment_terms ?? null,
+        preferred_delivery_time: supplier.preferred_delivery_time ?? null,
+        preferred_supplier: supplier.preferred_supplier ?? false,
+        notes: supplier.notes ?? null,
+        company_id: companyId,
+      };
+
+      let { data, error } = await supabase.from('suppliers').insert([fullRow]).select().single();
+
+      // Fallback when optional columns are not migrated yet.
+      if (error && /column|schema cache|does not exist/i.test(error.message || '')) {
+        const coreRow = {
+          name: fullRow.name,
+          category: fullRow.category,
+          contact_name: fullRow.contact_name,
+          phone: fullRow.phone,
+          address: [
+            fullRow.address,
+            fullRow.email ? `Email: ${fullRow.email}` : '',
+            fullRow.gst_number ? `GST: ${fullRow.gst_number}` : '',
+            fullRow.notes ? `Notes: ${fullRow.notes}` : '',
+          ]
+            .filter(Boolean)
+            .join('\n'),
+          is_active: fullRow.is_active,
+          company_id: companyId,
+        };
+        const fallback = await supabase.from('suppliers').insert([coreRow]).select().single();
+        data = fallback.data;
+        error = fallback.error;
+      }
+
       if (error) throw error;
-      set((state) => ({ suppliers: [...state.suppliers, data as Supplier] }));
+      const created = data as Supplier;
+      set((state) => ({ suppliers: [...state.suppliers, created] }));
+      return created;
     } catch (err: any) {
       set({ error: err.message });
       throw err;
@@ -154,6 +209,7 @@ export const usePurchaseStore = create<PurchaseState>((set, get) => ({
           status: po.status || 'Draft',
           total_amount: totalAmount,
           notes: po.notes,
+          expected_date: po.expected_date || null,
           created_by: user.id
         }])
         .select()

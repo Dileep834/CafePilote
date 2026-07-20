@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Card, CardContent } from '@/components/ui/card';
 import { ProductGrid } from '../components/ProductGrid';
 import { Cart } from '../components/Cart';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -8,7 +7,7 @@ import { usePOSStore } from '../store/usePOSStore';
 import { useTableBillStore } from '@/modules/tables/store/useTableBillStore';
 import { usePOSFavoritesStore } from '../store/usePOSFavoritesStore';
 import { formatCurrency } from '@/utils/format';
-import { ShoppingCart, Search, ChevronRight, X, ArrowUp } from 'lucide-react';
+import { ShoppingCart, ChevronRight, X, ArrowUp } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { getTenantOutletId, useTenantStore } from '@/store/useTenantStore';
 import { POSToolRail, type PosView } from '../components/POSToolRail';
@@ -30,11 +29,14 @@ function parsePosView(raw: string | null): PosView {
 
 export function POSDashboard() {
   useVisualViewportBottom();
-  const { cart, heldOrders, taxRate, clearCart, searchQuery, setSearchQuery, reloadActiveTableBill } =
+  const { cart, heldOrders, taxRate, clearCart, reloadActiveTableBill } =
     usePOSStore();
   const { user } = useAuthStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isNarrow, setIsNarrow] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 639px)').matches : true
+  );
   const mobileScrollRef = React.useRef<HTMLDivElement | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [showMobileGreeting, setShowMobileGreeting] = useState(() => {
@@ -50,6 +52,14 @@ export function POSDashboard() {
   const byUser = usePOSFavoritesStore((s) => s.byUser);
   const userKey = user?.id || user?.email || 'local-staff';
   const favoritesCount = (byUser[userKey] || []).length;
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const onChange = () => setIsNarrow(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   useEffect(() => {
     const pull = async () => {
@@ -91,8 +101,6 @@ export function POSDashboard() {
   const total = subtotal + tax;
   const firstName = user?.name?.split(' ')[0] || 'Chef';
 
-  const showMobileSearch = posView === 'menu' || posView === 'favorites';
-
   const dismissMobileGreeting = () => {
     setShowMobileGreeting(false);
     window.sessionStorage.setItem('cafepilots-pos-greeting-hidden', '1');
@@ -110,8 +118,16 @@ export function POSDashboard() {
     if (posView === 'history') return <POSOrderHistory variant="panel" />;
     if (posView === 'held')
       return <POSHeldOrders onResumed={() => handleViewChange('menu')} />;
-    if (posView === 'favorites') return <ProductGrid favoritesOnly />;
-    return <ProductGrid />;
+    if (posView === 'favorites')
+      return (
+        <ProductGrid
+          favoritesOnly
+          onBrowseMenu={() => handleViewChange('menu')}
+        />
+      );
+    return (
+      <ProductGrid onOpenFavorites={() => handleViewChange('favorites')} />
+    );
   }, [posView, handleViewChange]);
 
   return (
@@ -158,32 +174,15 @@ export function POSDashboard() {
           />
         </div>
 
-        {/* Mobile search — only shown on menu/favorites */}
-        {showMobileSearch && (
-          <div className="sm:hidden px-3 pb-2 shrink-0">
-            <div className="relative h-9">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-              <input
-                type="search"
-                inputMode="search"
-                placeholder={posView === 'favorites' ? 'Search favorites…' : 'Search menu…'}
-                className="w-full h-full pl-9 pr-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 placeholder:text-slate-400 shadow-sm focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-          </div>
-        )}
-
         {/* Product grid / history / held — fills all remaining vertical space */}
         <div
           ref={mobileScrollRef}
           onScroll={handleMobileContentScroll}
           className="min-h-0 flex-1 basis-0 overflow-y-auto overscroll-contain px-3 pb-3 scroll-smooth xl:overflow-hidden"
         >
-          <Card className="flex h-auto flex-col overflow-visible border-none bg-white p-0 shadow-none sm:border sm:border-slate-200 sm:p-4 sm:shadow-sm xl:h-full xl:overflow-hidden">
+          <div className="flex h-auto flex-col overflow-visible bg-transparent p-0 xl:h-full xl:overflow-hidden">
             {leftPane}
-          </Card>
+          </div>
         </div>
 
         {/* Compact/tablet cart bottom bar anchored in the POS layout */}
@@ -226,9 +225,14 @@ export function POSDashboard() {
               }
             />
             <SheetContent
-              side="bottom"
+              side={isNarrow ? 'bottom' : 'right'}
               showCloseButton={false}
-              className="h-[92svh] max-h-[92svh] gap-0 overflow-hidden rounded-t-3xl border-none p-0"
+              className={cn(
+                'gap-0 overflow-hidden border-none p-0',
+                isNarrow
+                  ? 'h-[96svh] max-h-[96svh] rounded-t-3xl'
+                  : 'h-full w-full max-w-[420px] md:max-w-[430px]'
+              )}
             >
               <Cart
                 onOpenHeld={() => handleViewChange('held')}
@@ -253,13 +257,11 @@ export function POSDashboard() {
         </button>
       )}
 
-      {/* ── Desktop right pane: Cart ── */}
-      <div className="hidden w-96 flex-col p-4 pl-0 xl:flex">
-        <Card className="flex-1 border-slate-200 bg-white overflow-hidden shadow-sm">
-          <CardContent className="p-0 h-full">
-            <Cart onOpenHeld={() => handleViewChange('held')} />
-          </CardContent>
-        </Card>
+      {/* ── Desktop right pane: Cart (420px) ── */}
+      <div className="hidden w-[420px] shrink-0 flex-col py-4 pr-4 xl:flex">
+        <div className="h-full overflow-hidden rounded-2xl bg-white shadow-sm">
+          <Cart onOpenHeld={() => handleViewChange('held')} />
+        </div>
       </div>
 
     </div>

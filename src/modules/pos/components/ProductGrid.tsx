@@ -1,38 +1,28 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { usePOSStore } from '../store/usePOSStore';
-import { usePOSFavoritesStore } from '../store/usePOSFavoritesStore';
+import { usePOSFavoritesStore, type FavoriteSort } from '../store/usePOSFavoritesStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useTenantStore } from '@/store/useTenantStore';
 import { getScopedCompanyId } from '@/lib/tenantScope';
-import { Card } from '@/components/ui/card';
 import { formatCurrency } from '@/utils/format';
 import { cn } from '@/lib/utils';
 import {
-  ChevronLeft,
-  ChevronRight,
-  Pizza,
-  Coffee,
+  ChevronDown,
   UtensilsCrossed,
-  Leaf,
-  Drumstick,
-  Droplet,
   Heart,
   Plus,
+  Minus,
   Search,
-  ListChecks,
   Clock3,
-  BadgeCheck,
-  Sparkles,
   PackageX,
+  HeartOff,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { ProductAddonModal } from './ProductAddonModal';
-import { Swiper, SwiperSlide } from 'swiper/react';
-import { FreeMode, Navigation } from 'swiper/modules';
-import 'swiper/css';
-import 'swiper/css/free-mode';
-import 'swiper/css/navigation';
+
+const NEW_HIDE_AFTER_SALES = 5;
 
 const fetchProducts = async (companyId: string) => {
   let query = supabase
@@ -42,76 +32,12 @@ const fetchProducts = async (companyId: string) => {
     .eq('item_type', 'ready_product')
     .order('name');
 
-  if (companyId) {
-    query = query.eq('company_id', companyId);
-  }
+  if (companyId) query = query.eq('company_id', companyId);
 
   const { data, error } = await query;
   if (error) throw error;
   return data;
 };
-
-const VegIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="inline-block shrink-0">
-    <rect x="1" y="1" width="14" height="14" stroke="#16A34A" strokeWidth="1.5" rx="2" />
-    <circle cx="8" cy="8" r="4" fill="#16A34A" />
-  </svg>
-);
-
-const NonVegIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="inline-block shrink-0">
-    <rect x="1" y="1" width="14" height="14" stroke="#DC2626" strokeWidth="1.5" rx="2" />
-    <polygon points="8,4 12,11 4,11" fill="#DC2626" />
-  </svg>
-);
-
-const EggIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="inline-block shrink-0">
-    <rect x="1" y="1" width="14" height="14" stroke="#EAB308" strokeWidth="1.5" rx="2" />
-    <polygon points="8,4 12,11 4,11" fill="#EAB308" />
-  </svg>
-);
-
-const JainIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="inline-block shrink-0">
-    <rect x="1" y="1" width="14" height="14" stroke="#F97316" strokeWidth="1.5" rx="2" />
-    <circle cx="8" cy="8" r="4" fill="#F97316" />
-  </svg>
-);
-
-const getDietaryIcon = (pref: string) => {
-  switch (pref?.toLowerCase()) {
-    case 'non-veg':
-      return <NonVegIcon />;
-    case 'egg':
-      return <EggIcon />;
-    case 'jain':
-      return <JainIcon />;
-    default:
-      return <VegIcon />;
-  }
-};
-
-function categoryIcon(category: string) {
-  const c = category.toLowerCase();
-  if (c.includes('pizza') || c.includes('appetizer')) return { Icon: Pizza, color: 'text-orange-500' };
-  if (c.includes('beverage') || c.includes('coffee') || c.includes('cold'))
-    return { Icon: Coffee, color: 'text-amber-700' };
-  if (c.includes('main') || c.includes('course')) return { Icon: UtensilsCrossed, color: 'text-blue-500' };
-  if (c.includes('bread')) return { Icon: Pizza, color: 'text-yellow-600' };
-  return { Icon: ListChecks, color: 'text-slate-600' };
-}
-
-function productStockQuantity(product: any) {
-  return Number(
-    product.current_stock ??
-      product.stock_quantity ??
-      product.stock ??
-      product.quantity ??
-      product.available_quantity ??
-      0
-  );
-}
 
 function isProductOutOfStock(product: any) {
   const explicit =
@@ -120,7 +46,9 @@ function isProductOutOfStock(product: any) {
     String(product.status || '').toLowerCase() === 'out_of_stock';
   if (explicit) return true;
   if (product.track_stock === false || product.item_type !== 'ready_product') return false;
-  const qty = productStockQuantity(product);
+  const qty = Number(
+    product.current_stock ?? product.stock_quantity ?? product.stock ?? product.quantity ?? 0
+  );
   return qty <= 0 && (product.current_stock !== undefined || product.stock_quantity !== undefined);
 }
 
@@ -128,23 +56,11 @@ function prepMinutes(product: any) {
   const raw = Number(product.preparation_time ?? product.prep_time ?? product.prep_minutes);
   if (Number.isFinite(raw) && raw > 0) return Math.round(raw);
   const category = String((product.categories as any)?.name || '').toLowerCase();
-  if (category.includes('beverage') || category.includes('coffee') || category.includes('shake')) return 5;
-  if (category.includes('bread') || category.includes('fries') || category.includes('appetizer')) return 8;
+  if (category.includes('beverage') || category.includes('coffee') || category.includes('shake'))
+    return 5;
+  if (category.includes('bread') || category.includes('fries') || category.includes('appetizer'))
+    return 8;
   return 12;
-}
-
-function productBadges(product: any) {
-  const badges: Array<{ label: string; className: string; icon?: typeof BadgeCheck }> = [];
-  if (product.is_popular || product.is_featured) {
-    badges.push({ label: 'Popular', className: 'bg-orange-500 text-white', icon: BadgeCheck });
-  }
-  if (product.is_chef_special || product.chef_special) {
-    badges.push({ label: 'Chef special', className: 'bg-slate-900 text-white', icon: Sparkles });
-  }
-  const createdAt = product.created_at ? new Date(product.created_at).getTime() : 0;
-  const isNew = product.is_new || (createdAt && Date.now() - createdAt < 1000 * 60 * 60 * 24 * 21);
-  if (isNew) badges.push({ label: 'New', className: 'bg-emerald-500 text-white' });
-  return badges.slice(0, 2);
 }
 
 function shouldOpenModifierSheet(product: any) {
@@ -158,376 +74,469 @@ function shouldOpenModifierSheet(product: any) {
   );
 }
 
+function showNewBadge(product: any, soldCount: number) {
+  if (soldCount >= NEW_HIDE_AFTER_SALES) return false;
+  const dbSold = Number(product.sales_count ?? product.times_sold ?? 0);
+  if (dbSold >= NEW_HIDE_AFTER_SALES) return false;
+  const createdAt = product.created_at ? new Date(product.created_at).getTime() : 0;
+  return Boolean(product.is_new || (createdAt && Date.now() - createdAt < 1000 * 60 * 60 * 24 * 21));
+}
+
 type ProductGridProps = {
-  /** When true, only show favorited products (POS Favorites workspace) */
   favoritesOnly?: boolean;
+  onBrowseMenu?: () => void;
+  onOpenFavorites?: () => void;
 };
 
-export function ProductGrid({ favoritesOnly = false }: ProductGridProps) {
-  const addItem = usePOSStore((state) => state.addItem);
-  const searchQuery = usePOSStore((state) => state.searchQuery);
-  const setSearchQuery = usePOSStore((state) => state.setSearchQuery);
+export function ProductGrid({
+  favoritesOnly = false,
+  onBrowseMenu,
+  onOpenFavorites,
+}: ProductGridProps) {
+  const cart = usePOSStore((s) => s.cart);
+  const addItem = usePOSStore((s) => s.addItem);
+  const adjustProductQuantity = usePOSStore((s) => s.adjustProductQuantity);
+  const searchQuery = usePOSStore((s) => s.searchQuery);
+  const setSearchQuery = usePOSStore((s) => s.setSearchQuery);
   const byUser = usePOSFavoritesStore((s) => s.byUser);
+  const pinnedByUser = usePOSFavoritesStore((s) => s.pinnedByUser);
+  const metaByUser = usePOSFavoritesStore((s) => s.metaByUser);
   const isFavorite = usePOSFavoritesStore((s) => s.isFavorite);
   const toggleFavorite = usePOSFavoritesStore((s) => s.toggleFavorite);
+  const bumpOrderCount = usePOSFavoritesStore((s) => s.bumpOrderCount);
   const user = useAuthStore((s) => s.user);
   const activeOutletId = useTenantStore((s) => s.activeOutletId);
   const companyId = getScopedCompanyId(user);
   const userKey = user?.id || user?.email || 'local-staff';
   const favList = useMemo(() => byUser[userKey] || [], [byUser, userKey]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [selectedDiet, setSelectedDiet] = useState<string>('All');
+  const pinnedList = useMemo(() => pinnedByUser[userKey] || [], [pinnedByUser, userKey]);
+  const favMeta = useMemo(() => metaByUser[userKey] || {}, [metaByUser, userKey]);
+
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [showFavoritesFilter, setShowFavoritesFilter] = useState(favoritesOnly);
+  const [favSort, setFavSort] = useState<FavoriteSort>('recent');
+  const [catOpen, setCatOpen] = useState(false);
+  const [catQuery, setCatQuery] = useState('');
   const [selectedProductForAddons, setSelectedProductForAddons] = useState<any | null>(null);
-  const diets = ['All', 'Veg', 'Non-Veg', 'Egg', 'Jain'];
+  const catRef = useRef<HTMLDivElement>(null);
+  const catSearchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setShowFavoritesFilter(favoritesOnly);
+  }, [favoritesOnly]);
+
+  useEffect(() => {
+    if (!catOpen) return;
+    catSearchRef.current?.focus();
+    const onDoc = (e: MouseEvent) => {
+      if (!catRef.current?.contains(e.target as Node)) setCatOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [catOpen]);
 
   const { data: products, isLoading, error } = useQuery({
     queryKey: ['pos-products', companyId, activeOutletId],
     queryFn: () => fetchProducts(companyId),
   });
 
-  const handleProductClick = (product: any) => {
+  const qtyByProduct = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const item of cart) {
+      map.set(item.productId, (map.get(item.productId) || 0) + item.quantity);
+    }
+    return map;
+  }, [cart]);
+
+  const handleQuickAdd = (product: any) => {
     if (isProductOutOfStock(product)) return;
-    if (shouldOpenModifierSheet(product)) {
+    if (shouldOpenModifierSheet(product) && !(qtyByProduct.get(product.id) || 0)) {
       setSelectedProductForAddons(product);
       return;
     }
     addItem(product);
+    bumpOrderCount(product.id);
   };
 
-  const categories = useMemo(() => {
-    if (!products) return ['All'];
+  const categoryNames = useMemo(() => {
+    if (!products) return [] as string[];
     const cats = new Set<string>();
     products.forEach((p) => {
-      const catName = (p.categories as any)?.name;
-      if (catName) cats.add(catName);
+      const name = (p.categories as any)?.name;
+      if (name) cats.add(name);
     });
-    return ['All', ...Array.from(cats)].sort((a, b) => {
-      if (a === 'All') return -1;
-      if (b === 'All') return 1;
-      return a.localeCompare(b);
-    });
+    return Array.from(cats).sort((a, b) => a.localeCompare(b));
   }, [products]);
+
+  const filteredCategories = useMemo(() => {
+    const q = catQuery.trim().toLowerCase();
+    if (!q) return categoryNames;
+    return categoryNames.filter((c) => c.toLowerCase().includes(q));
+  }, [categoryNames, catQuery]);
 
   const filteredProducts = useMemo(() => {
     if (!products) return [];
     const favSet = new Set(favList);
-    return products.filter((p) => {
-      const matchesFav = !favoritesOnly || favSet.has(p.id);
-      const matchesCategory =
-        favoritesOnly ||
-        selectedCategory === 'All' ||
-        (p.categories as any)?.name === selectedCategory;
-      const pref = p.dietary_preference?.toLowerCase() || 'veg';
-      const matchesDiet =
-        favoritesOnly || selectedDiet === 'All' || pref === selectedDiet.toLowerCase();
+    const pinnedSet = new Set(pinnedList);
+    const wantFav = favoritesOnly || showFavoritesFilter;
+
+    let list = products.filter((p) => {
+      if (wantFav && !favSet.has(p.id)) return false;
+      if (!wantFav && selectedCategory !== 'All' && (p.categories as any)?.name !== selectedCategory)
+        return false;
       const searchLower = searchQuery.toLowerCase().trim();
-      const matchesSearch =
-        !searchLower ||
-        p.name.toLowerCase().includes(searchLower) ||
-        (p.barcode && p.barcode.toLowerCase().includes(searchLower));
-      return matchesFav && matchesCategory && matchesDiet && matchesSearch;
+      if (
+        searchLower &&
+        !p.name.toLowerCase().includes(searchLower) &&
+        !(p.barcode && p.barcode.toLowerCase().includes(searchLower))
+      ) {
+        return false;
+      }
+      return true;
     });
-  }, [products, selectedCategory, selectedDiet, searchQuery, favoritesOnly, favList]);
+
+    if (wantFav) {
+      list = [...list].sort((a, b) => {
+        const ap = pinnedSet.has(a.id) ? 0 : 1;
+        const bp = pinnedSet.has(b.id) ? 0 : 1;
+        if (ap !== bp) return ap - bp;
+        if (favSort === 'az') return a.name.localeCompare(b.name);
+        if (favSort === 'price') return Number(a.selling_price || 0) - Number(b.selling_price || 0);
+        if (favSort === 'ordered')
+          return (favMeta[b.id]?.orderCount || 0) - (favMeta[a.id]?.orderCount || 0);
+        return favList.indexOf(b.id) - favList.indexOf(a.id);
+      });
+    }
+
+    return list;
+  }, [
+    products,
+    selectedCategory,
+    searchQuery,
+    favoritesOnly,
+    showFavoritesFilter,
+    favList,
+    pinnedList,
+    favSort,
+    favMeta,
+  ]);
 
   if (isLoading) {
     return (
-      <div className="h-full flex items-center justify-center p-8 text-slate-500 text-sm">
-        Loading products…
+      <div className="grid grid-cols-3 gap-2 p-1 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
+        {Array.from({ length: 14 }).map((_, i) => (
+          <div key={i} className="animate-pulse rounded-xl bg-white p-1.5">
+            <div className="mb-1.5 aspect-[5/3] rounded-lg bg-slate-100" />
+            <div className="mb-1 h-3 w-3/4 rounded bg-slate-100" />
+            <div className="h-3 w-1/2 rounded bg-slate-100" />
+          </div>
+        ))}
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="h-full flex items-center justify-center p-8 text-red-500 text-sm">
+      <div className="flex h-full items-center justify-center p-8 text-sm text-red-500">
         Error loading products
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-0 flex-col gap-2 pb-3 sm:gap-4 xl:h-full xl:overflow-hidden xl:pb-0">
-      {favoritesOnly && (
-        <div className="px-0.5 sm:px-0">
-          <p className="text-sm font-bold text-brand-navy">Your favorites</p>
-          <p className="text-[11px] text-slate-500">
-            Tap the heart on Menu items to add or remove
-          </p>
-        </div>
-      )}
-
-      {/* Category filter — desktop shows nav arrows, mobile scrolls freely */}
-      {!favoritesOnly && (
-        <div className="relative -mx-0.5 px-0.5 sm:mx-0 sm:px-0">
-          <button
-            type="button"
-            aria-label="Previous category"
-            className="cat-prev absolute left-0 top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-500 shadow-md shadow-slate-900/10 backdrop-blur transition hover:border-brand-orange/40 hover:text-brand-orange sm:flex"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-
-          <Swiper
-            slidesPerView="auto"
-            spaceBetween={6}
-            freeMode
-            observer
-            observeParents
-            navigation={{ prevEl: '.cat-prev', nextEl: '.cat-next' }}
-            modules={[FreeMode, Navigation]}
-            className="pos-category-swiper w-full !overflow-hidden px-0 sm:px-9"
-          >
-            {categories.map((category) => {
-              const { Icon, color } = categoryIcon(category);
-              const isSelected = selectedCategory === category;
-              return (
-                <SwiperSlide key={category} className="!w-auto">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCategory(category)}
-                    className={cn(
-                      'flex items-center gap-1.5 h-8 sm:h-11 px-2.5 sm:px-5 rounded-full border transition-all duration-200 shadow-sm max-w-[10rem]',
-                      isSelected
-                        ? 'bg-brand-navy border-brand-navy text-white shadow-md'
-                        : 'bg-white border-slate-200 text-slate-600 hover:border-brand-orange/40'
-                    )}
-                  >
-                    <Icon
-                      className={cn(
-                        'w-3 h-3 sm:w-4 sm:h-4 shrink-0',
-                        isSelected ? 'text-brand-orange' : color
-                      )}
-                    />
-                    <span className="text-[11px] sm:text-sm font-semibold truncate">{category}</span>
-                  </button>
-                </SwiperSlide>
-              );
-            })}
-          </Swiper>
-
-          <button
-            type="button"
-            aria-label="Next category"
-            className="cat-next absolute right-0 top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-500 shadow-md shadow-slate-900/10 backdrop-blur transition hover:border-brand-orange/40 hover:text-brand-orange sm:flex"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {/* Diet filter + desktop search — on mobile merged into one scrollable strip */}
-      <div className="flex items-center gap-2 sm:gap-4 px-0.5 sm:px-0">
-        {!favoritesOnly && (
-          <div className="flex gap-1.5 overflow-x-auto scrollbar-hide flex-1 min-w-0 -mx-0.5 px-0.5 snap-x">
-            {diets.map((diet) => {
-              let DietIcon: typeof Leaf | null = null;
-              if (diet === 'Veg') DietIcon = Leaf;
-              else if (diet === 'Non-Veg') DietIcon = Drumstick;
-              else if (diet === 'Egg') DietIcon = Leaf;
-              else if (diet === 'Jain') DietIcon = Droplet;
-
-              const isSelected = selectedDiet === diet;
-
-              return (
-                <button
-                  key={diet}
-                  type="button"
-                  onClick={() => setSelectedDiet(diet)}
-                  className={cn(
-                    'snap-start flex items-center gap-1 h-7 sm:h-9 px-2.5 sm:px-3 rounded-full text-[11px] sm:text-xs font-bold transition-colors whitespace-nowrap border shrink-0',
-                    isSelected
-                      ? 'bg-slate-800 text-white border-slate-800'
-                      : 'bg-white text-slate-600 border-slate-200 active:bg-slate-50'
-                  )}
-                >
-                  {DietIcon && (
-                    <DietIcon
-                      className={cn(
-                        'w-3 h-3',
-                        isSelected
-                          ? 'text-white'
-                          : diet === 'Veg'
-                            ? 'text-green-600'
-                            : diet === 'Non-Veg'
-                              ? 'text-red-500'
-                              : diet === 'Egg'
-                                ? 'text-yellow-500'
-                                : diet === 'Jain'
-                                  ? 'text-orange-500'
-                                  : 'text-slate-400'
-                      )}
-                    />
-                  )}
-                  {diet}
-                </button>
-              );
-            })}
+    <div className="flex min-h-0 flex-col xl:h-full xl:overflow-hidden">
+      {/* Sticky chrome: filters + single search */}
+      <div className="sticky top-0 z-20 space-y-2 bg-slate-100/95 pb-2 backdrop-blur-md">
+        {favoritesOnly && (
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-base font-semibold text-slate-900">Favourites</p>
+            <select
+              className="h-8 rounded-lg bg-white px-2 text-xs font-medium text-slate-600 outline-none ring-1 ring-slate-200"
+              value={favSort}
+              onChange={(e) => setFavSort(e.target.value as FavoriteSort)}
+            >
+              <option value="recent">Recently Added</option>
+              <option value="ordered">Most Ordered</option>
+              <option value="price">Price</option>
+              <option value="az">A–Z</option>
+            </select>
           </div>
         )}
 
-        <div
-          className={cn(
-            'hidden sm:flex items-center gap-3 ml-auto flex-1 justify-end',
-            favoritesOnly ? 'max-w-md w-full' : 'max-w-xl'
-          )}
-        >
-          <div className="relative h-10 flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-            <input
-              type="text"
-              placeholder={favoritesOnly ? 'Search favorites…' : 'Search products…'}
-              className="w-full h-full pl-10 pr-4 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/25 font-semibold text-slate-700 shadow-sm bg-white"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-        </div>
-      </div>
+        {!favoritesOnly && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setShowFavoritesFilter(false);
+                setSelectedCategory('All');
+              }}
+              className={cn(
+                'h-9 rounded-lg px-3 text-sm font-semibold transition',
+                !showFavoritesFilter && selectedCategory === 'All'
+                  ? 'bg-slate-900 text-white'
+                  : 'bg-white text-slate-600 hover:bg-slate-50'
+              )}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenFavorites) onOpenFavorites();
+                else setShowFavoritesFilter(true);
+              }}
+              className={cn(
+                'h-9 rounded-lg px-3 text-sm font-semibold transition',
+                showFavoritesFilter
+                  ? 'bg-slate-900 text-white'
+                  : 'bg-white text-slate-600 hover:bg-slate-50'
+              )}
+            >
+              Favourites
+            </button>
 
-      <div className="shrink-0 pb-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-contain xl:pb-4">
-        {filteredProducts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center text-slate-400">
-            <UtensilsCrossed className="w-10 h-10 opacity-30 mb-2" />
-            <p className="text-sm font-semibold text-slate-500">
-              {favoritesOnly ? 'No favorites yet' : 'No products match'}
-            </p>
-            <p className="text-xs mt-1">
-              {favoritesOnly
-                ? 'Open Menu and tap the heart on any product'
-                : 'Try another category or clear search'}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-4">
-            {filteredProducts.map((product) => {
-              const outOfStock = isProductOutOfStock(product);
-              const badges = productBadges(product);
-              const minutes = prepMinutes(product);
-              const stockQty = productStockQuantity(product);
-
-              return (
-              <Card
-                key={product.id}
+            <div className="relative" ref={catRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowFavoritesFilter(false);
+                  setCatOpen((o) => !o);
+                  setCatQuery('');
+                }}
                 className={cn(
-                  'group overflow-hidden bg-white rounded-xl sm:rounded-2xl border border-slate-100 shadow-sm transition-all duration-200 flex flex-col p-1.5 sm:p-3 relative cursor-pointer',
-                  outOfStock
-                    ? 'opacity-75 cursor-not-allowed'
-                    : 'active:scale-[0.98] hover:-translate-y-0.5 hover:shadow-md hover:border-orange-200'
+                  'inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition',
+                  !showFavoritesFilter && selectedCategory !== 'All'
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-white text-slate-600 hover:bg-slate-50'
                 )}
-                onClick={() => handleProductClick(product)}
-                aria-disabled={outOfStock}
               >
-                {/* Dietary badge + favourite */}
-                <div className="flex items-start justify-between z-10 w-full mb-1">
-                  <div className="bg-white rounded p-0.5 shadow-sm border border-slate-100">
-                    {getDietaryIcon(product.dietary_preference || 'veg')}
-                  </div>
-                  <button
-                    type="button"
-                    className={cn(
-                      'p-0.5 -mr-0.5 -mt-0.5 rounded-full transition-colors',
-                      isFavorite(product.id) ? 'text-rose-500' : 'text-slate-300 hover:text-rose-400'
-                    )}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleFavorite(product.id);
-                    }}
-                    aria-label={isFavorite(product.id) ? 'Remove favorite' : 'Add favorite'}
-                    aria-pressed={isFavorite(product.id)}
-                  >
-                    <Heart
-                      className={cn('w-3.5 h-3.5 sm:w-4 sm:h-4', isFavorite(product.id) && 'fill-rose-500')}
-                    />
-                  </button>
-                </div>
+                {selectedCategory !== 'All' ? selectedCategory : 'Categories'}
+                <ChevronDown className={cn('h-4 w-4', catOpen && 'rotate-180')} />
+              </button>
 
-                {/* Product image — 4:3 on mobile (shorter than square), 4:3 on desktop */}
-                <div className="relative w-full aspect-[4/3] rounded-lg sm:rounded-2xl overflow-hidden mb-1.5 sm:mb-2 bg-slate-50">
-                  {product.image_url ? (
-                    <>
-                      <img
-                        src={product.image_url}
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          const fallback =
-                            e.currentTarget.parentElement?.querySelector('.image-fallback');
-                          if (fallback) {
-                            fallback.classList.remove('hidden');
-                            fallback.classList.add('flex');
+              {catOpen && (
+                <div className="absolute left-0 top-[calc(100%+6px)] z-40 w-64 overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-slate-200">
+                  <div className="border-b border-slate-100 p-2">
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                      <input
+                        ref={catSearchRef}
+                        type="search"
+                        value={catQuery}
+                        onChange={(e) => setCatQuery(e.target.value)}
+                        placeholder="Search categories…"
+                        className="h-9 w-full rounded-lg bg-slate-50 pl-8 pr-2 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-brand-orange/25"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') setCatOpen(false);
+                          if (e.key === 'Enter' && filteredCategories[0]) {
+                            setSelectedCategory(filteredCategories[0]);
+                            setShowFavoritesFilter(false);
+                            setCatOpen(false);
                           }
                         }}
                       />
-                      <div className="image-fallback hidden absolute inset-0 items-center justify-center bg-slate-100 text-slate-400">
-                        <UtensilsCrossed className="w-6 h-6 sm:w-8 sm:h-8 opacity-20" />
-                      </div>
-                    </>
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400">
-                      <UtensilsCrossed className="w-6 h-6 sm:w-8 sm:h-8 opacity-20" />
                     </div>
-                  )}
-                  <div className="absolute left-1.5 top-1.5 flex flex-wrap gap-1">
-                    {badges.map((badge) => {
-                      const BadgeIcon = badge.icon;
-                      return (
-                        <span
-                          key={badge.label}
-                          className={cn(
-                            'inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase shadow-sm',
-                            badge.className
-                          )}
-                        >
-                          {BadgeIcon && <BadgeIcon className="h-2.5 w-2.5" />}
-                          {badge.label}
-                        </span>
-                      );
-                    })}
                   </div>
-                  {outOfStock && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/70 text-white">
-                      <PackageX className="h-6 w-6 mb-1" />
-                      <span className="text-[10px] font-black uppercase tracking-wider">Out of stock</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Name + price + add button */}
-                <div className="flex flex-col flex-1 min-w-0 gap-1">
-                  <h3 className="font-semibold text-brand-navy text-[10px] sm:text-sm leading-snug line-clamp-2 tracking-tight min-h-[2em]">
-                    {product.name}
-                  </h3>
-                  <div className="flex items-center gap-1.5 text-[9px] sm:text-[10px] font-bold text-slate-400">
-                    <span className="inline-flex items-center gap-0.5">
-                      <Clock3 className="h-3 w-3" />
-                      {minutes}m
-                    </span>
-                    <span className={cn('truncate', outOfStock ? 'text-rose-500' : stockQty > 0 ? 'text-emerald-600' : 'text-slate-400')}>
-                      {outOfStock ? 'Unavailable' : stockQty > 0 ? `${stockQty} in stock` : 'Ready'}
-                    </span>
-                  </div>
-                  <div className="mt-auto flex items-center justify-between gap-0.5">
-                    <span className="text-[11px] sm:text-sm font-bold text-brand-orange tabular-nums truncate">
-                      {formatCurrency(product.selling_price || 0)}
-                    </span>
+                  <div className="max-h-64 overflow-y-auto py-1">
                     <button
                       type="button"
-                      disabled={outOfStock}
-                      className="w-6 h-6 sm:w-8 sm:h-8 shrink-0 rounded-full bg-brand-orange text-white flex items-center justify-center active:bg-[#e55f00] shadow-sm disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (outOfStock) return;
-                        addItem(product);
+                      className="flex w-full px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+                      onClick={() => {
+                        setSelectedCategory('All');
+                        setShowFavoritesFilter(false);
+                        setCatOpen(false);
                       }}
-                      aria-label={`Add ${product.name}`}
                     >
-                      <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
+                      All categories
                     </button>
+                    {filteredCategories.map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        className={cn(
+                          'flex w-full px-3 py-2 text-left text-sm hover:bg-slate-50',
+                          selectedCategory === cat
+                            ? 'font-semibold text-brand-orange'
+                            : 'font-medium text-slate-700'
+                        )}
+                        onClick={() => {
+                          setSelectedCategory(cat);
+                          setShowFavoritesFilter(false);
+                          setCatOpen(false);
+                        }}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                    {filteredCategories.length === 0 && (
+                      <p className="px-3 py-4 text-center text-xs text-slate-400">No matches</p>
+                    )}
                   </div>
                 </div>
-              </Card>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="search"
+            placeholder={showFavoritesFilter || favoritesOnly ? 'Search favourites…' : 'Search menu…'}
+            className="h-10 w-full rounded-xl bg-white pl-10 pr-3 text-sm font-medium text-slate-800 shadow-sm outline-none ring-1 ring-slate-200/80 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-orange/25"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-3">
+        {filteredProducts.length === 0 ? (
+          favoritesOnly || showFavoritesFilter ? (
+            <div className="mx-auto flex max-w-sm flex-col items-center px-4 py-14 text-center">
+              <HeartOff className="mb-3 h-10 w-10 text-slate-300" strokeWidth={1.5} />
+              <p className="text-base font-semibold text-slate-900">No favourites yet</p>
+              <p className="mt-1 text-sm text-slate-500">Tap the heart on any menu item.</p>
+              <Button
+                type="button"
+                className="mt-5 h-10 rounded-xl bg-brand-orange px-5 font-semibold text-white hover:bg-[#e55f00]"
+                onClick={() => {
+                  setShowFavoritesFilter(false);
+                  onBrowseMenu?.();
+                }}
+              >
+                Browse Menu
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 text-center text-slate-400">
+              <UtensilsCrossed className="mb-2 h-8 w-8 opacity-30" />
+              <p className="text-sm font-medium text-slate-500">No products match</p>
+            </div>
+          )
+        ) : (
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-6 2xl:grid-cols-7">
+            {filteredProducts.map((product) => {
+              const outOfStock = isProductOutOfStock(product);
+              const minutes = prepMinutes(product);
+              const qty = qtyByProduct.get(product.id) || 0;
+              const fav = isFavorite(product.id);
+              const sold = favMeta[product.id]?.orderCount || 0;
+              const isNew = showNewBadge(product, sold);
+
+              return (
+                <button
+                  key={product.id}
+                  type="button"
+                  disabled={outOfStock}
+                  onClick={() => handleQuickAdd(product)}
+                  className={cn(
+                    'group relative flex flex-col rounded-xl bg-white p-1.5 text-left shadow-sm transition',
+                    outOfStock
+                      ? 'cursor-not-allowed opacity-50'
+                      : 'hover:shadow-md active:scale-[0.98]'
+                  )}
+                >
+                  <div className="relative mb-1.5 aspect-[5/3] w-full overflow-hidden rounded-lg bg-slate-100">
+                    {product.image_url ? (
+                      <img
+                        src={product.image_url}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-slate-300">
+                        <UtensilsCrossed className="h-5 w-5 opacity-40" />
+                      </div>
+                    )}
+                    {isNew && (
+                      <span className="absolute left-1 top-1 rounded bg-emerald-500 px-1 py-px text-[8px] font-bold uppercase text-white">
+                        New
+                      </span>
+                    )}
+                    {outOfStock && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-slate-900/50">
+                        <PackageX className="h-5 w-5 text-white" />
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      className={cn(
+                        'absolute right-1 top-1 rounded-full bg-white/90 p-1',
+                        fav ? 'text-rose-500' : 'text-slate-300 hover:text-rose-400'
+                      )}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFavorite(product.id);
+                      }}
+                      aria-label={fav ? 'Remove favourite' : 'Add favourite'}
+                    >
+                      <Heart className={cn('h-3.5 w-3.5', fav && 'fill-rose-500')} />
+                    </button>
+                  </div>
+
+                  <p className="line-clamp-2 min-h-[2.25em] px-0.5 text-sm font-medium leading-snug text-slate-900">
+                    {product.name}
+                  </p>
+                  <div className="mt-1 flex items-center justify-between gap-1 px-0.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-[15px] font-bold tabular-nums text-brand-orange">
+                        {formatCurrency(product.selling_price || 0)}
+                      </p>
+                      <p className="mt-0.5 flex items-center gap-0.5 text-xs text-slate-400">
+                        <Clock3 className="h-3 w-3" />
+                        {minutes} min
+                      </p>
+                    </div>
+                    {outOfStock ? null : qty > 0 ? (
+                      <div
+                        className="flex h-8 items-center rounded-full bg-slate-900 px-0.5 text-white"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          className="flex h-7 w-7 items-center justify-center"
+                          onClick={() => adjustProductQuantity(product.id, -1)}
+                          onKeyDown={(e) =>
+                            e.key === 'Enter' && adjustProductQuantity(product.id, -1)
+                          }
+                          aria-label={`Decrease ${product.name}`}
+                        >
+                          <Minus className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="min-w-[1rem] text-center text-xs font-bold">{qty}</span>
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-orange"
+                          onClick={() => {
+                            adjustProductQuantity(product.id, 1);
+                            bumpOrderCount(product.id);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              adjustProductQuantity(product.id, 1);
+                              bumpOrderCount(product.id);
+                            }
+                          }}
+                          aria-label={`Increase ${product.name}`}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </span>
+                      </div>
+                    ) : (
+                      <span
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-orange text-white"
+                        aria-hidden
+                      >
+                        <Plus className="h-4 w-4" />
+                      </span>
+                    )}
+                  </div>
+                </button>
               );
             })}
           </div>

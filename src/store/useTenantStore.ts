@@ -184,15 +184,14 @@ export const useTenantStore = create<TenantState>()(
         }
 
         try {
-          const { data, error } = await supabase
-            .from('outlets')
-            .select('*')
-            .eq('is_active', true)
-            .order('name');
+          let query = supabase.from('outlets').select('*').eq('is_active', true).order('name');
+          // Tenant admins only need their company's branches; Super Admin sees all.
+          if (!sa) query = query.eq('company_id', companyId);
+          const { data, error } = await query;
           if (error) throw error;
           const rows = (data || []) as any[];
           outlets = rows
-            .filter((r) => !r.company_id || r.company_id === companyId || sa)
+            .filter((r) => sa || !r.company_id || r.company_id === companyId)
             .map((r) => ({
               id: String(r.id),
               name: r.name || r.code || 'Branch',

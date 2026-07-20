@@ -1,6 +1,5 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
-import { BRAND } from '@/constants';
 import { Button } from '@/components/ui/button';
 import {
   LayoutGrid,
@@ -48,7 +47,7 @@ export function POSToolRail({
       )}
     >
       <div className="flex-1 min-w-0 overflow-x-auto scrollbar-hide">
-        <div className="inline-flex items-center gap-1 p-1 rounded-2xl bg-white border border-slate-200 shadow-sm">
+        <div className="inline-flex items-center gap-1 rounded-2xl bg-white p-1 shadow-sm">
           {TOOLS.map(({ id, label, Icon }) => {
             const active = view === id;
             const badge =
@@ -59,15 +58,14 @@ export function POSToolRail({
                 type="button"
                 onClick={() => onViewChange(id)}
                 className={cn(
-                  'relative inline-flex items-center gap-1.5 h-9 px-2.5 sm:px-3.5 rounded-xl text-xs sm:text-sm font-bold transition-colors whitespace-nowrap',
-                  active ? 'text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
+                  'relative inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 text-xs font-semibold transition-colors sm:px-3.5 sm:text-sm',
+                  active ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
                 )}
-                style={active ? { backgroundColor: BRAND.orange } : undefined}
                 aria-pressed={active}
               >
                 <Icon
                   className={cn(
-                    'w-3.5 h-3.5 sm:w-4 sm:h-4',
+                    'h-3.5 w-3.5 sm:h-4 sm:w-4',
                     active && id === 'favorites' && 'fill-white'
                   )}
                 />
@@ -91,9 +89,9 @@ export function POSToolRail({
       <Button
         type="button"
         onClick={onNewOrder}
-        className="shrink-0 h-10 px-3.5 rounded-xl bg-brand-orange hover:bg-[#e55f00] text-white font-bold shadow-md shadow-brand-orange/20"
+        className="h-10 shrink-0 rounded-xl bg-brand-orange px-3.5 font-semibold text-white hover:bg-[#e55f00]"
       >
-        <Plus className="w-4 h-4 mr-1" />
+        <Plus className="mr-1 h-4 w-4" />
         New order
       </Button>
     </div>

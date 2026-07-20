@@ -10,6 +10,7 @@
 -- HQ / demo outlet ids
 --   d81e2aab-02d8-40ca-9ddd-7e20719b3442  CafePilot Main Branch
 --   a1000000-0000-4000-8000-000000000010  CafePilots HQ Demo
+--   a1000000-0000-4000-8000-000000000020  CafePilots Demo Cafe
 
 BEGIN;
 
@@ -20,6 +21,7 @@ WHERE order_id IN (
   WHERE outlet_id::text IN (
     'd81e2aab-02d8-40ca-9ddd-7e20719b3442',
     'a1000000-0000-4000-8000-000000000010',
+    'a1000000-0000-4000-8000-000000000020',
     'current-outlet'
   )
   OR outlet_id IS NULL
@@ -30,6 +32,7 @@ DELETE FROM public.pos_orders
 WHERE outlet_id::text IN (
   'd81e2aab-02d8-40ca-9ddd-7e20719b3442',
   'a1000000-0000-4000-8000-000000000010',
+  'a1000000-0000-4000-8000-000000000020',
   'current-outlet'
 )
 OR outlet_id IS NULL;
@@ -42,6 +45,7 @@ BEGIN
      OR outlet_id::text IN (
        'd81e2aab-02d8-40ca-9ddd-7e20719b3442',
        'a1000000-0000-4000-8000-000000000010',
+       'a1000000-0000-4000-8000-000000000020',
        'current-outlet'
      )
      OR company_id::text = 'a1000000-0000-4000-8000-000000000001';
@@ -54,7 +58,8 @@ UPDATE public.dining_tables
 SET status = 'available'
 WHERE outlet_id::text IN (
   'd81e2aab-02d8-40ca-9ddd-7e20719b3442',
-  'a1000000-0000-4000-8000-000000000010'
+  'a1000000-0000-4000-8000-000000000010',
+  'a1000000-0000-4000-8000-000000000020'
 )
 AND EXISTS (
   SELECT 1 FROM information_schema.columns

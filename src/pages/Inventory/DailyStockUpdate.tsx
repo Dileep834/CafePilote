@@ -1,136 +1,173 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  Box, Button, Typography, Accordion, AccordionSummary, AccordionDetails,
-  Chip, TextField, InputAdornment, useTheme, ToggleButtonGroup, ToggleButton,
-  Card, CardContent, Tooltip, Alert
-} from '@mui/material';
-import { Save, ExpandMore, Search, Download, ViewList, GridView } from '@mui/icons-material';
+import React, {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from 'react';
+import { useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
-import type { DailyInventory } from '../../types';
-import { supabase } from '../../lib/supabase';
-import { useAuthStore } from '../../store/useAuthStore';
-import { useFeedback } from '../../hooks/useFeedback';
-import { FormControl, InputLabel, Select, MenuItem } from '@mui/material';
-import { InventoryStatus } from '../../constants';
-import { PERMISSIONS } from '../../constants/permissions';
-import { getScopedCompanyId } from '../../lib/tenantScope';
-import { useHasPermission } from '../../hooks/useHasPermission';
+import { ClipboardList } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { InventoryStatus } from '@/constants';
+import { PERMISSIONS } from '@/constants/permissions';
+import { useFeedback } from '@/hooks/useFeedback';
+import { useHasPermission } from '@/hooks/useHasPermission';
+import { supabase } from '@/lib/supabase';
+import { getScopedCompanyId } from '@/lib/tenantScope';
+import { useAuthStore } from '@/store/useAuthStore';
+import { useTenantStore } from '@/store/useTenantStore';
+import { DailyStockBulkBar } from '@/modules/inventory/daily/DailyStockBulkBar';
+import { DailyStockCards } from '@/modules/inventory/daily/DailyStockCards';
+import { DailyStockCategoryNav } from '@/modules/inventory/daily/DailyStockCategoryNav';
+import { DailyStockProgressCard } from '@/modules/inventory/daily/DailyStockProgressCard';
+import { DailyStockQuickChips } from '@/modules/inventory/daily/DailyStockQuickChips';
+import { DailyStockStickyBar } from '@/modules/inventory/daily/DailyStockStickyBar';
+import { DailyStockTable } from '@/modules/inventory/daily/DailyStockTable';
+import { DailyStockToolbar } from '@/modules/inventory/daily/DailyStockToolbar';
+import {
+  applyDraftToRows,
+  calcClosing,
+  clearDraft,
+  DEFAULT_DAILY_FILTERS,
+  DRAFT_SAVE_MS,
+  filterDailyRows,
+  getLocalDateStr,
+  groupByCategory,
+  isOutOfStock,
+  isProductUpdated,
+  isLowStock,
+  loadDraft,
+  matchesQuickFilter,
+  normalizeItemType,
+  saveDraft,
+  SEARCH_DEBOUNCE_MS,
+  uniqueSorted,
+  withFieldChange,
+} from '@/modules/inventory/daily/lib';
+import type {
+  AutoSaveStatus,
+  DailyQuickFilter,
+  DailyStockFilters,
+  DailyStockRow,
+  EditableField,
+} from '@/modules/inventory/daily/types';
 
-interface StockRow extends DailyInventory {
-  productName: string;
-  categoryName: string;
-  unit: string;
+function useDebouncedValue<T>(value: T, delayMs: number) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(id);
+  }, [value, delayMs]);
+  return debounced;
 }
 
-type ViewMode = 'list' | 'card';
-
-interface DraftEntry {
-  product_id: string;
-  purchase: number;
-  consumption: number;
-  waste: number;
-  closingStock: number;
+function useIsCompactTablet() {
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px) and (max-width: 1023px)');
+    const apply = () => setCompact(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+  return compact;
 }
 
-interface DailyStockDraft {
-  outletId: string;
-  date: string;
-  savedAt: string;
-  entries: DraftEntry[];
-}
-
-const DRAFT_PREFIX = 'cafepilots_daily_stock_draft:';
-const DRAFT_SAVE_MS = 400;
-
-/** Local calendar date (avoids UTC midnight shifting the working day). */
-function getLocalDateStr(d = new Date()) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function draftKey(outletId: string, dateStr: string) {
-  return `${DRAFT_PREFIX}${outletId}:${dateStr}`;
-}
-
-function loadDraft(outletId: string, dateStr: string): DailyStockDraft | null {
-  try {
-    const raw = localStorage.getItem(draftKey(outletId, dateStr));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as DailyStockDraft;
-    if (!parsed?.outletId || !parsed?.date || !Array.isArray(parsed.entries)) return null;
-    if (parsed.outletId !== outletId || parsed.date !== dateStr) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function saveDraft(outletId: string, dateStr: string, rows: StockRow[]) {
-  const draft: DailyStockDraft = {
-    outletId,
-    date: dateStr,
-    savedAt: new Date().toISOString(),
-    entries: rows
-      .filter((r) => r.purchase > 0 || r.consumption > 0 || r.waste > 0)
-      .map((r) => ({
-        product_id: r.product_id,
-        purchase: r.purchase,
-        consumption: r.consumption,
-        waste: r.waste,
-        closingStock: r.closingStock,
-      })),
-  };
-  localStorage.setItem(draftKey(outletId, dateStr), JSON.stringify(draft));
-}
-
-function clearDraft(outletId: string, dateStr: string) {
-  localStorage.removeItem(draftKey(outletId, dateStr));
-}
-
-function applyDraftToRows(rows: StockRow[], draft: DailyStockDraft): StockRow[] {
-  const byProduct = new Map(draft.entries.map((e) => [e.product_id, e]));
-  return rows.map((row) => {
-    const entry = byProduct.get(row.product_id);
-    if (!entry) return row;
-    return {
-      ...row,
-      purchase: entry.purchase,
-      consumption: entry.consumption,
-      waste: entry.waste,
-      closingStock:
-        Number(row.openingStock) +
-        Number(entry.purchase) -
-        Number(entry.consumption) -
-        Number(entry.waste),
-      status: InventoryStatus.IN_PROGRESS,
-    };
-  });
+function useIsMobileCards() {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const apply = () => setMobile(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+  return mobile;
 }
 
 const DailyStockUpdate: React.FC = () => {
   const { user } = useAuthStore();
   const canSwitchBranches = useHasPermission(PERMISSIONS.BRANCH_SWITCH);
-  const [rows, setRows] = useState<StockRow[]>([]);
-  const [outlets, setOutlets] = useState<any[]>([]);
-  const [selectedOutlet, setSelectedOutlet] = useState<string>('');
+  const activeOutletId = useTenantStore((s) => s.activeOutletId);
+  const tenantOutlets = useTenantStore((s) => s.outlets);
+  const setActiveOutletId = useTenantStore((s) => s.setActiveOutletId);
+  const [searchParams] = useSearchParams();
+  const { showFeedback, FeedbackComponent } = useFeedback();
+  const compact = useIsCompactTablet();
+  const mobileCards = useIsMobileCards();
+
+  const [rows, setRows] = useState<DailyStockRow[]>([]);
+  const [outlets, setOutlets] = useState<{ id: string; name: string; companyId?: string }[]>([]);
+  const [selectedOutlet, setSelectedOutlet] = useState('');
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [draftRestoredAt, setDraftRestoredAt] = useState<string | null>(null);
-  const [lastDraftSavedAt, setLastDraftSavedAt] = useState<string | null>(null);
-  const { showFeedback, FeedbackComponent } = useFeedback();
+  const [lastSavedIso, setLastSavedIso] = useState<string | null>(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>('idle');
+  const [filters, setFilters] = useState<DailyStockFilters>(DEFAULT_DAILY_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [quickFilter, setQuickFilter] = useState<DailyQuickFilter>('all');
+  const [pendingOnly, setPendingOnly] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkValues, setBulkValues] = useState({ purchase: '', consumption: '', waste: '' });
+  const [, startTransition] = useTransition();
+
+  const deferredSearch = useDeferredValue(filters.search);
+  const debouncedSearch = useDebouncedValue(deferredSearch, SEARCH_DEBOUNCE_MS);
+
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const rowsRef = useRef<StockRow[]>([]);
+  const rowsRef = useRef(rows);
   const outletRef = useRef(selectedOutlet);
   const dirtyRef = useRef(false);
+  const categoryEls = useRef(new Map<string, HTMLElement>());
+  const showFeedbackRef = useRef(showFeedback);
+  const userRef = useRef(user);
+  const deepLinkAppliedRef = useRef(false);
+  const fetchGenRef = useRef(0);
 
   rowsRef.current = rows;
   outletRef.current = selectedOutlet;
   dirtyRef.current = hasUnsavedChanges;
+  showFeedbackRef.current = showFeedback;
+  userRef.current = user;
+
+  useEffect(() => {
+    if (deepLinkAppliedRef.current) return;
+    const q = searchParams.get('q');
+    const productId = searchParams.get('productId');
+    if (q) {
+      deepLinkAppliedRef.current = true;
+      setFilters((f) => (f.search === q ? f : { ...f, search: q }));
+      return;
+    }
+    if (productId && rows.length > 0) {
+      const match = rows.find((row) => row.product_id === productId);
+      if (match?.productName) {
+        deepLinkAppliedRef.current = true;
+        setFilters((f) =>
+          f.search === match.productName ? f : { ...f, search: match.productName }
+        );
+      }
+    }
+  }, [searchParams, rows]);
+
+  useEffect(() => {
+    if (searchParams.get('focus') !== 'receive' || !filters.search) return;
+    const timer = window.setTimeout(() => {
+      const input = document.querySelector<HTMLInputElement>('input[data-stock-field="purchase"]');
+      input?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      input?.focus();
+      input?.select();
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [searchParams, filters.search]);
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
@@ -142,7 +179,6 @@ const DailyStockUpdate: React.FC = () => {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [hasUnsavedChanges]);
 
-  // Persist latest draft when leaving the page (in-app navigation / unmount)
   useEffect(() => {
     return () => {
       if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
@@ -152,164 +188,287 @@ const DailyStockUpdate: React.FC = () => {
     };
   }, []);
 
-  const scheduleDraftSave = useCallback((nextRows: StockRow[], outletId: string) => {
+  const scheduleDraftSave = useCallback((nextRows: DailyStockRow[], outletId: string) => {
     if (!outletId) return;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    setAutoSaveStatus('saving');
     draftTimerRef.current = setTimeout(() => {
-      const dateStr = getLocalDateStr();
-      saveDraft(outletId, dateStr, nextRows);
-      setLastDraftSavedAt(new Date().toLocaleTimeString());
+      try {
+        const draft = saveDraft(outletId, getLocalDateStr(), nextRows);
+        setLastSavedIso(draft.savedAt);
+        setAutoSaveStatus('saved');
+      } catch {
+        setAutoSaveStatus('failed');
+      }
     }, DRAFT_SAVE_MS);
   }, []);
 
-  const handleRowChange = useCallback((updatedRow: StockRow) => {
-    setRows((prev) => {
-      const next = prev.map((r) => (r.id === updatedRow.id ? updatedRow : r));
-      scheduleDraftSave(next, outletRef.current);
-      return next;
-    });
-    setHasUnsavedChanges(true);
-  }, [scheduleDraftSave]);
+  const patchRows = useCallback(
+    (updater: (prev: DailyStockRow[]) => DailyStockRow[]) => {
+      setRows((prev) => {
+        const next = updater(prev);
+        scheduleDraftSave(next, outletRef.current);
+        return next;
+      });
+      setHasUnsavedChanges(true);
+      setAutoSaveStatus('unsaved');
+    },
+    [scheduleDraftSave]
+  );
+
+  const handleFieldChange = useCallback(
+    (id: string, field: EditableField, value: number) => {
+      patchRows((prev) =>
+        prev.map((row) => (row.id === id ? withFieldChange(row, field, value) : row))
+      );
+    },
+    [patchRows]
+  );
 
   useEffect(() => {
+    // Prefer header branch switcher as source of truth for outlet.
+    if (activeOutletId && activeOutletId !== selectedOutlet) {
+      setSelectedOutlet(activeOutletId);
+      setFilters((f) => (f.outletId === activeOutletId ? f : { ...f, outletId: activeOutletId }));
+    }
+  }, [activeOutletId]); // eslint-disable-line react-hooks/exhaustive-deps -- sync from header only
+
+  useEffect(() => {
+    if (tenantOutlets.length > 0) {
+      setOutlets(
+        tenantOutlets
+          .filter((o) => o.isActive)
+          .map((o) => ({ id: o.id, name: o.name, companyId: o.companyId }))
+      );
+      return;
+    }
+
     if (canSwitchBranches) {
-      fetchOutlets();
+      void (async () => {
+        try {
+          const companyId = getScopedCompanyId(userRef.current);
+          let query = supabase
+            .from('outlets')
+            .select('id, name, company_id')
+            .eq('is_active', true);
+          if (companyId) query = query.eq('company_id', companyId);
+          const { data, error } = await query;
+          if (error) throw error;
+          if (data && data.length > 0) {
+            setOutlets(
+              data.map((o) => ({
+                id: o.id,
+                name: o.name,
+                companyId: o.company_id ? String(o.company_id) : undefined,
+              }))
+            );
+            setSelectedOutlet((prev) => prev || activeOutletId || data[0].id);
+            setFilters((f) => {
+              const nextId = f.outletId || activeOutletId || data[0].id;
+              if (f.outletId === nextId) return f;
+              return { ...f, outletId: nextId };
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching outlets:', error);
+        }
+      })();
     } else if (user?.outletId) {
-      setSelectedOutlet(user.outletId);
+      setSelectedOutlet((prev) => prev || user.outletId!);
+      setFilters((f) =>
+        f.outletId === user.outletId ? f : { ...f, outletId: user.outletId || '' }
+      );
     }
-  }, [canSwitchBranches, user]);
+  }, [canSwitchBranches, user?.outletId, user?.companyId, tenantOutlets, activeOutletId]);
 
   useEffect(() => {
-    if (selectedOutlet) {
-      fetchDailyData(selectedOutlet);
-    } else {
+    if (!selectedOutlet) {
       setLoading(false);
+      return;
     }
-  }, [selectedOutlet]);
 
-  const fetchOutlets = async () => {
-    try {
-      const companyId = getScopedCompanyId(user);
-      let query = supabase.from('outlets').select('id, name').eq('is_active', true);
-      if (companyId) query = query.eq('company_id', companyId);
-      const { data, error } = await query;
-      if (error) throw error;
-      if (data && data.length > 0) {
-        setOutlets(data);
-        if (!selectedOutlet) {
-          setSelectedOutlet(data[0].id);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching outlets:', error);
-    }
-  };
+    const gen = ++fetchGenRef.current;
+    let cancelled = false;
 
-  const fetchDailyData = async (outletId: string) => {
-    try {
-      setLoading(true);
+    const load = async () => {
+      if (rowsRef.current.length === 0) setLoading(true);
       setDraftRestoredAt(null);
-      const companyId = getScopedCompanyId(user);
-      let pQuery = supabase.from('products').select('*, categories(name)').eq('is_active', true).order('name');
-      if (companyId) pQuery = pQuery.eq('company_id', companyId);
-      const { data: productsData, error: pErr } = await pQuery;
-      if (pErr) throw pErr;
 
-      const invMap: Record<string, number> = {};
-      if (outletId) {
-        const { data: invData } = await supabase.from('inventory').select('product_id, current_quantity').eq('outlet_id', outletId);
+      try {
+        const currentUser = userRef.current;
+
+        // Resolve company from the selected outlet so branch switch loads the right catalog
+        // (Backbenchers = raw materials, CafePilots HQ = ready products).
+        let companyId =
+          outlets.find((o) => o.id === selectedOutlet)?.companyId ||
+          useTenantStore.getState().outlets.find((o) => o.id === selectedOutlet)?.companyId ||
+          '';
+
+        if (!companyId) {
+          const { data: outletRow } = await supabase
+            .from('outlets')
+            .select('company_id')
+            .eq('id', selectedOutlet)
+            .maybeSingle();
+          companyId = outletRow?.company_id
+            ? String(outletRow.company_id)
+            : getScopedCompanyId(currentUser);
+        }
+
+        let pQuery = supabase
+          .from('products')
+          .select('*, categories(name)')
+          .eq('is_active', true)
+          .order('name');
+        if (companyId) pQuery = pQuery.eq('company_id', companyId);
+        const { data: productsData, error: pErr } = await pQuery;
+        if (pErr) throw pErr;
+        if (cancelled || gen !== fetchGenRef.current) return;
+
+        const invMap: Record<string, number> = {};
+        const { data: invData } = await supabase
+          .from('inventory')
+          .select('product_id, current_quantity')
+          .eq('outlet_id', selectedOutlet);
+        if (cancelled || gen !== fetchGenRef.current) return;
         if (invData) {
-          invData.forEach(item => { invMap[item.product_id] = Number(item.current_quantity); });
+          invData.forEach((item) => {
+            invMap[item.product_id] = Number(item.current_quantity);
+          });
         }
-      }
 
-      const dateStr = getLocalDateStr();
-      const dailyMap: Record<string, any> = {};
-      if (outletId) {
-        const { data: dailyData } = await supabase.from('daily_stock').select('*').eq('outlet_id', outletId).eq('date', dateStr);
+        const dateStr = getLocalDateStr();
+        const dailyMap: Record<string, any> = {};
+        const { data: dailyData } = await supabase
+          .from('daily_stock')
+          .select('*')
+          .eq('outlet_id', selectedOutlet)
+          .eq('date', dateStr);
+        if (cancelled || gen !== fetchGenRef.current) return;
         if (dailyData) {
-          dailyData.forEach(item => { dailyMap[item.product_id] = item; });
+          dailyData.forEach((item) => {
+            dailyMap[item.product_id] = item;
+          });
         }
-      }
 
-      if (productsData) {
-        let mappedRows = productsData.map(p => {
+        if (!productsData) return;
+
+        let mappedRows: DailyStockRow[] = productsData.map((p: any) => {
           const daily = dailyMap[p.id];
-          const opening = daily ? Number(daily.opening_stock) : (invMap[p.id] || 0);
+          const opening = daily ? Number(daily.opening_stock) : invMap[p.id] || 0;
           const pur = daily ? Number(daily.purchase) : 0;
           const con = daily ? Number(daily.consumption) : 0;
           const was = daily ? Number(daily.waste) : 0;
           const clos = daily ? Number(daily.closing_stock) : opening;
+          const itemType = normalizeItemType(p.item_type);
 
           return {
             id: p.id,
             product_id: p.id,
             productName: p.name,
-            categoryName: (p.categories as any)?.name || 'Uncategorized',
+            productCode: p.code || '',
+            barcode: p.barcode || '',
+            alias: p.alias || p.short_name || '',
+            categoryName: p.categories?.name || 'Uncategorized',
+            supplier: p.supplier_name || p.supplier || '—',
             unit: p.unit || 'Unit',
+            item_type: itemType,
+            minStock: Math.max(0, Number(p.min_stock) || 0),
             openingStock: opening,
             purchase: pur,
             consumption: con,
             waste: was,
             closingStock: clos,
             status: daily ? daily.status : InventoryStatus.IN_PROGRESS,
-            date: dateStr
+            date: dateStr,
+            markedComplete: false,
+            editState: 'clean' as const,
+            baseline: { purchase: pur, consumption: con, waste: was },
+            updatedAt: daily?.updated_at || p.updated_at || null,
           };
         });
 
-        const draft = loadDraft(outletId, dateStr);
+        const draft = loadDraft(selectedOutlet, dateStr);
         if (draft && draft.entries.length > 0) {
           mappedRows = applyDraftToRows(mappedRows, draft);
           setHasUnsavedChanges(true);
           setDraftRestoredAt(new Date(draft.savedAt).toLocaleString());
-          setLastDraftSavedAt(new Date(draft.savedAt).toLocaleTimeString());
+          setLastSavedIso(draft.savedAt);
+          setAutoSaveStatus('saved');
         } else {
           setHasUnsavedChanges(false);
-          setLastDraftSavedAt(null);
+          setLastSavedIso(null);
+          setAutoSaveStatus('idle');
         }
 
         setRows(mappedRows);
+        setSelectedIds(new Set());
+
+        // Auto-correct type filter so Raw material catalogs are not hidden
+        // behind a Ready product filter (and vice versa).
+        const rawCount = mappedRows.filter((r) => r.item_type === 'raw_material').length;
+        const readyCount = mappedRows.length - rawCount;
+        setFilters((f) => {
+          if (f.stockType === 'raw_material' && rawCount === 0 && readyCount > 0) {
+            return { ...f, stockType: 'all' };
+          }
+          if (f.stockType === 'ready_product' && readyCount === 0 && rawCount > 0) {
+            return { ...f, stockType: 'all' };
+          }
+          // Prefer Raw material when that is the entire catalog
+          if (f.stockType === 'all' && rawCount > 0 && readyCount === 0) {
+            return { ...f, stockType: 'raw_material' };
+          }
+          return f;
+        });
+      } catch (error) {
+        if (cancelled || gen !== fetchGenRef.current) return;
+        console.error('Error fetching daily data:', error);
+        showFeedbackRef.current('Error loading inventory data.', 'error');
+      } finally {
+        if (!cancelled && gen === fetchGenRef.current) setLoading(false);
       }
-    } catch (error) {
-      console.error('Error fetching daily data:', error);
-      showFeedback('Error loading inventory data.', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedOutlet]);
 
   const handleOutletChange = (nextOutlet: string) => {
-    if (nextOutlet === selectedOutlet) return;
+    if (!nextOutlet || nextOutlet === selectedOutlet) return;
     if (hasUnsavedChanges) {
       const ok = window.confirm(
         'You have unsaved daily stock entries for this outlet. Switch outlet? Your draft for the current outlet stays on this device.'
       );
       if (!ok) return;
-      if (selectedOutlet) {
-        saveDraft(selectedOutlet, getLocalDateStr(), rowsRef.current);
-      }
+      if (selectedOutlet) saveDraft(selectedOutlet, getLocalDateStr(), rowsRef.current);
     }
+    setRows([]);
+    setLoading(true);
     setSelectedOutlet(nextOutlet);
+    setFilters((f) => ({ ...f, outletId: nextOutlet, stockType: 'all' }));
+    setActiveOutletId(nextOutlet);
   };
 
-  const exportToExcel = () => {
-    const excelData = rows.map(r => ({
-      'Category': r.categoryName,
+  const exportRows = (list: DailyStockRow[], filename: string) => {
+    const excelData = list.map((r) => ({
+      Category: r.categoryName,
       'Product Name': r.productName,
-      'Unit': r.unit,
+      SKU: r.productCode,
+      Barcode: r.barcode,
+      Unit: r.unit,
       'Opening Stock': r.openingStock,
       'Purchase (+)': r.purchase,
       'Consumption (-)': r.consumption,
       'Waste (-)': r.waste,
-      'Closing Stock': r.closingStock
+      'Closing Stock': r.closingStock,
     }));
-
     const worksheet = XLSX.utils.json_to_sheet(excelData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Daily Stock');
-
-    const dateStr = getLocalDateStr();
-    XLSX.writeFile(workbook, `Daily_Stock_Update_${dateStr}.xlsx`);
+    XLSX.writeFile(workbook, filename);
   };
 
   const handleSaveDraft = () => {
@@ -317,26 +476,39 @@ const DailyStockUpdate: React.FC = () => {
       showFeedback('Please select an outlet first.', 'error');
       return;
     }
-    const dateStr = getLocalDateStr();
-    saveDraft(selectedOutlet, dateStr, rows);
-    setLastDraftSavedAt(new Date().toLocaleTimeString());
-    setHasUnsavedChanges(true);
-    showFeedback('Draft saved on this device. You can continue later without losing entries.', 'success');
+    try {
+      const draft = saveDraft(selectedOutlet, getLocalDateStr(), rows);
+      setLastSavedIso(draft.savedAt);
+      setHasUnsavedChanges(true);
+      setAutoSaveStatus('saved');
+      setRows((prev) =>
+        prev.map((r) => (r.editState === 'edited' ? { ...r, editState: 'saved' as const } : r))
+      );
+      showFeedback('Draft saved on this device. You can continue later without losing entries.', 'success');
+    } catch {
+      setAutoSaveStatus('failed');
+      showFeedback('Could not save draft locally.', 'error');
+    }
   };
 
   const handleSubmit = async () => {
     if (!selectedOutlet) {
-      showFeedback("Please select an outlet first.", "error");
+      showFeedback('Please select an outlet first.', 'error');
       return;
     }
 
     setSubmitting(true);
     try {
       const dateStr = getLocalDateStr();
-
       const payloads = rows
-        .filter(r => r.purchase > 0 || r.consumption > 0 || r.waste > 0 || r.closingStock > 0)
-        .map(r => ({
+        .filter(
+          (r) =>
+            r.purchase > 0 ||
+            r.consumption > 0 ||
+            r.waste > 0 ||
+            r.closingStock > 0
+        )
+        .map((r) => ({
           date: dateStr,
           outlet_id: selectedOutlet,
           product_id: r.product_id,
@@ -345,11 +517,11 @@ const DailyStockUpdate: React.FC = () => {
           consumption: r.consumption,
           waste: r.waste,
           closing_stock: r.closingStock,
-          status: InventoryStatus.SUBMITTED
+          status: InventoryStatus.SUBMITTED,
         }));
 
       if (payloads.length === 0) {
-        showFeedback("Please enter some stock data before submitting.", "error");
+        showFeedback('Please enter some stock data before submitting.', 'error');
         setSubmitting(false);
         return;
       }
@@ -357,489 +529,515 @@ const DailyStockUpdate: React.FC = () => {
       const { error } = await supabase
         .from('daily_stock')
         .upsert(payloads, { onConflict: 'date, outlet_id, product_id' });
-
       if (error) throw error;
 
-      const inventoryPayloads = payloads.map(p => ({
+      const inventoryPayloads = payloads.map((p) => ({
         outlet_id: p.outlet_id,
         product_id: p.product_id,
-        current_quantity: p.closing_stock
+        current_quantity: p.closing_stock,
       }));
 
       const { error: invErr } = await supabase
         .from('inventory')
         .upsert(inventoryPayloads, { onConflict: 'outlet_id, product_id' });
-
       if (invErr) throw invErr;
 
       clearDraft(selectedOutlet, dateStr);
       setHasUnsavedChanges(false);
       setDraftRestoredAt(null);
-      setLastDraftSavedAt(null);
-      showFeedback("Inventory submitted successfully!", "success");
+      setLastSavedIso(new Date().toISOString());
+      setAutoSaveStatus('saved');
+      setRows((prev) =>
+        prev.map((r) => ({
+          ...r,
+          status: payloads.some((p) => p.product_id === r.product_id)
+            ? InventoryStatus.SUBMITTED
+            : r.status,
+          editState: 'saved' as const,
+          baseline: {
+            purchase: r.purchase,
+            consumption: r.consumption,
+            waste: r.waste,
+          },
+        }))
+      );
+      showFeedback('Inventory submitted successfully!', 'success');
     } catch (err: any) {
-      console.error("Error submitting inventory", err);
+      console.error('Error submitting inventory', err);
       if (selectedOutlet) {
-        saveDraft(selectedOutlet, getLocalDateStr(), rowsRef.current);
-        setLastDraftSavedAt(new Date().toLocaleTimeString());
+        const draft = saveDraft(selectedOutlet, getLocalDateStr(), rowsRef.current);
+        setLastSavedIso(draft.savedAt);
+        setAutoSaveStatus('failed');
       }
-      showFeedback('Failed to submit inventory: ' + err.message + ' Your entries were kept as a local draft.', "error");
+      showFeedback(
+        'Failed to submit inventory: ' + err.message + ' Your entries were kept as a local draft.',
+        'error'
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
+  const categories = useMemo(() => uniqueSorted(rows.map((r) => r.categoryName)), [rows]);
+  const suppliers = useMemo(
+    () => uniqueSorted(rows.map((r) => r.supplier).filter((s) => s && s !== '—')),
+    [rows]
+  );
+
+  const filteredRows = useMemo(
+    () => filterDailyRows(rows, filters, quickFilter, pendingOnly, debouncedSearch),
+    [rows, filters, quickFilter, pendingOnly, debouncedSearch]
+  );
+
+  const groups = useMemo(() => groupByCategory(filteredRows), [filteredRows]);
+
+  const updatedCount = useMemo(() => rows.filter(isProductUpdated).length, [rows]);
+
+  const typeCounts = useMemo(() => {
+    let raw_material = 0;
+    let ready_product = 0;
+    for (const row of rows) {
+      if (normalizeItemType(row.item_type) === 'raw_material') raw_material += 1;
+      else ready_product += 1;
+    }
+    return { raw_material, ready_product };
+  }, [rows]);
+
+  const chipCounts = useMemo(() => {
+    // Keep chip counts stable against type/status filters so picking "Raw material"
+    // does not zero-out every chip and look like a data failure.
+    const base = filterDailyRows(
+      rows,
+      { ...filters, stockType: 'all', status: 'all', category: 'all', supplier: 'all', dateFrom: '' },
+      'all',
+      false,
+      debouncedSearch
+    );
+    return {
+      all: base.length,
+      pending: base.filter((r) => !isProductUpdated(r)).length,
+      updated: base.filter(isProductUpdated).length,
+      has_purchase: base.filter((r) => matchesQuickFilter(r, 'has_purchase')).length,
+      has_consumption: base.filter((r) => matchesQuickFilter(r, 'has_consumption')).length,
+      has_waste: base.filter((r) => matchesQuickFilter(r, 'has_waste')).length,
+      low_stock: base.filter(isLowStock).length,
+      out_of_stock: base.filter(isOutOfStock).length,
+      recently_updated: base.filter((r) => matchesQuickFilter(r, 'recently_updated')).length,
+    } satisfies Partial<Record<DailyQuickFilter, number>>;
+  }, [rows, filters, debouncedSearch]);
+
+  const navCategories = useMemo(
+    () =>
+      groups.map((g) => ({
+        name: g.name,
+        total: g.total,
+        updated: g.updated,
+        pending: g.pending,
+      })),
+    [groups]
+  );
+
+  const activeFilterHint = useMemo(() => {
+    const parts: string[] = [];
+    if (filters.stockType === 'raw_material') {
+      parts.push(
+        typeCounts.raw_material === 0
+          ? `No products are tagged as Raw material (${typeCounts.ready_product} are Ready product)`
+          : 'Raw material filter is on'
+      );
+    } else if (filters.stockType === 'ready_product') {
+      parts.push(
+        typeCounts.ready_product === 0
+          ? `No products are tagged as Ready product (${typeCounts.raw_material} are Raw material)`
+          : 'Ready product filter is on'
+      );
+    }
+    if (filters.category !== 'all') parts.push(`Category: ${filters.category}`);
+    if (filters.supplier !== 'all') parts.push(`Supplier: ${filters.supplier}`);
+    if (filters.status !== 'all') parts.push(`Status: ${filters.status}`);
+    if (quickFilter !== 'all') parts.push(`Quick filter: ${quickFilter}`);
+    if (pendingOnly) parts.push('Pending only');
+    if (debouncedSearch) parts.push(`Search: “${debouncedSearch}”`);
+    return parts;
+  }, [filters, quickFilter, pendingOnly, debouncedSearch, typeCounts]);
+
+  const onFiltersChange = (next: Partial<DailyStockFilters>) => {
+    if (next.outletId !== undefined && next.outletId !== filters.outletId) {
+      handleOutletChange(next.outletId);
+    }
+    startTransition(() => {
+      setFilters((f) => ({ ...f, ...next }));
+    });
+  };
+
+  const resetFilters = () => {
+    setFilters({
+      ...DEFAULT_DAILY_FILTERS,
+      outletId: selectedOutlet,
+    });
+    setQuickFilter('all');
+    setPendingOnly(false);
+  };
+
+  const scrollToCategory = (name: string) => {
+    setActiveCategory(name);
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      next.delete(name);
+      return next;
+    });
+    requestAnimationFrame(() => {
+      categoryEls.current.get(name)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectCategory = (ids: string[], selected: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => {
+        if (selected) next.add(id);
+        else next.delete(id);
+      });
+      return next;
+    });
+  };
+
+  const selectedRows = useMemo(
+    () => rows.filter((r) => selectedIds.has(r.id)),
+    [rows, selectedIds]
+  );
+
+  const markCompleted = () => {
+    patchRows((prev) =>
+      prev.map((r) =>
+        selectedIds.has(r.id)
+          ? { ...r, markedComplete: true, editState: 'edited' as const }
+          : r
+      )
+    );
+    setSelectedIds(new Set());
+  };
+
+  const clearValues = () => {
+    patchRows((prev) =>
+      prev.map((r) => {
+        if (!selectedIds.has(r.id)) return r;
+        return {
+          ...r,
+          purchase: 0,
+          consumption: 0,
+          waste: 0,
+          closingStock: calcClosing(r.openingStock, 0, 0, 0),
+          markedComplete: false,
+          editState: 'edited' as const,
+        };
+      })
+    );
+    setSelectedIds(new Set());
+  };
+
+  const applyBulkUpdate = () => {
+    const purchase = bulkValues.purchase === '' ? null : parseFloat(bulkValues.purchase) || 0;
+    const consumption =
+      bulkValues.consumption === '' ? null : parseFloat(bulkValues.consumption) || 0;
+    const waste = bulkValues.waste === '' ? null : parseFloat(bulkValues.waste) || 0;
+    patchRows((prev) =>
+      prev.map((r) => {
+        if (!selectedIds.has(r.id)) return r;
+        const nextPurchase = purchase ?? r.purchase;
+        const nextConsumption = consumption ?? r.consumption;
+        const nextWaste = waste ?? r.waste;
+        return {
+          ...r,
+          purchase: nextPurchase,
+          consumption: nextConsumption,
+          waste: nextWaste,
+          closingStock: calcClosing(r.openingStock, nextPurchase, nextConsumption, nextWaste),
+          editState: 'edited' as const,
+        };
+      })
+    );
+    setBulkOpen(false);
+    setBulkValues({ purchase: '', consumption: '', waste: '' });
+    setSelectedIds(new Set());
+  };
+
+  const printSelected = () => {
+    const list = selectedRows.length > 0 ? selectedRows : filteredRows;
+    const html = `
+      <html><head><title>Daily Stock</title>
+      <style>
+        body{font-family:system-ui,sans-serif;padding:24px;color:#0f172a}
+        h1{font-size:18px;margin:0 0 12px}
+        table{width:100%;border-collapse:collapse;font-size:12px}
+        th,td{border:1px solid #e2e8f0;padding:6px 8px;text-align:left}
+        th{background:#f8fafc}
+      </style></head><body>
+      <h1>Daily Stock Update — ${getLocalDateStr()}</h1>
+      <table><thead><tr>
+        <th>Product</th><th>Opening</th><th>Purchase</th><th>Consumed</th><th>Waste</th><th>Closing</th>
+      </tr></thead><tbody>
+      ${list
+        .map(
+          (r) =>
+            `<tr><td>${r.productName}</td><td>${r.openingStock}</td><td>${r.purchase}</td><td>${r.consumption}</td><td>${r.waste}</td><td>${r.closingStock}</td></tr>`
+        )
+        .join('')}
+      </tbody></table></body></html>`;
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    w.print();
+  };
+
+  useEffect(() => {
+    if (groups.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        const name = visible?.target.getAttribute('data-category');
+        if (name) {
+          setActiveCategory((prev) => (prev === name ? prev : name));
+        }
+      },
+      { rootMargin: '-20% 0px -55% 0px', threshold: [0.15, 0.4] }
+    );
+    groups.forEach((g) => {
+      const el = categoryEls.current.get(g.name);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, [groups]);
+
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 2 }}>
-        <Typography variant="h5" sx={{ fontWeight: 'bold', fontSize: { xs: '1.1rem', sm: '1.5rem' } }}>
-          Daily Stock Update – {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-        </Typography>
+    <div className="relative mx-auto w-full max-w-[1600px] space-y-4 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] text-base sm:space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+            Daily Stock Update
+          </h1>
+          <p className="mt-1 text-sm text-slate-500 sm:text-base">
+            {new Date().toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+            })}
+          </p>
+        </div>
+        <label className="inline-flex h-11 cursor-pointer items-center gap-2.5 rounded-xl bg-white px-3.5 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100">
+          <input
+            type="checkbox"
+            checked={pendingOnly}
+            onChange={(e) => setPendingOnly(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300 text-[#FF6A00] focus:ring-[#FF6A00]"
+          />
+          Show Pending Only
+        </label>
+      </div>
 
-        {draftRestoredAt && (
-          <Alert severity="info" onClose={() => setDraftRestoredAt(null)}>
-            Restored unsaved draft from {draftRestoredAt}. Submit when ready, or keep editing — changes auto-save on this device.
-          </Alert>
-        )}
+      {typeCounts.raw_material === 0 && typeCounts.ready_product > 0 ? (
+        <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-950">
+          No raw materials on this branch yet. Use <strong>All types</strong> or{' '}
+          <strong>Ready product</strong>, or refresh after catalog sync.
+        </div>
+      ) : null}
 
-        {hasUnsavedChanges && lastDraftSavedAt && !draftRestoredAt && (
-          <Typography variant="caption" color="text.secondary">
-            Draft auto-saved locally at {lastDraftSavedAt}
-          </Typography>
-        )}
+      {typeCounts.raw_material > 0 ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+          {typeCounts.raw_material} raw material{typeCounts.raw_material === 1 ? '' : 's'} available
+          {typeCounts.ready_product > 0 ? ` · ${typeCounts.ready_product} ready products` : ''}.
+        </div>
+      ) : null}
 
-        <Box sx={{ display: 'flex', flexWrap: 'nowrap', gap: 1.5, alignItems: 'center' }}>
-          {canSwitchBranches && (
-            <FormControl
-              size="small"
-              sx={{ minWidth: 0, flex: '1 1 auto' }}
-            >
-              <InputLabel id="outlet-select-label">Select Outlet</InputLabel>
-              <Select
-                labelId="outlet-select-label"
-                value={selectedOutlet}
-                label="Select Outlet"
-                onChange={(e: any) => handleOutletChange(e.target.value as string)}
-              >
-                {outlets.map((f) => (
-                  <MenuItem key={f.id} value={f.id}>{f.name}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
-
-          <Button
-            variant="outlined"
-            color="primary"
-            startIcon={<Download />}
-            onClick={exportToExcel}
-            sx={{ whiteSpace: 'nowrap', display: { xs: 'none', sm: 'inline-flex' } }}
+      {draftRestoredAt ? (
+        <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+          Restored unsaved draft from {draftRestoredAt}. Submit when ready — changes auto-save on this
+          device.
+          <button
+            type="button"
+            className="ml-2 font-semibold underline"
+            onClick={() => setDraftRestoredAt(null)}
           >
-            Export to Excel
-          </Button>
+            Dismiss
+          </button>
+        </div>
+      ) : null}
 
-          <Button
-            variant="outlined"
-            color="secondary"
-            startIcon={<Save />}
-            onClick={handleSaveDraft}
-            disabled={!hasUnsavedChanges && !lastDraftSavedAt}
-            sx={{ whiteSpace: 'nowrap', display: { xs: 'none', sm: 'inline-flex' } }}
-          >
-            Save Draft
-          </Button>
+      <DailyStockToolbar
+        filters={filters}
+        categories={categories}
+        suppliers={suppliers}
+        outlets={outlets}
+        canSwitchOutlet={canSwitchBranches}
+        filtersOpen={filtersOpen}
+        autoSaveStatus={autoSaveStatus}
+        lastSavedAt={lastSavedIso}
+        typeCounts={typeCounts}
+        onToggleFilters={() => setFiltersOpen((v) => !v)}
+        onChange={onFiltersChange}
+        onReset={resetFilters}
+        onExport={() =>
+          exportRows(filteredRows, `Daily_Stock_Update_${getLocalDateStr()}.xlsx`)
+        }
+      />
 
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<Save />}
-            onClick={handleSubmit}
-            disabled={submitting || !hasUnsavedChanges}
-            sx={{ whiteSpace: 'nowrap', display: { xs: 'none', sm: 'inline-flex' } }}
-          >
-            {submitting ? 'Submitting…' : 'Submit Inventory'}
-          </Button>
+      <DailyStockQuickChips
+        active={quickFilter}
+        counts={chipCounts}
+        onChange={(next) => startTransition(() => setQuickFilter(next))}
+      />
 
-          <ToggleButtonGroup
-            value={viewMode}
-            exclusive
-            onChange={(_e, val) => { if (val) setViewMode(val); }}
-            size="small"
-            sx={{ ml: { xs: 0, sm: 'auto' }, flexShrink: 0 }}
-          >
-            <ToggleButton value="list"><Tooltip title="List View"><ViewList /></Tooltip></ToggleButton>
-            <ToggleButton value="card"><Tooltip title="Card View"><GridView /></Tooltip></ToggleButton>
-          </ToggleButtonGroup>
-        </Box>
-      </Box>
+      <DailyStockProgressCard
+        updated={updatedCount}
+        total={rows.length}
+        lastSavedAt={lastSavedIso}
+        autoSaveEnabled
+      />
 
-      <Box sx={{ mb: 2 }}>
-        <TextField
-          fullWidth
-          variant="outlined"
-          size="small"
-          placeholder="Search products..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          slotProps={{
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Search />
-                </InputAdornment>
-              ),
-            }
-          }}
-          sx={{ bgcolor: 'background.paper' }}
+      <DailyStockBulkBar
+        count={selectedIds.size}
+        onMarkCompleted={markCompleted}
+        onClearValues={clearValues}
+        onExport={() =>
+          exportRows(selectedRows, `Daily_Stock_Selected_${getLocalDateStr()}.xlsx`)
+        }
+        onPrint={printSelected}
+        onBulkUpdate={() => setBulkOpen(true)}
+        onClearSelection={() => setSelectedIds(new Set())}
+      />
+
+      {bulkOpen ? (
+        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+          <p className="mb-3 text-sm font-bold text-slate-800">
+            Bulk update {selectedIds.size} products
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {(['purchase', 'consumption', 'waste'] as const).map((field) => (
+              <label key={field} className="block text-sm font-semibold text-slate-600">
+                <span className="mb-1 block capitalize">{field === 'consumption' ? 'Consumed' : field}</span>
+                <input
+                  type="number"
+                  className="h-11 w-full rounded-xl border-0 bg-slate-100 px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-[#FF6A00]/30"
+                  placeholder="Leave blank to skip"
+                  value={bulkValues[field]}
+                  onChange={(e) => setBulkValues((v) => ({ ...v, [field]: e.target.value }))}
+                />
+              </label>
+            ))}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <Button type="button" className="rounded-xl bg-[#FF6A00] hover:bg-[#e85f00]" onClick={applyBulkUpdate}>
+              Apply
+            </Button>
+            <Button type="button" variant="outline" className="rounded-xl" onClick={() => setBulkOpen(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <DailyStockCategoryNav
+          categories={navCategories}
+          active={activeCategory}
+          onSelect={scrollToCategory}
         />
-      </Box>
 
-      <Box sx={{ flexGrow: 1, overflowY: 'auto', pb: { xs: 9, sm: 0 } }}>
-        {loading ? (
-          <Typography sx={{ p: 2 }}>Loading products...</Typography>
-        ) : (
-          Object.entries(
-            rows
-              .filter(row => row.productName.toLowerCase().includes(searchQuery.toLowerCase()))
-              .reduce((acc, row) => {
-                const category = row.categoryName;
-                if (!acc[category]) acc[category] = [];
-                acc[category].push(row);
-                return acc;
-              }, {} as Record<string, StockRow[]>)
-          ).map(([category, catRows]) => (
-            <Accordion key={category} defaultExpanded sx={{ mb: 1 }}>
-              <AccordionSummary expandIcon={<ExpandMore />} sx={{ bgcolor: 'background.default' }}>
-                <Typography variant="h6">
-                  {category} <Chip label={catRows.length} size="small" sx={{ ml: 1 }} />
-                </Typography>
-              </AccordionSummary>
-              <AccordionDetails sx={{ p: viewMode === 'card' ? 2 : 0, overflow: 'visible' }}>
-                {viewMode === 'list' ? (
-                  <StockTable
-                    catRows={catRows}
-                    onRowChange={handleRowChange}
-                  />
-                ) : (
-                  <StockCardGrid
-                    catRows={catRows}
-                    onRowChange={handleRowChange}
-                  />
-                )}
-              </AccordionDetails>
-            </Accordion>
-          ))
-        )}
-      </Box>
+        <div className="min-w-0 space-y-4">
+          {loading && rows.length === 0 ? (
+            <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm ring-1 ring-slate-100">
+              Loading products…
+            </div>
+          ) : filteredRows.length === 0 ? (
+            <div className="rounded-xl bg-white px-6 py-14 text-center shadow-sm ring-1 ring-slate-100">
+              <ClipboardList className="mx-auto mb-3 h-10 w-10 text-slate-300" aria-hidden />
+              <p className="text-lg font-bold text-slate-800">No matching products.</p>
+              <p className="mt-1 text-sm text-slate-500">
+                {activeFilterHint.length > 0
+                  ? activeFilterHint.join(' · ')
+                  : 'Try adjusting search or filters.'}
+              </p>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                <Button type="button" variant="outline" className="rounded-xl" onClick={resetFilters}>
+                  Clear filters
+                </Button>
+                {filters.stockType === 'raw_material' && typeCounts.ready_product > 0 ? (
+                  <Button
+                    type="button"
+                    className="rounded-xl bg-[#FF6A00] hover:bg-[#e85f00]"
+                    onClick={() => onFiltersChange({ stockType: 'ready_product' })}
+                  >
+                    Show Ready product ({typeCounts.ready_product})
+                  </Button>
+                ) : null}
+                {filters.stockType === 'ready_product' && typeCounts.raw_material > 0 ? (
+                  <Button
+                    type="button"
+                    className="rounded-xl bg-[#FF6A00] hover:bg-[#e85f00]"
+                    onClick={() => onFiltersChange({ stockType: 'raw_material' })}
+                  >
+                    Show Raw material ({typeCounts.raw_material})
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ) : mobileCards ? (
+            <DailyStockCards
+              rows={filteredRows}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
+              onChangeField={handleFieldChange}
+            />
+          ) : (
+            <DailyStockTable
+              groups={groups}
+              selectedIds={selectedIds}
+              collapsed={collapsed}
+              compact={compact}
+              onToggleCollapse={(name) =>
+                setCollapsed((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(name)) next.delete(name);
+                  else next.add(name);
+                  return next;
+                })
+              }
+              onToggleSelect={toggleSelect}
+              onToggleSelectCategory={toggleSelectCategory}
+              onChangeField={handleFieldChange}
+              registerCategoryEl={(name, el) => {
+                if (el) categoryEls.current.set(name, el);
+                else categoryEls.current.delete(name);
+              }}
+            />
+          )}
+        </div>
+      </div>
 
       {FeedbackComponent}
 
-      <Box
-        sx={{
-          display: { xs: 'flex', sm: 'none' },
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 1200,
-          px: 2,
-          py: 1.5,
-          gap: 1.5,
-          bgcolor: 'background.paper',
-          borderTop: '1px solid',
-          borderColor: 'divider',
-          boxShadow: '0 -4px 16px rgba(0,0,0,0.10)',
-        }}
-      >
-        <Button
-          variant="outlined"
-          color="secondary"
-          startIcon={<Save />}
-          onClick={handleSaveDraft}
-          disabled={!hasUnsavedChanges && !lastDraftSavedAt}
-          fullWidth
-          sx={{ whiteSpace: 'nowrap' }}
-        >
-          Draft
-        </Button>
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<Save />}
-          onClick={handleSubmit}
-          disabled={submitting || !hasUnsavedChanges}
-          fullWidth
-          sx={{ whiteSpace: 'nowrap' }}
-        >
-          {submitting ? 'Submitting…' : 'Submit'}
-        </Button>
-      </Box>
-    </Box>
-  );
-};
-
-
-// ────────────────────────────────────────────
-// Sticky-column table sub-component
-// ────────────────────────────────────────────
-interface StockTableProps {
-  catRows: StockRow[];
-  onRowChange: (row: StockRow) => void;
-}
-
-const StockTable: React.FC<StockTableProps> = ({ catRows, onRowChange }) => {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-  const bg = isDark ? '#1e1e1e' : '#ffffff';
-  const altBg = isDark ? '#242424' : '#fafafa';
-  const editBg = isDark ? 'rgba(34,197,94,0.12)' : '#f0fdf4';
-  const borderColor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)';
-  const headerBg = isDark ? '#2a2a2a' : '#f5f5f5';
-  const textColor = isDark ? '#ffffff' : '#111111';
-
-  const handleChange = (
-    row: StockRow,
-    field: 'purchase' | 'consumption' | 'waste',
-    value: string
-  ) => {
-    const num = parseFloat(value) || 0;
-    const updated = { ...row, [field]: num };
-    updated.closingStock =
-      Number(updated.openingStock) +
-      Number(updated.purchase) -
-      Number(updated.consumption) -
-      Number(updated.waste);
-    onRowChange(updated);
-  };
-
-  const cell: React.CSSProperties = {
-    padding: '10px 14px',
-    borderBottom: `1px solid ${borderColor}`,
-    whiteSpace: 'nowrap',
-    fontSize: '0.85rem',
-    verticalAlign: 'middle',
-    color: textColor,
-  };
-
-  const sticky: React.CSSProperties = {
-    ...cell,
-    position: 'sticky',
-    left: 0,
-    zIndex: 2,
-    fontWeight: 600,
-    minWidth: 130,
-    maxWidth: 200,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    boxShadow: isDark
-      ? '3px 0 8px rgba(0,0,0,0.6)'
-      : '3px 0 8px rgba(0,0,0,0.08)',
-  };
-
-  const input: React.CSSProperties = {
-    width: 88,
-    padding: '5px 8px',
-    fontSize: '0.85rem',
-    borderRadius: 6,
-    border: `1px solid ${borderColor}`,
-    backgroundColor: editBg,
-    color: textColor,
-    textAlign: 'center',
-    outline: 'none',
-    appearance: 'textfield' as any,
-  };
-
-  return (
-    <Box sx={{ width: '100%', overflowX: 'auto', overflowY: 'visible' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
-        <thead>
-          <tr style={{ backgroundColor: headerBg }}>
-            <th style={{ ...sticky, backgroundColor: headerBg, zIndex: 3, fontWeight: 700 }}>Product</th>
-            <th style={{ ...cell, fontWeight: 700, textAlign: 'center', backgroundColor: headerBg }}>Unit</th>
-            <th style={{ ...cell, fontWeight: 700, textAlign: 'right', backgroundColor: headerBg }}>Opening Stock</th>
-            <th style={{ ...cell, fontWeight: 700, textAlign: 'center', color: '#16a34a', backgroundColor: editBg }}>Purchase (+)</th>
-            <th style={{ ...cell, fontWeight: 700, textAlign: 'center', color: '#16a34a', backgroundColor: editBg }}>Consumption (−)</th>
-            <th style={{ ...cell, fontWeight: 700, textAlign: 'center', color: '#16a34a', backgroundColor: editBg }}>Waste (−)</th>
-            <th style={{ ...cell, fontWeight: 700, textAlign: 'right', backgroundColor: headerBg }}>Closing Stock</th>
-          </tr>
-        </thead>
-        <tbody>
-          {catRows.map((row, i) => {
-            const rowBg = i % 2 === 0 ? bg : altBg;
-            return (
-              <tr key={row.id} style={{ backgroundColor: rowBg }}>
-                <td style={{ ...sticky, backgroundColor: rowBg }}>{row.productName}</td>
-                <td style={{ ...cell, textAlign: 'center' }}>{row.unit}</td>
-                <td style={{ ...cell, textAlign: 'right' }}>{row.openingStock}</td>
-                <td style={{ ...cell, textAlign: 'center', backgroundColor: editBg }}>
-                  <input
-                    type="number"
-                    style={input}
-                    value={row.purchase}
-                    onChange={(e) => handleChange(row, 'purchase', e.target.value)}
-                  />
-                </td>
-                <td style={{ ...cell, textAlign: 'center', backgroundColor: editBg }}>
-                  <input
-                    type="number"
-                    style={input}
-                    value={row.consumption}
-                    onChange={(e) => handleChange(row, 'consumption', e.target.value)}
-                  />
-                </td>
-                <td style={{ ...cell, textAlign: 'center', backgroundColor: editBg }}>
-                  <input
-                    type="number"
-                    style={input}
-                    value={row.waste}
-                    onChange={(e) => handleChange(row, 'waste', e.target.value)}
-                  />
-                </td>
-                <td style={{ ...cell, textAlign: 'right', fontWeight: 'bold', color: '#FF6A00' }}>
-                  {row.closingStock}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </Box>
-  );
-};
-
-
-// ────────────────────────────────────────────────────────────
-// Card Grid view for Daily Stock Update
-// ────────────────────────────────────────────────────────────
-interface StockCardGridProps {
-  catRows: StockRow[];
-  onRowChange: (row: StockRow) => void;
-}
-
-const StockCardGrid: React.FC<StockCardGridProps> = ({ catRows, onRowChange }) => {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-  const editBg = isDark ? 'rgba(34,197,94,0.12)' : '#f0fdf4';
-  const borderColor = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)';
-  const textColor = isDark ? '#fff' : '#111';
-
-  const handleChange = (
-    row: StockRow,
-    field: 'purchase' | 'consumption' | 'waste',
-    value: string
-  ) => {
-    const num = parseFloat(value) || 0;
-    const updated = { ...row, [field]: num };
-    updated.closingStock =
-      Number(updated.openingStock) +
-      Number(updated.purchase) -
-      Number(updated.consumption) -
-      Number(updated.waste);
-    onRowChange(updated);
-  };
-
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '6px 8px',
-    fontSize: '0.9rem',
-    borderRadius: 6,
-    border: `1px solid ${borderColor}`,
-    backgroundColor: editBg,
-    color: textColor,
-    textAlign: 'center',
-    outline: 'none',
-    boxSizing: 'border-box',
-  };
-
-  const labelStyle: React.CSSProperties = {
-    fontSize: '0.68rem',
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-    color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)',
-    marginBottom: 3,
-  };
-
-  return (
-    <Box sx={{
-      display: 'grid',
-      gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)', lg: 'repeat(5, 1fr)' },
-      gap: 2,
-    }}>
-      {catRows.map((row) => (
-        <Card
-          key={row.id}
-          elevation={0}
-          sx={{
-            border: '1px solid',
-            borderColor: 'divider',
-            borderRadius: 2,
-            transition: 'box-shadow 0.2s',
-            '&:hover': { boxShadow: theme.shadows[3] },
-          }}
-        >
-          <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-            {/* Product Name */}
-            <Typography
-              variant="body2"
-              sx={{ fontWeight: 700, mb: 1, lineHeight: 1.3, minHeight: 32, fontSize: '0.8rem' }}
-            >
-              {row.productName}
-            </Typography>
-
-            {/* Opening stock badge */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-              <Typography variant="caption" color="text.secondary">Opening</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                {row.openingStock} <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>{row.unit}</span>
-              </Typography>
-            </Box>
-
-            {/* Editable fields */}
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-              <div>
-                <div style={labelStyle}>Purchase (+)</div>
-                <input
-                  type="number"
-                  style={inputStyle}
-                  value={row.purchase}
-                  onChange={(e) => handleChange(row, 'purchase', e.target.value)}
-                />
-              </div>
-              <div>
-                <div style={labelStyle}>Consumed (−)</div>
-                <input
-                  type="number"
-                  style={inputStyle}
-                  value={row.consumption}
-                  onChange={(e) => handleChange(row, 'consumption', e.target.value)}
-                />
-              </div>
-              <div>
-                <div style={labelStyle}>Waste (−)</div>
-                <input
-                  type="number"
-                  style={inputStyle}
-                  value={row.waste}
-                  onChange={(e) => handleChange(row, 'waste', e.target.value)}
-                />
-              </div>
-            </Box>
-
-            {/* Closing stock */}
-            <Box sx={{
-              mt: 1.5, pt: 1, borderTop: `1px solid ${borderColor}`,
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Closing</Typography>
-              <Typography variant="h6" sx={{ fontWeight: 800, color: '#FF6A00', fontSize: '1.1rem' }}>
-                {row.closingStock}
-              </Typography>
-            </Box>
-          </CardContent>
-        </Card>
-      ))}
-    </Box>
+      <DailyStockStickyBar
+        updated={updatedCount}
+        total={rows.length}
+        unsaved={hasUnsavedChanges}
+        submitting={submitting}
+        onSaveDraft={handleSaveDraft}
+        onSubmit={handleSubmit}
+      />
+    </div>
   );
 };
 

@@ -13,6 +13,7 @@ export interface CartItem {
   price: number;
   quantity: number;
   notes?: string;
+  imageUrl?: string | null;
 }
 
 export interface AddCartItemOptions {
@@ -56,6 +57,8 @@ interface POSState {
   discountType: 'percentage' | 'fixed';
   discountValue: number;
   taxRate: number;
+  serviceCharge: number;
+  orderNotes: string;
 
   heldOrders: HeldOrder[];
 
@@ -74,8 +77,12 @@ interface POSState {
   addItem: (product: any, options?: AddCartItemOptions) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
+  setItemNotes: (id: string, notes: string) => void;
+  adjustProductQuantity: (productId: string, delta: number) => void;
   clearCart: () => void;
   setDiscount: (type: 'percentage' | 'fixed', value: number) => void;
+  setServiceCharge: (value: number) => void;
+  setOrderNotes: (notes: string) => void;
 
   setPaymentMethod: (method: PaymentMethod) => void;
   setTenderedAmount: (amount: string) => void;
@@ -93,6 +100,8 @@ interface POSState {
   fetchHeldOrders: () => Promise<void>;
   resumeOrder: (orderId: string) => Promise<void>;
   discardHeldOrder: (orderId: string) => Promise<void>;
+  mergeHeldOrders: (targetId: string, sourceId: string) => Promise<void>;
+  transferHeldTable: (orderId: string, tableLabel: string) => Promise<void>;
 }
 
 function cartToBillItems(cart: CartItem[]): TableBillItem[] {
@@ -117,6 +126,8 @@ export const usePOSStore = create<POSState>((set, get) => ({
   discountType: 'fixed',
   discountValue: 0,
   taxRate: 0.18,
+  serviceCharge: 0,
+  orderNotes: '',
   paymentMethod: 'cash',
   tenderedAmount: '',
   customerName: '',
@@ -157,6 +168,7 @@ export const usePOSStore = create<POSState>((set, get) => ({
             price,
             quantity,
             notes,
+            imageUrl: product.image_url || product.imageUrl || null,
           },
         ],
       };
@@ -180,10 +192,37 @@ export const usePOSStore = create<POSState>((set, get) => ({
     get().syncActiveTableBill();
   },
 
+  setItemNotes: (id, notes) => {
+    const trimmed = notes.trim();
+    set((state) => ({
+      cart: state.cart.map((item) =>
+        item.id === id ? { ...item, notes: trimmed || undefined } : item
+      ),
+    }));
+    get().syncActiveTableBill();
+  },
+
+  adjustProductQuantity: (productId, delta) => {
+    const state = get();
+    const lines = state.cart.filter((item) => item.productId === productId);
+    if (delta > 0) {
+      if (lines.length === 0) return;
+      const last = lines[lines.length - 1];
+      state.updateQuantity(last.id, last.quantity + delta);
+      return;
+    }
+    if (!lines.length) return;
+    const last = lines[lines.length - 1];
+    if (last.quantity + delta <= 0) state.removeItem(last.id);
+    else state.updateQuantity(last.id, last.quantity + delta);
+  },
+
   clearCart: () =>
     set({
       cart: [],
       discountValue: 0,
+      serviceCharge: 0,
+      orderNotes: '',
       tenderedAmount: '',
       customerName: '',
       customerPhone: '',
@@ -192,6 +231,8 @@ export const usePOSStore = create<POSState>((set, get) => ({
     }),
 
   setDiscount: (type, value) => set({ discountType: type, discountValue: value }),
+  setServiceCharge: (value) => set({ serviceCharge: Math.max(0, value) }),
+  setOrderNotes: (notes) => set({ orderNotes: notes }),
   setPaymentMethod: (method) => set({ paymentMethod: method }),
   setTenderedAmount: (amount) => set({ tenderedAmount: amount }),
   setCustomerDetails: (name, phone) => set({ customerName: name, customerPhone: phone }),
@@ -281,7 +322,7 @@ export const usePOSStore = create<POSState>((set, get) => ({
         : state.discountValue;
     const discountedSubtotal = Math.max(0, subtotal - discountAmount);
     const taxAmount = discountedSubtotal * state.taxRate;
-    const totalAmount = discountedSubtotal + taxAmount;
+    const totalAmount = discountedSubtotal + taxAmount + (state.serviceCharge || 0);
 
     const tenderedNumeric =
       state.paymentMethod === 'cash' ? parseFloat(state.tenderedAmount) || 0 : totalAmount;
@@ -388,6 +429,8 @@ export const usePOSStore = create<POSState>((set, get) => ({
       customerName: '',
       customerPhone: '',
       discountValue: 0,
+      serviceCharge: 0,
+      orderNotes: '',
       activeTableId: null,
       activeTableLabel: null,
       lastOrder: {
@@ -429,6 +472,8 @@ export const usePOSStore = create<POSState>((set, get) => ({
         customerName: '',
         customerPhone: '',
         discountValue: 0,
+        serviceCharge: 0,
+        orderNotes: '',
         tenderedAmount: '',
       });
       return;
@@ -558,6 +603,77 @@ export const usePOSStore = create<POSState>((set, get) => ({
       await get().fetchHeldOrders();
     } catch (error) {
       console.error('Failed to discard held order:', error);
+    }
+  },
+
+  mergeHeldOrders: async (targetId, sourceId) => {
+    if (targetId === sourceId) return;
+    const state = get();
+    const target = state.heldOrders.find((o) => o.id === targetId);
+    const source = state.heldOrders.find((o) => o.id === sourceId);
+    if (!target || !source) return;
+
+    const mergedItems = [...target.items];
+    for (const line of source.items) {
+      const existing = mergedItems.find(
+        (i) => i.productId === line.productId && i.price === line.price
+      );
+      if (existing) existing.quantity += line.quantity;
+      else mergedItems.push({ ...line });
+    }
+    const total = mergedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+
+    try {
+      await supabase.from('pos_order_items').delete().eq('order_id', targetId);
+      await supabase.from('pos_order_items').insert(
+        mergedItems.map((item) => ({
+          order_id: targetId,
+          product_id: item.productId,
+          product_name: item.name,
+          quantity: item.quantity,
+          unit_price: item.price,
+          total_price: item.price * item.quantity,
+        }))
+      );
+      await supabase
+        .from('pos_orders')
+        .update({
+          total_amount: total,
+          notes: [target.notes, source.notes].filter(Boolean).join(' · ') || 'Merged hold',
+        })
+        .eq('id', targetId);
+      await supabase.from('pos_orders').delete().eq('id', sourceId);
+      await state.fetchHeldOrders();
+    } catch (error) {
+      console.error('Failed to merge held orders:', error);
+    }
+  },
+
+  transferHeldTable: async (orderId, tableLabel) => {
+    const label = tableLabel.trim();
+    if (!label) return;
+    try {
+      await supabase
+        .from('pos_orders')
+        .update({
+          notes: `Table ${label}`,
+          customer_name: `Table ${label}`,
+          table_number: label,
+        })
+        .eq('id', orderId);
+      await get().fetchHeldOrders();
+    } catch (error) {
+      console.error('Failed to transfer held order table:', error);
+      // Fallback without table_number column
+      try {
+        await supabase
+          .from('pos_orders')
+          .update({ notes: `Table ${label}`, customer_name: `Table ${label}` })
+          .eq('id', orderId);
+        await get().fetchHeldOrders();
+      } catch (e2) {
+        console.error(e2);
+      }
     }
   },
 }));

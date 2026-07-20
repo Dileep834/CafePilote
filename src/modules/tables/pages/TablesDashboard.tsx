@@ -4,7 +4,6 @@ import {
   getMergeGroup,
   getMergeLabel,
   getNextStatusAction,
-  isClearBlockedByOpenBill,
   isMergePrimary,
   useTableStore,
   type TableFormInput,
@@ -15,7 +14,7 @@ import { TableFormModal } from '../components/TableFormModal';
 import { MergeTablesModal } from '../components/MergeTablesModal';
 import { MoveTableModal } from '../components/MoveTableModal';
 import { TableQrPrintModal } from '../components/TableQrPrintModal';
-import { TableQrPreview } from '../components/TableQrPreview';
+import { TableActionPanel } from '../components/TableActionPanel';
 import { TableViewModeToggle } from '../components/TableViewModeToggle';
 import { TableBoardLayoutToggle } from '../components/TableBoardLayoutToggle';
 import { useSettingsStore } from '@/modules/settings/store/useSettingsStore';
@@ -25,10 +24,6 @@ import { Input } from '@/components/ui/input';
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
 } from '@/components/ui/sheet';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useTenantStore } from '@/store/useTenantStore';
@@ -41,20 +36,9 @@ import { useNavigate } from 'react-router-dom';
 import {
   Plus,
   Users,
-  QrCode,
   LayoutGrid,
-  ArrowRight,
-  Pencil,
-  Trash2,
-  Copy,
-  Check,
-  CircleDot,
   Combine,
-  Unlink,
-  Receipt,
-  UtensilsCrossed,
-  ArrowRightLeft,
-  Printer,
+  CircleDot,
   Search,
   X,
   ChevronRight,
@@ -235,19 +219,23 @@ export function TablesDashboard() {
       );
   }, [outletTables, filter, searchQuery]);
 
-  const nextAction = selected ? getNextStatusAction(selected.status) : null;
-  const selectedGroup = selected ? getMergeGroup(outletTables, selected) : [];
-  const selectedMerged = selectedGroup.length > 1;
-  const selectedSeats = selectedMerged
-    ? getCombinedCapacity(selectedGroup)
-    : selected?.capacity || 0;
   const selectedBill = selected ? getOpenBillForTable(selected, outletTables) : undefined;
   const selectedBillTotal = selectedBill ? getBillTotal(selectedBill) : 0;
+  const selectedUnfired = selectedBill ? getUnfiredItems(selectedBill).length : 0;
   const hasOpenBillItems = !!(selectedBill && selectedBill.items.length > 0);
-  const clearBlocked =
-    !!selected &&
-    isClearBlockedByOpenBill(selected.status, hasOpenBillItems) &&
-    (nextAction?.next === 'cleaning' || nextAction?.next === 'available');
+  const waiterName = user?.name?.split(' ')[0] || 'Staff';
+
+  const [isCompactPanel, setIsCompactPanel] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const onChange = () => setIsCompactPanel(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   const goToTableBill = (table: Table, checkout = false) => {
     openTableOnPOS(table);
@@ -491,19 +479,19 @@ export function TablesDashboard() {
         <div className="flex-1 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white/50 py-16 px-6 text-center">
           <CircleDot className="w-10 h-10 text-slate-300 mb-3" />
           <p className="font-bold text-[#0D1B2A]">
-            {outletTables.length === 0 ? 'No tables yet' : 'No matching tables'}
+            {outletTables.length === 0 ? 'No tables on this floor yet' : 'No matching tables'}
           </p>
           <p className="text-sm text-slate-500 mt-1 max-w-sm">
             {outletTables.length === 0
-              ? 'Add your first table to start the floor board.'
+              ? 'Add your first table to start seating guests.'
               : searchQuery.trim()
                 ? `Nothing matches “${searchQuery.trim()}”. Try another search or clear filters.`
-                : 'Try another status filter, or clear the filter.'}
+                : 'Try another status filter, or show all tables.'}
           </p>
           {outletTables.length === 0 ? (
             <Button
               onClick={openAdd}
-              className="mt-4 rounded-xl text-white font-bold"
+              className="mt-4 rounded-xl text-white font-bold active:scale-[0.98]"
               style={{ backgroundColor: BRAND.orange }}
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -513,7 +501,7 @@ export function TablesDashboard() {
             <Button
               type="button"
               variant="outline"
-              className="mt-4 rounded-xl font-bold"
+              className="mt-4 rounded-xl font-bold active:scale-[0.98]"
               onClick={() => {
                 setSearchQuery('');
                 setFilter('all');
@@ -618,16 +606,32 @@ export function TablesDashboard() {
                       </div>
 
                       <div className="flex flex-wrap gap-1.5 text-[10px] font-bold text-slate-500 md:col-span-5">
-                        <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1">
-                          <Clock3 className="h-3 w-3" />
-                          Run {running}
+                        <span
+                          className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1"
+                          title="Running time"
+                        >
+                          <Clock3 className="h-3 w-3" aria-hidden />
+                          ⏱ {running}
+                        </span>
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-1 rounded-md px-2 py-1',
+                            unfired > 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100'
+                          )}
+                          title="Pending kitchen tickets"
+                        >
+                          <ChefHat className="h-3 w-3" aria-hidden />
+                          🍽 {unfired > 0 ? `${unfired} Pending` : hasBill ? 'KOT sent' : 'No KOT'}
+                        </span>
+                        <span
+                          className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1"
+                          title="Capacity"
+                        >
+                          <Users className="h-3 w-3" aria-hidden />
+                          👥 {seats} Guests
                         </span>
                         <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1">
-                          <ChefHat className="h-3 w-3" />
-                          KOT {unfired > 0 ? `${unfired} pending` : hasBill ? 'sent' : 'none'}
-                        </span>
-                        <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1">
-                          Waiter {user?.name?.split(' ')[0] || 'Staff'}
+                          Waiter {waiterName}
                         </span>
                         <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1">
                           Last {lastOrder}
@@ -669,28 +673,28 @@ export function TablesDashboard() {
             const billTotal = bill ? getBillTotal(bill) : 0;
             const hasBill = !!(bill && bill.items.length > 0);
             const running = bill ? durationLabel(minutesSince(bill.createdAt)) : '0m';
-            const lastOrder = bill ? timeLabel(bill.updatedAt) : 'Not ordered';
             const unfired = bill ? getUnfiredItems(bill).length : 0;
             return (
               <button
                 key={table.id}
                 type="button"
                 onClick={() => setSelectedId(table.id)}
+                title={`${meta.label} · ${seats} seats${unfired > 0 ? ` · ${unfired} pending KOT` : ''}`}
                 className={cn(
-                  'relative text-left rounded-2xl border-2 p-4 transition-all duration-200 bg-white/70',
-                  'hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6A00]/50',
+                  'relative text-left rounded-2xl border-2 p-3 transition-all duration-150 bg-white/70',
+                  'hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6A00]/50 active:scale-[0.98]',
                   meta.soft,
                   active && 'ring-2 ring-[#FF6A00] shadow-md -translate-y-0.5',
                   merged && !primary && 'border-dashed opacity-90'
                 )}
               >
-                <div className="absolute top-3 right-3 flex items-center gap-1 text-slate-600/80">
-                  <Users className="w-3.5 h-3.5" />
+                <div className="absolute top-2.5 right-2.5 flex items-center gap-1 text-slate-600/80" title="Capacity">
+                  <Users className="w-3.5 h-3.5" aria-hidden />
                   <span className="text-[11px] font-bold tabular-nums">{seats}</span>
                 </div>
 
                 {merged && (
-                  <div className="absolute top-3 left-3">
+                  <div className="absolute top-2.5 left-2.5">
                     <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wide bg-[#0D1B2A] text-white">
                       <Combine className="w-2.5 h-2.5" />
                       {primary ? 'Merge' : 'Linked'}
@@ -700,16 +704,16 @@ export function TablesDashboard() {
 
                 <div
                   className={cn(
-                    'mx-auto mt-1 mb-3 flex flex-col items-center justify-center bg-white border-[3px] shadow-inner',
+                    'mx-auto mt-0.5 mb-2.5 flex flex-col items-center justify-center bg-white border-[3px] shadow-inner transition-colors duration-150',
                     table.type === 'round'
-                      ? 'w-[4.5rem] h-[4.5rem] rounded-full'
+                      ? 'w-16 h-16 rounded-full'
                       : table.type === 'sofa'
-                        ? 'w-24 h-14 rounded-2xl'
-                        : 'w-[4.5rem] h-[4.5rem] rounded-xl',
+                        ? 'w-20 h-12 rounded-2xl'
+                        : 'w-16 h-16 rounded-xl',
                     meta.ring
                   )}
                 >
-                  <span className="text-lg font-black tracking-tight text-[#0D1B2A]">{table.tableNumber}</span>
+                  <span className="text-base font-black tracking-tight text-[#0D1B2A]">{table.tableNumber}</span>
                   <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
                     {merged ? getMergeLabel(group) : table.type}
                   </span>
@@ -718,7 +722,7 @@ export function TablesDashboard() {
                 <div className="text-center space-y-1">
                   <span
                     className={cn(
-                      'inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border',
+                      'inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-colors duration-150',
                       meta.chip
                     )}
                   >
@@ -726,7 +730,11 @@ export function TablesDashboard() {
                   </span>
                   {hasBill ? (
                     <p className="text-[11px] font-black leading-snug" style={{ color: BRAND.orange }}>
-                      {formatCurrency(billTotal)} open
+                      {formatCurrency(billTotal)}
+                    </p>
+                  ) : table.status === 'available' ? (
+                    <p className="text-[11px] text-emerald-600 font-semibold leading-snug">
+                      Ready for next guests
                     </p>
                   ) : (
                     <p className="text-[11px] text-slate-500 font-medium leading-snug">
@@ -735,13 +743,19 @@ export function TablesDashboard() {
                         : `Next: ${action.label}`}
                     </p>
                   )}
-                  <div className="mt-2 grid grid-cols-2 gap-1 text-[9px] font-black text-slate-500">
-                    <span className="rounded-md bg-white/80 px-1.5 py-1">Run {running}</span>
-                    <span className={cn('rounded-md px-1.5 py-1', unfired > 0 ? 'bg-amber-100 text-amber-700' : 'bg-white/80')}>
-                      KOT {unfired > 0 ? unfired : hasBill ? 'OK' : '-'}
+                  <div className="mt-1.5 flex flex-col gap-0.5 text-[10px] font-bold text-slate-600">
+                    <span className="truncate" title="Guests / capacity">
+                      👥 {seats} Guests
                     </span>
-                    <span className="rounded-md bg-white/80 px-1.5 py-1">Guests {seats}</span>
-                    <span className="rounded-md bg-white/80 px-1.5 py-1">Last {lastOrder}</span>
+                    <span className="truncate" title="Running time">
+                      ⏱ {running}
+                    </span>
+                    <span
+                      className={cn('truncate', unfired > 0 && 'text-amber-700')}
+                      title="Pending kitchen tickets"
+                    >
+                      🍽 {unfired > 0 ? `${unfired} Pending` : hasBill ? 'KOT sent' : 'No KOT'}
+                    </span>
                   </div>
                 </div>
               </button>
@@ -750,373 +764,92 @@ export function TablesDashboard() {
         </div>
       )}
 
-      {/* Action sheet — modern problem-solving panel */}
+      {/* Table action panel */}
       <Sheet open={!!selected} onOpenChange={(open) => !open && setSelectedId(null)}>
-        <SheetContent side="right" className="w-full sm:max-w-md bg-white p-0 gap-0 flex flex-col overflow-hidden">
-          {selected && nextAction && (
-            <>
-              <SheetHeader className="p-5 border-b border-slate-100 bg-[#F3F3F8] shrink-0">
-                <SheetTitle className="text-xl font-bold text-[#0D1B2A] flex items-center gap-2 flex-wrap">
-                  {selectedMerged ? getMergeLabel(selectedGroup) : selected.tableNumber}
-                  <span
-                    className={cn(
-                      'text-[10px] px-2 py-0.5 rounded-md border font-bold uppercase',
-                      STATUS_META[selected.status].chip
-                    )}
-                  >
-                    {STATUS_META[selected.status].label}
-                  </span>
-                </SheetTitle>
-                <SheetDescription className="text-slate-500">
-                  {selectedSeats} seats
-                  {selectedMerged ? ` · ${selectedGroup.length} tables merged` : ` · ${selected.type}`}
-                  {' · '}Solve the next step
-                </SheetDescription>
-              </SheetHeader>
-
-              <div className="p-5 space-y-5 overflow-y-auto flex-1 min-h-0">
-                {/* Primary CTA */}
-                <div
-                  className="rounded-2xl p-4 border"
-                  style={{
-                    background: `linear-gradient(135deg, ${BRAND.navy} 0%, ${BRAND.steel} 100%)`,
-                    borderColor: BRAND.steel,
-                  }}
-                >
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-white/50 mb-1">
-                    Recommended next
-                  </p>
-                  <p className="text-white font-bold text-lg">{nextAction.label}</p>
-                  <p className="text-white/70 text-sm mt-1 mb-4">
-                    {clearBlocked
-                      ? 'Open bill still unpaid — take payment before clearing.'
-                      : nextAction.hint}
-                  </p>
-                  <Button
-                    disabled={busy || clearBlocked}
-                    onClick={() => applyStatus(nextAction.next)}
-                    className="w-full h-12 rounded-xl font-bold text-white disabled:opacity-50"
-                    style={{ backgroundColor: BRAND.orange }}
-                  >
-                    {nextAction.label}
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                </div>
-
-                {/* Billing */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-sm font-bold text-[#0D1B2A]">
-                      <Receipt className="w-4 h-4" style={{ color: BRAND.orange }} />
-                      Table bill
-                    </div>
-                    {selectedBill && selectedBill.items.length > 0 && (
-                      <span className="text-sm font-black" style={{ color: BRAND.orange }}>
-                        {formatCurrency(selectedBillTotal)}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-500">
-                    {selectedBill && selectedBill.items.length > 0
-                      ? `${selectedBill.items.length} line${selectedBill.items.length === 1 ? '' : 's'} on the open check. Add more at POS or take payment.`
-                      : 'Open a check at POS, or guests can order via QR — then pay here.'}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="flex-1 h-11 rounded-xl font-bold"
-                      onClick={() => goToTableBill(selected, false)}
-                    >
-                      <UtensilsCrossed className="w-4 h-4 mr-1.5" />
-                      {selectedBill?.items.length ? 'Add items' : 'Open bill'}
-                    </Button>
-                    <Button
-                      type="button"
-                      className="flex-1 h-11 rounded-xl font-bold text-white"
-                      style={{ backgroundColor: BRAND.orange }}
-                      disabled={!selectedBill || selectedBill.items.length === 0}
-                      onClick={() => goToTableBill(selected, true)}
-                    >
-                      <Receipt className="w-4 h-4 mr-1.5" />
-                      Pay bill
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Move party */}
-                {(selected.status === 'occupied' || selected.status === 'reserved') && (
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
-                    <div className="flex items-center gap-2 text-sm font-bold text-[#0D1B2A]">
-                      <ArrowRightLeft className="w-4 h-4" style={{ color: BRAND.orange }} />
-                      Move table
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      Guests need a different table? Transfer the party
-                      {selectedBill ? ' and open bill' : ''} to an available table. This table goes to
-                      cleaning.
-                    </p>
-                    <Button
-                      type="button"
-                      className="w-full h-11 rounded-xl font-bold text-white"
-                      style={{ backgroundColor: BRAND.navy }}
-                      disabled={busy}
-                      onClick={() => setMoveOpen(true)}
-                    >
-                      <ArrowRightLeft className="w-4 h-4 mr-2" />
-                      Move to another table
-                    </Button>
-                  </div>
-                )}
-
-                {/* Merge controls */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
-                  <div className="flex items-center gap-2 text-sm font-bold text-[#0D1B2A]">
-                    <Combine className="w-4 h-4" style={{ color: BRAND.orange }} />
-                    Merge tables
-                  </div>
-                  {selectedMerged ? (
-                    <>
-                      <p className="text-xs text-slate-500">
-                        This party uses {getMergeLabel(selectedGroup)} ({selectedSeats} seats). Status
-                        changes apply to the whole group.
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {selectedGroup.map((t) => (
-                          <span
-                            key={t.id}
-                            className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-700"
-                          >
-                            {t.tableNumber}
-                            {t.id === selected.mergePrimaryId && (
-                              <span className="text-[9px] uppercase text-[#FF6A00]">primary</span>
-                            )}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="flex-1 h-10 rounded-xl font-bold"
-                          disabled={busy || selected.status === 'cleaning'}
-                          onClick={() => setMergeOpen(true)}
-                        >
-                          <Plus className="w-4 h-4 mr-1.5" />
-                          Add table
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="flex-1 h-10 rounded-xl font-bold"
-                          disabled={busy}
-                          onClick={async () => {
-                            setBusy(true);
-                            await unmergeTables(selected.id);
-                            setBusy(false);
-                          }}
-                        >
-                          <Unlink className="w-4 h-4 mr-1.5" />
-                          Unmerge all
-                        </Button>
-                      </div>
-                      {!isMergePrimary(selected) && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className="w-full h-9 rounded-xl text-xs font-bold text-slate-600"
-                          disabled={busy}
-                          onClick={async () => {
-                            setBusy(true);
-                            await removeFromMerge(selected.id);
-                            setBusy(false);
-                          }}
-                        >
-                          Remove {selected.tableNumber} from merge
-                        </Button>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-xs text-slate-500">
-                        Need more seats? Merge nearby tables into one party.
-                      </p>
-                      <Button
-                        type="button"
-                        className="w-full h-11 rounded-xl font-bold text-white"
-                        style={{ backgroundColor: BRAND.navy }}
-                        disabled={busy || selected.status === 'cleaning'}
-                        onClick={() => setMergeOpen(true)}
-                      >
-                        <Combine className="w-4 h-4 mr-2" />
-                        Merge with other tables
-                      </Button>
-                    </>
-                  )}
-                </div>
-
-                {/* Manual status */}
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                    Or set status
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(Object.keys(STATUS_META) as TableStatus[]).map((status) => {
-                      const blockedByBill =
-                        hasOpenBillItems &&
-                        (status === 'cleaning' || status === 'available');
-                      return (
-                        <button
-                          key={status}
-                          type="button"
-                          disabled={busy || selected.status === status || blockedByBill}
-                          onClick={() => applyStatus(status)}
-                          title={
-                            blockedByBill
-                              ? 'Pay the open bill before clearing this table'
-                              : undefined
-                          }
-                          className={cn(
-                            'h-11 rounded-xl text-sm font-bold border capitalize transition-all disabled:opacity-50',
-                            selected.status === status
-                              ? 'bg-[#0D1B2A] text-white border-[#0D1B2A]'
-                              : cn('bg-white hover:shadow-sm', STATUS_META[status].chip)
-                          )}
-                        >
-                          {STATUS_META[status].label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* QR */}
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 space-y-3">
-                  <div className="flex items-center gap-2 text-sm font-bold text-[#0D1B2A]">
-                    <QrCode className="w-4 h-4" style={{ color: BRAND.orange }} />
-                    Guest menu QR
-                  </div>
-                  {selected.qrCodeToken ? (
-                    <>
-                      <div className="flex justify-center rounded-xl bg-white border border-slate-200 p-3">
-                        <TableQrPreview
-                          url={menuUrl(selected)}
-                          size={148}
-                          className="rounded-lg"
-                        />
-                      </div>
-                      <p className="text-[11px] text-slate-500 break-all font-mono bg-white border border-slate-200 rounded-lg px-2.5 py-2">
-                        {menuUrl(selected)}
-                      </p>
-                      {qrSyncMsg && (
-                        <p className="text-[11px] font-medium text-slate-500">{qrSyncMsg}</p>
-                      )}
-                      <Button
-                        type="button"
-                        className="w-full h-11 rounded-xl font-bold text-white"
-                        style={{ backgroundColor: BRAND.orange }}
-                        disabled={busy}
-                        onClick={async () => {
-                          setBusy(true);
-                          await ensureQrReady(selected);
-                          setBusy(false);
-                          setQrPrintOpen(true);
-                        }}
-                      >
-                        <Printer className="w-4 h-4 mr-2" />
-                        Print / export QR
-                      </Button>
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="flex-1 h-10 rounded-xl font-bold"
-                          disabled={busy}
-                          onClick={handleCopyQr}
-                        >
-                          {copied ? (
-                            <>
-                              <Check className="w-4 h-4 mr-1.5 text-emerald-600" /> Copied
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-4 h-4 mr-1.5" /> Copy link
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-10 rounded-xl font-bold"
-                          disabled={busy}
-                          onClick={async () => {
-                            setBusy(true);
-                            await generateQR(selected.id);
-                            const latest = useTableStore.getState().tables.find((t) => t.id === selected.id);
-                            if (latest) await ensureQrReady(latest);
-                            setBusy(false);
-                          }}
-                        >
-                          Regen
-                        </Button>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="w-full h-9 text-xs font-bold text-slate-600"
-                        disabled={busy}
-                        onClick={async () => {
-                          setBusy(true);
-                          window.open(menuUrl(selected), '_blank', 'noopener,noreferrer');
-                          await ensureQrReady(selected);
-                          setBusy(false);
-                        }}
-                      >
-                        Open guest menu
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      className="w-full h-10 rounded-xl font-bold text-white"
-                      style={{ backgroundColor: BRAND.navy }}
-                      disabled={busy}
-                      onClick={async () => {
-                        setBusy(true);
-                        await generateQR(selected.id);
-                        const latest = useTableStore.getState().tables.find((t) => t.id === selected.id);
-                        if (latest) await ensureQrReady(latest);
-                        setBusy(false);
-                      }}
-                    >
-                      Generate QR link
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              <SheetFooter className="p-4 border-t border-slate-100 flex-row gap-2 sm:flex-row shrink-0">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1 h-11 rounded-xl font-bold"
-                  onClick={openEdit}
-                >
-                  <Pencil className="w-4 h-4 mr-1.5" />
-                  Edit
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1 h-11 rounded-xl font-bold text-rose-600 border-rose-200 hover:bg-rose-50"
-                  disabled={busy}
-                  onClick={handleDelete}
-                >
-                  <Trash2 className="w-4 h-4 mr-1.5" />
-                  Delete
-                </Button>
-              </SheetFooter>
-            </>
+        <SheetContent
+          side={isCompactPanel ? 'bottom' : 'right'}
+          className={cn(
+            'bg-white p-0 gap-0 flex flex-col overflow-hidden',
+            isCompactPanel
+              ? 'inset-x-0 bottom-0 h-auto max-h-[88vh] rounded-t-2xl border-t'
+              : 'w-full sm:max-w-[360px]'
           )}
+        >
+          {selected ? (
+            <TableActionPanel
+              table={selected}
+              outletTables={outletTables}
+              bill={selectedBill}
+              billTotal={selectedBillTotal}
+              unfiredCount={selectedUnfired}
+              waiterName={waiterName}
+              busy={busy}
+              copied={copied}
+              qrSyncMsg={qrSyncMsg}
+              menuUrl={menuUrl}
+              onApplyStatus={(status) => void applyStatus(status)}
+              onPayBill={() => goToTableBill(selected, true)}
+              onAddItems={() => goToTableBill(selected, false)}
+              onOpenMoveModal={() => setMoveOpen(true)}
+              onMoveTo={async (targetId) => {
+                setBusy(true);
+                const ok = await movePartyToTable(selected, targetId, outletTables);
+                setBusy(false);
+                if (ok) setSelectedId(targetId);
+                return ok;
+              }}
+              onOpenMergeModal={() => setMergeOpen(true)}
+              onMergeWith={async (partnerId) => {
+                setBusy(true);
+                const ok = await mergeTables(selected.id, [partnerId]);
+                setBusy(false);
+                return ok;
+              }}
+              onUnmerge={async () => {
+                setBusy(true);
+                await unmergeTables(selected.id);
+                setBusy(false);
+              }}
+              onRemoveFromMerge={async () => {
+                setBusy(true);
+                await removeFromMerge(selected.id);
+                setBusy(false);
+              }}
+              onCopyQr={() => void handleCopyQr()}
+              onOpenGuestMenu={() => {
+                window.open(menuUrl(selected), '_blank', 'noopener,noreferrer');
+                void ensureQrReady(selected);
+              }}
+              onPrintQr={() => {
+                void (async () => {
+                  setBusy(true);
+                  await ensureQrReady(selected);
+                  setBusy(false);
+                  setQrPrintOpen(true);
+                })();
+              }}
+              onRegenQr={() => {
+                void (async () => {
+                  setBusy(true);
+                  await generateQR(selected.id);
+                  const latest = useTableStore.getState().tables.find((t) => t.id === selected.id);
+                  if (latest) await ensureQrReady(latest);
+                  setBusy(false);
+                })();
+              }}
+              onGenerateQr={() => {
+                void (async () => {
+                  setBusy(true);
+                  await generateQR(selected.id);
+                  const latest = useTableStore.getState().tables.find((t) => t.id === selected.id);
+                  if (latest) await ensureQrReady(latest);
+                  setBusy(false);
+                })();
+              }}
+              onEdit={openEdit}
+              onDelete={() => void handleDelete()}
+            />
+          ) : null}
         </SheetContent>
       </Sheet>
 
