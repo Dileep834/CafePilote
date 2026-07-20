@@ -4,10 +4,6 @@ import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/store/useAuthStore';
 import { getTenantOutletId, useTenantStore } from '@/store/useTenantStore';
 import { fetchAuditLogs } from '../services/auditService';
-import { RefundDialog } from '../components/RefundDialog';
-import { listRefunds } from '../services/refundService';
-import { formatCurrency } from '@/utils/format';
-import { REFUND_REASON_LABELS, type RefundReasonCode } from '../types';
 
 export function AuditLogsPage() {
   const user = useAuthStore((s) => s.user);
@@ -82,96 +78,6 @@ export function AuditLogsPage() {
           </table>
         </div>
       </div>
-    </div>
-  );
-}
-
-export function RefundsPage() {
-  const user = useAuthStore((s) => s.user);
-  const outletId = getTenantOutletId(user) || useTenantStore.getState().activeOutletId;
-  const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [error, setError] = useState('');
-
-  const load = async () => {
-    if (!outletId) return;
-    setError('');
-    try {
-      setRows(await listRefunds(outletId));
-    } catch (err) {
-      setError((err as Error).message);
-      setRows([]);
-    }
-  };
-
-  useEffect(() => {
-    void load();
-  }, [outletId]);
-
-  return (
-    <div className="mx-auto max-w-5xl space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-black text-slate-900">Refunds</h1>
-          <p className="text-xs text-slate-500">Full / partial / item refunds with inventory restore</p>
-        </div>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => void load()}>
-            Refresh
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            className="bg-[#FF6A00] text-white hover:bg-[#e55f00]"
-            onClick={() => setDialogOpen(true)}
-          >
-            New refund
-          </Button>
-        </div>
-      </div>
-      {error && <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">{error}</p>}
-      <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
-        <table className="w-full text-left text-xs">
-          <thead className="bg-slate-50 text-[10px] uppercase text-slate-400">
-            <tr>
-              <th className="px-3 py-2">When</th>
-              <th className="px-3 py-2">Order</th>
-              <th className="px-3 py-2">Type</th>
-              <th className="px-3 py-2">Reason</th>
-              <th className="px-3 py-2 text-right">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={String(r.id)} className="border-t border-slate-50">
-                <td className="px-3 py-2">{new Date(String(r.created_at)).toLocaleString()}</td>
-                <td className="px-3 py-2 font-mono text-[10px]">{String(r.order_id).slice(0, 8)}</td>
-                <td className="px-3 py-2 capitalize">{String(r.refund_type)}</td>
-                <td className="px-3 py-2">
-                  {REFUND_REASON_LABELS[r.reason_code as RefundReasonCode] || String(r.reason_code)}
-                </td>
-                <td className="px-3 py-2 text-right font-bold tabular-nums">
-                  {formatCurrency(Number(r.amount || 0))}
-                </td>
-              </tr>
-            ))}
-            {!rows.length && (
-              <tr>
-                <td colSpan={5} className="px-3 py-10 text-center text-slate-400">
-                  No refunds yet
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <RefundDialog
-        open={dialogOpen}
-        outletId={outletId || null}
-        onClose={() => setDialogOpen(false)}
-        onCompleted={() => void load()}
-      />
     </div>
   );
 }

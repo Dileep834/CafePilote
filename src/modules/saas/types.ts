@@ -60,4 +60,15 @@ export type AiAssistantReply = {
   answer: string;
   data?: Record<string, unknown>;
   suggestions?: string[];
+  /** Presentation blocks for the intelligence workspace */
+  kpis?: Array<{ label: string; value: string; hint?: string }>;
+  table?: { columns: string[]; rows: string[][] };
+  chart?: { type: 'bar' | 'line'; label: string; points: Array<{ label: string; value: number }> };
+  recommendations?: string[];
+  actions?: Array<{
+    id: string;
+    label: string;
+    href?: string;
+  }>;
 };
+

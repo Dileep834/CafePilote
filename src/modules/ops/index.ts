@@ -31,7 +31,8 @@ export { ManagerPinDialog } from './components/ManagerPinDialog';
 export { RefundDialog } from './components/RefundDialog';
 export { NotificationCenter } from './components/NotificationCenter';
 export { ShiftManagementPage } from './pages/ShiftManagementPage';
-export { AuditLogsPage, RefundsPage } from './pages/OpsPages';
+export { AuditLogsPage } from './pages/OpsPages';
+export { RefundsPage } from './pages/RefundsPage';
 
 // Phase 2
 export {
