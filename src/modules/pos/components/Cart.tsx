@@ -23,7 +23,8 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { usePOSStore, type ManualPaymentMethod } from '../store/usePOSStore';
+import { usePOSStore, type ManualPaymentMethod, calculateOrderTotals } from '../store/usePOSStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
 import { TableBillBanner } from './TableBillBanner';
 import { useTableBillStore } from '@/modules/tables/store/useTableBillStore';
 import { formatCurrency } from '@/utils/format';
@@ -176,13 +177,15 @@ export function Cart({ onOpenHeld, onClose }: Props) {
     if (ok) setTimeout(() => setFireMsg(null), 2000);
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const discountAmount =
-    discountType === 'percentage' ? (subtotal * discountValue) / 100 : discountValue;
-  const discountedSubtotal = Math.max(0, subtotal - discountAmount);
-  const tax = discountedSubtotal * taxRate;
-  const charges = serviceCharge || 0;
-  const total = discountedSubtotal + tax + charges;
+  const totals = useMemo(() => calculateOrderTotals(cart, discountType, discountValue), [cart, discountType, discountValue]);
+  const subtotal = totals.subtotal;
+  const discountAmount = totals.discountAmount;
+  const tax = totals.taxAmount;
+  const charges = totals.serviceCharge;
+  const total = totals.totalAmount;
+  const roundOff = totals.roundOff;
+  
+  const { taxInclusive, taxMode } = useSettingsStore();
   const fastCashAmounts = useMemo(() => getFastCashAmounts(total), [total]);
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const guestLabel = customerName?.trim() || 'Walk-in';
@@ -698,13 +701,24 @@ export function Cart({ onOpenHeld, onClose }: Props) {
               </div>
             )}
             <div className="flex justify-between">
-              <span>Tax ({Math.round(taxRate * 100)}%)</span>
+              <span>Tax {taxMode === 'flat' ? `(${Math.round(taxRate * 100)}%)` : ''}</span>
               <span className="font-medium tabular-nums text-slate-700">{formatCurrency(tax)}</span>
             </div>
             {charges > 0 && (
               <div className="flex justify-between">
                 <span>Service Charge</span>
                 <span className="font-medium tabular-nums text-slate-700">{formatCurrency(charges)}</span>
+              </div>
+            )}
+            {roundOff !== 0 && (
+              <div className="flex justify-between">
+                <span>Round Off</span>
+                <span className="font-medium tabular-nums text-slate-700">{formatCurrency(roundOff)}</span>
+              </div>
+            )}
+            {taxInclusive && taxMode !== 'none' && (
+              <div className="flex justify-between text-brand-orange/80">
+                <span className="text-[10px] font-bold">GST Included</span>
               </div>
             )}
             <div className="mt-2 flex items-end justify-between border-t border-slate-900 pt-2">

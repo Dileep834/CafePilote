@@ -9,10 +9,11 @@ import React, {
 } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
-import { ClipboardList } from 'lucide-react';
+import { ClipboardList, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { InventoryStatus } from '@/constants';
 import { PERMISSIONS } from '@/constants/permissions';
+import { canSwitchBranchesByRole } from '@/lib/access';
 import { useFeedback } from '@/hooks/useFeedback';
 import { useHasPermission } from '@/hooks/useHasPermission';
 import { supabase } from '@/lib/supabase';
@@ -55,6 +56,24 @@ import type {
   EditableField,
 } from '@/modules/inventory/daily/types';
 
+function formatActionError(error: unknown, fallback: string) {
+  const msg =
+    error instanceof Error
+      ? error.message
+      : error && typeof error === 'object' && 'message' in error
+        ? String((error as { message?: unknown }).message || '')
+        : '';
+  const lower = msg.toLowerCase();
+  if (!msg) return fallback;
+  if (lower.includes('relation') || lower.includes('does not exist') || lower.includes('schema cache')) {
+    return `${fallback} A required database table may be missing. Run scripts/phase1_production_schema.sql in Supabase.`;
+  }
+  if (lower.includes('permission') || lower.includes('rls') || lower.includes('policy')) {
+    return `${fallback} You may not have permission for this outlet.`;
+  }
+  return `${fallback} ${msg}`;
+}
+
 function useDebouncedValue<T>(value: T, delayMs: number) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -90,7 +109,8 @@ function useIsMobileCards() {
 
 const DailyStockUpdate: React.FC = () => {
   const { user } = useAuthStore();
-  const canSwitchBranches = useHasPermission(PERMISSIONS.BRANCH_SWITCH);
+  const canSwitchByPermission = useHasPermission(PERMISSIONS.BRANCH_SWITCH);
+  const canSelectOutlet = canSwitchBranchesByRole(user) || canSwitchByPermission;
   const activeOutletId = useTenantStore((s) => s.activeOutletId);
   const tenantOutlets = useTenantStore((s) => s.outlets);
   const setActiveOutletId = useTenantStore((s) => s.setActiveOutletId);
@@ -102,6 +122,8 @@ const DailyStockUpdate: React.FC = () => {
   const [rows, setRows] = useState<DailyStockRow[]>([]);
   const [outlets, setOutlets] = useState<{ id: string; name: string; companyId?: string }[]>([]);
   const [selectedOutlet, setSelectedOutlet] = useState('');
+  const [outletsError, setOutletsError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -234,56 +256,107 @@ const DailyStockUpdate: React.FC = () => {
   }, [activeOutletId]); // eslint-disable-line react-hooks/exhaustive-deps -- sync from header only
 
   useEffect(() => {
+    let cancelled = false;
+
+    const applyOutlets = (
+      list: { id: string; name: string; companyId?: string }[],
+      preferredId?: string | null
+    ) => {
+      if (cancelled) return;
+      setOutlets(list);
+      setOutletsError(null);
+      if (list.length === 0) {
+        setSelectedOutlet('');
+        setFilters((f) => ({ ...f, outletId: '' }));
+        return;
+      }
+      const preferred =
+        (preferredId && list.some((o) => o.id === preferredId) && preferredId) ||
+        (activeOutletId && list.some((o) => o.id === activeOutletId) && activeOutletId) ||
+        list[0].id;
+      setSelectedOutlet((prev) => (prev && list.some((o) => o.id === prev) ? prev : preferred));
+      setFilters((f) => {
+        const nextId = f.outletId && list.some((o) => o.id === f.outletId) ? f.outletId : preferred;
+        return f.outletId === nextId ? f : { ...f, outletId: nextId };
+      });
+    };
+
     if (tenantOutlets.length > 0) {
-      setOutlets(
+      applyOutlets(
         tenantOutlets
           .filter((o) => o.isActive)
           .map((o) => ({ id: o.id, name: o.name, companyId: o.companyId }))
       );
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
 
-    if (canSwitchBranches) {
+    if (canSelectOutlet) {
       void (async () => {
         try {
           const companyId = getScopedCompanyId(userRef.current);
           let query = supabase
             .from('outlets')
             .select('id, name, company_id')
-            .eq('is_active', true);
+            .eq('is_active', true)
+            .order('name');
           if (companyId) query = query.eq('company_id', companyId);
           const { data, error } = await query;
           if (error) throw error;
-          if (data && data.length > 0) {
-            setOutlets(
-              data.map((o) => ({
-                id: o.id,
-                name: o.name,
-                companyId: o.company_id ? String(o.company_id) : undefined,
-              }))
-            );
-            setSelectedOutlet((prev) => prev || activeOutletId || data[0].id);
-            setFilters((f) => {
-              const nextId = f.outletId || activeOutletId || data[0].id;
-              if (f.outletId === nextId) return f;
-              return { ...f, outletId: nextId };
-            });
+          applyOutlets(
+            (data || []).map((o) => ({
+              id: o.id,
+              name: o.name,
+              companyId: o.company_id ? String(o.company_id) : undefined,
+            }))
+          );
+          if (!data?.length) {
+            const message =
+              'No active outlets found for this company. Create an outlet first, then open Daily Stock again.';
+            setOutletsError(message);
+            showFeedbackRef.current(message, 'error');
+            window.alert(message);
           }
         } catch (error) {
           console.error('Error fetching outlets:', error);
+          const message = formatActionError(
+            error,
+            'Could not load outlets for Daily Stock.'
+          );
+          if (!cancelled) {
+            setOutletsError(message);
+            showFeedbackRef.current(message, 'error');
+            window.alert(message);
+          }
         }
       })();
     } else if (user?.outletId) {
-      setSelectedOutlet((prev) => prev || user.outletId!);
-      setFilters((f) =>
-        f.outletId === user.outletId ? f : { ...f, outletId: user.outletId || '' }
+      applyOutlets(
+        [{ id: user.outletId, name: 'My outlet', companyId: user.companyId || undefined }],
+        user.outletId
       );
+    } else {
+      const message =
+        'No outlet is assigned to your account. Ask an admin to assign an outlet, or use an Admin account that can select one.';
+      setOutletsError(message);
+      showFeedbackRef.current(message, 'error');
     }
-  }, [canSwitchBranches, user?.outletId, user?.companyId, tenantOutlets, activeOutletId]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canSelectOutlet, user?.outletId, user?.companyId, tenantOutlets, activeOutletId]);
 
   useEffect(() => {
     if (!selectedOutlet) {
       setLoading(false);
+      setRows([]);
+      setLoadError(
+        canSelectOutlet
+          ? 'Select an outlet to load daily stock entries.'
+          : 'No outlet selected for Daily Stock.'
+      );
       return;
     }
 
@@ -293,6 +366,7 @@ const DailyStockUpdate: React.FC = () => {
     const load = async () => {
       if (rowsRef.current.length === 0) setLoading(true);
       setDraftRestoredAt(null);
+      setLoadError(null);
 
       try {
         const currentUser = userRef.current;
@@ -305,11 +379,12 @@ const DailyStockUpdate: React.FC = () => {
           '';
 
         if (!companyId) {
-          const { data: outletRow } = await supabase
+          const { data: outletRow, error: outletErr } = await supabase
             .from('outlets')
             .select('company_id')
             .eq('id', selectedOutlet)
             .maybeSingle();
+          if (outletErr) throw outletErr;
           companyId = outletRow?.company_id
             ? String(outletRow.company_id)
             : getScopedCompanyId(currentUser);
@@ -326,10 +401,11 @@ const DailyStockUpdate: React.FC = () => {
         if (cancelled || gen !== fetchGenRef.current) return;
 
         const invMap: Record<string, number> = {};
-        const { data: invData } = await supabase
+        const { data: invData, error: invErr } = await supabase
           .from('inventory')
           .select('product_id, current_quantity')
           .eq('outlet_id', selectedOutlet);
+        if (invErr) throw invErr;
         if (cancelled || gen !== fetchGenRef.current) return;
         if (invData) {
           invData.forEach((item) => {
@@ -339,11 +415,12 @@ const DailyStockUpdate: React.FC = () => {
 
         const dateStr = getLocalDateStr();
         const dailyMap: Record<string, any> = {};
-        const { data: dailyData } = await supabase
+        const { data: dailyData, error: dailyErr } = await supabase
           .from('daily_stock')
           .select('*')
           .eq('outlet_id', selectedOutlet)
           .eq('date', dateStr);
+        if (dailyErr) throw dailyErr;
         if (cancelled || gen !== fetchGenRef.current) return;
         if (dailyData) {
           dailyData.forEach((item) => {
@@ -351,7 +428,11 @@ const DailyStockUpdate: React.FC = () => {
           });
         }
 
-        if (!productsData) return;
+        if (!productsData) {
+          setRows([]);
+          setLoadError('No products returned for this outlet.');
+          return;
+        }
 
         let mappedRows: DailyStockRow[] = productsData.map((p: any) => {
           const daily = dailyMap[p.id];
@@ -424,7 +505,13 @@ const DailyStockUpdate: React.FC = () => {
       } catch (error) {
         if (cancelled || gen !== fetchGenRef.current) return;
         console.error('Error fetching daily data:', error);
-        showFeedbackRef.current('Error loading inventory data.', 'error');
+        const message = formatActionError(
+          error,
+          'Could not load daily stock for the selected outlet.'
+        );
+        setLoadError(message);
+        setRows([]);
+        showFeedbackRef.current(message, 'error');
       } finally {
         if (!cancelled && gen === fetchGenRef.current) setLoading(false);
       }
@@ -434,46 +521,71 @@ const DailyStockUpdate: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [selectedOutlet]);
+  }, [selectedOutlet, canSelectOutlet]);
 
   const handleOutletChange = (nextOutlet: string) => {
     if (!nextOutlet || nextOutlet === selectedOutlet) return;
     if (hasUnsavedChanges) {
       const ok = window.confirm(
-        'You have unsaved daily stock entries for this outlet. Switch outlet? Your draft for the current outlet stays on this device.'
+        'You have unsaved daily stock entries for this outlet. Switch outlet?\n\nYour draft for the current outlet stays on this device.'
       );
       if (!ok) return;
-      if (selectedOutlet) saveDraft(selectedOutlet, getLocalDateStr(), rowsRef.current);
+      if (selectedOutlet) {
+        try {
+          saveDraft(selectedOutlet, getLocalDateStr(), rowsRef.current);
+        } catch {
+          window.alert('Could not save the current draft before switching outlet. Try again.');
+          return;
+        }
+      }
     }
     setRows([]);
+    setLoadError(null);
     setLoading(true);
     setSelectedOutlet(nextOutlet);
     setFilters((f) => ({ ...f, outletId: nextOutlet, stockType: 'all' }));
     setActiveOutletId(nextOutlet);
+    const name = outlets.find((o) => o.id === nextOutlet)?.name || 'selected outlet';
+    showFeedback(`Daily Stock switched to ${name}.`, 'success');
   };
 
   const exportRows = (list: DailyStockRow[], filename: string) => {
-    const excelData = list.map((r) => ({
-      Category: r.categoryName,
-      'Product Name': r.productName,
-      SKU: r.productCode,
-      Barcode: r.barcode,
-      Unit: r.unit,
-      'Opening Stock': r.openingStock,
-      'Purchase (+)': r.purchase,
-      'Consumption (-)': r.consumption,
-      'Waste (-)': r.waste,
-      'Closing Stock': r.closingStock,
-    }));
-    const worksheet = XLSX.utils.json_to_sheet(excelData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Daily Stock');
-    XLSX.writeFile(workbook, filename);
+    if (list.length === 0) {
+      const message = 'Nothing to export for the current filters.';
+      showFeedback(message, 'error');
+      window.alert(message);
+      return;
+    }
+    try {
+      const excelData = list.map((r) => ({
+        Category: r.categoryName,
+        'Product Name': r.productName,
+        SKU: r.productCode,
+        Barcode: r.barcode,
+        Unit: r.unit,
+        'Opening Stock': r.openingStock,
+        'Purchase (+)': r.purchase,
+        'Consumption (-)': r.consumption,
+        'Waste (-)': r.waste,
+        'Closing Stock': r.closingStock,
+      }));
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Daily Stock');
+      XLSX.writeFile(workbook, filename);
+      showFeedback(`Exported ${list.length} rows.`, 'success');
+    } catch (error) {
+      const message = formatActionError(error, 'Export failed.');
+      showFeedback(message, 'error');
+      window.alert(message);
+    }
   };
 
   const handleSaveDraft = () => {
     if (!selectedOutlet) {
-      showFeedback('Please select an outlet first.', 'error');
+      const message = 'Please select an outlet before saving a draft.';
+      showFeedback(message, 'error');
+      window.alert(message);
       return;
     }
     try {
@@ -485,15 +597,19 @@ const DailyStockUpdate: React.FC = () => {
         prev.map((r) => (r.editState === 'edited' ? { ...r, editState: 'saved' as const } : r))
       );
       showFeedback('Draft saved on this device. You can continue later without losing entries.', 'success');
-    } catch {
+    } catch (error) {
       setAutoSaveStatus('failed');
-      showFeedback('Could not save draft locally.', 'error');
+      const message = formatActionError(error, 'Could not save draft locally.');
+      showFeedback(message, 'error');
+      window.alert(message);
     }
   };
 
   const handleSubmit = async () => {
     if (!selectedOutlet) {
-      showFeedback('Please select an outlet first.', 'error');
+      const message = 'Please select an outlet before submitting daily stock.';
+      showFeedback(message, 'error');
+      window.alert(message);
       return;
     }
 
@@ -521,7 +637,9 @@ const DailyStockUpdate: React.FC = () => {
         }));
 
       if (payloads.length === 0) {
-        showFeedback('Please enter some stock data before submitting.', 'error');
+        const message = 'Please enter purchase, consumption, waste, or closing stock before submitting.';
+        showFeedback(message, 'error');
+        window.alert(message);
         setSubmitting(false);
         return;
       }
@@ -561,18 +679,25 @@ const DailyStockUpdate: React.FC = () => {
           },
         }))
       );
-      showFeedback('Inventory submitted successfully!', 'success');
-    } catch (err: any) {
+      const outletName = outlets.find((o) => o.id === selectedOutlet)?.name || 'selected outlet';
+      showFeedback(`Inventory submitted successfully for ${outletName}.`, 'success');
+    } catch (err: unknown) {
       console.error('Error submitting inventory', err);
       if (selectedOutlet) {
-        const draft = saveDraft(selectedOutlet, getLocalDateStr(), rowsRef.current);
-        setLastSavedIso(draft.savedAt);
-        setAutoSaveStatus('failed');
+        try {
+          const draft = saveDraft(selectedOutlet, getLocalDateStr(), rowsRef.current);
+          setLastSavedIso(draft.savedAt);
+          setAutoSaveStatus('failed');
+        } catch {
+          /* keep previous draft state */
+        }
       }
-      showFeedback(
-        'Failed to submit inventory: ' + err.message + ' Your entries were kept as a local draft.',
-        'error'
+      const message = formatActionError(
+        err,
+        'Failed to submit inventory. Your entries were kept as a local draft.'
       );
+      showFeedback(message, 'error');
+      window.alert(message);
     } finally {
       setSubmitting(false);
     }
@@ -835,18 +960,60 @@ const DailyStockUpdate: React.FC = () => {
               month: 'long',
               year: 'numeric',
             })}
+            {selectedOutlet
+              ? ` · ${outlets.find((o) => o.id === selectedOutlet)?.name || 'Selected outlet'}`
+              : ''}
           </p>
         </div>
-        <label className="inline-flex h-11 cursor-pointer items-center gap-2.5 rounded-xl bg-white px-3.5 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100">
-          <input
-            type="checkbox"
-            checked={pendingOnly}
-            onChange={(e) => setPendingOnly(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300 text-[#FF6A00] focus:ring-[#FF6A00]"
-          />
-          Show Pending Only
-        </label>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          {canSelectOutlet ? (
+            <label className="inline-flex h-11 min-w-[220px] items-center gap-2 rounded-xl bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100">
+              <Store className="h-4 w-4 shrink-0 text-[#FF6A00]" />
+              <span className="sr-only">Select outlet</span>
+              <select
+                className="h-full w-full bg-transparent font-semibold text-slate-800 outline-none"
+                value={selectedOutlet}
+                onChange={(e) => handleOutletChange(e.target.value)}
+                aria-label="Select outlet for daily stock"
+              >
+                <option value="">Select outlet…</option>
+                {outlets.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <label className="inline-flex h-11 cursor-pointer items-center gap-2.5 rounded-xl bg-white px-3.5 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100">
+            <input
+              type="checkbox"
+              checked={pendingOnly}
+              onChange={(e) => setPendingOnly(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-[#FF6A00] focus:ring-[#FF6A00]"
+            />
+            Show Pending Only
+          </label>
+        </div>
       </div>
+
+      {outletsError ? (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-950">
+          {outletsError}
+        </div>
+      ) : null}
+
+      {loadError ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          {loadError}
+        </div>
+      ) : null}
+
+      {!selectedOutlet && canSelectOutlet && !outletsError ? (
+        <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
+          Choose an outlet above to load today&apos;s daily stock entry sheet.
+        </div>
+      ) : null}
 
       {typeCounts.raw_material === 0 && typeCounts.ready_product > 0 ? (
         <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-950">
@@ -881,7 +1048,7 @@ const DailyStockUpdate: React.FC = () => {
         categories={categories}
         suppliers={suppliers}
         outlets={outlets}
-        canSwitchOutlet={canSwitchBranches}
+        canSwitchOutlet={canSelectOutlet}
         filtersOpen={filtersOpen}
         autoSaveStatus={autoSaveStatus}
         lastSavedAt={lastSavedIso}

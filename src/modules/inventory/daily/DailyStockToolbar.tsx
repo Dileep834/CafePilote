@@ -79,6 +79,21 @@ export function DailyStockToolbar({
 
         <div className="flex items-center gap-2">
           <DailyStockAutoSave status={autoSaveStatus} lastSavedAt={lastSavedAt} />
+          {canSwitchOutlet ? (
+            <select
+              className={cn(selectClass, 'min-w-[160px] max-w-[220px] lg:hidden')}
+              value={filters.outletId}
+              onChange={(e) => onChange({ outletId: e.target.value })}
+              aria-label="Select outlet"
+            >
+              <option value="">Outlet</option>
+              {outlets.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <div className="grid grid-cols-3 gap-2 md:flex md:flex-wrap">
             <Button
               type="button"

@@ -5,6 +5,68 @@ import { getTenantOutletId } from '@/store/useTenantStore';
 import { useTableBillStore, type TableBillItem } from '@/modules/tables/store/useTableBillStore';
 import { useTableStore } from '@/modules/tables/store/useTableStore';
 import type { Table } from '@/types';
+import { useSettingsStore } from '@/store/useSettingsStore';
+
+export function calculateOrderTotals(cart: CartItem[], discountType: 'percentage' | 'fixed', discountValue: number) {
+  const { taxMode, defaultTaxRate, taxInclusive, serviceChargeMode, serviceChargeValue, roundingRule } = useSettingsStore.getState();
+
+  let subtotal = 0;
+  cart.forEach(item => subtotal += item.price * item.quantity);
+
+  let discountAmount = discountType === 'percentage' ? (subtotal * discountValue) / 100 : discountValue;
+  discountAmount = Math.min(discountAmount, subtotal);
+
+  let taxableBaseTotal = 0;
+  let taxAmount = 0;
+
+  cart.forEach(item => {
+    const itemTotal = item.price * item.quantity;
+    const itemDiscount = subtotal > 0 ? (itemTotal / subtotal) * discountAmount : 0;
+    const itemDiscountedTotal = itemTotal - itemDiscount;
+
+    let itemGstRate = 0;
+    if (item.isTaxable !== false && taxMode !== 'none') {
+      itemGstRate = taxMode === 'per_product' ? (item.taxRate || 0) : defaultTaxRate;
+    }
+
+    if (taxInclusive) {
+      const base = itemDiscountedTotal / (1 + (itemGstRate / 100));
+      const tax = itemDiscountedTotal - base;
+      taxableBaseTotal += base;
+      taxAmount += tax;
+    } else {
+      const tax = itemDiscountedTotal * (itemGstRate / 100);
+      taxableBaseTotal += itemDiscountedTotal;
+      taxAmount += tax;
+    }
+  });
+
+  const baseForSC = taxInclusive ? taxableBaseTotal : (subtotal - discountAmount);
+  let scAmount = 0;
+  if (serviceChargeMode === 'fixed') scAmount = serviceChargeValue;
+  else if (serviceChargeMode === 'percentage') scAmount = baseForSC * (serviceChargeValue / 100);
+
+  let grandTotalRaw = taxInclusive 
+    ? (subtotal - discountAmount + scAmount) 
+    : (subtotal - discountAmount + taxAmount + scAmount);
+
+  let grandTotal = grandTotalRaw;
+  switch (roundingRule) {
+    case 'up': grandTotal = Math.ceil(grandTotalRaw); break;
+    case 'down': grandTotal = Math.floor(grandTotalRaw); break;
+    case 'nearest_1': grandTotal = Math.round(grandTotalRaw); break;
+    case 'nearest_0_5': grandTotal = Math.round(grandTotalRaw * 2) / 2; break;
+  }
+  
+  return {
+    subtotal,
+    discountAmount,
+    taxAmount,
+    serviceCharge: scAmount,
+    roundOff: grandTotal - grandTotalRaw,
+    totalAmount: grandTotal
+  };
+}
 
 export interface CartItem {
   id: string;
@@ -14,6 +76,8 @@ export interface CartItem {
   quantity: number;
   notes?: string;
   imageUrl?: string | null;
+  taxRate?: number;
+  isTaxable?: boolean;
 }
 
 export interface AddCartItemOptions {
@@ -178,6 +242,8 @@ export const usePOSStore = create<POSState>((set, get) => ({
             quantity,
             notes,
             imageUrl: product.image_url || product.imageUrl || null,
+            taxRate: product.gst,
+            isTaxable: product.isTaxable !== false,
           },
         ],
       };
@@ -324,14 +390,11 @@ export const usePOSStore = create<POSState>((set, get) => ({
       cloudOutletId(getTenantOutletId(user)) ||
       cloudOutletId(user?.outletId);
 
-    const subtotal = state.cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const discountAmount =
-      state.discountType === 'percentage'
-        ? (subtotal * state.discountValue) / 100
-        : state.discountValue;
-    const discountedSubtotal = Math.max(0, subtotal - discountAmount);
-    const taxAmount = discountedSubtotal * state.taxRate;
-    const totalAmount = discountedSubtotal + taxAmount + (state.serviceCharge || 0);
+    const totals = calculateOrderTotals(state.cart, state.discountType, state.discountValue);
+    const subtotal = totals.subtotal;
+    const discountAmount = totals.discountAmount;
+    const taxAmount = totals.taxAmount;
+    const totalAmount = totals.totalAmount;
 
     const tenderedNumeric =
       state.paymentMethod === 'cash' ? parseFloat(state.tenderedAmount) || 0 : totalAmount;
@@ -767,9 +830,9 @@ export const usePOSStore = create<POSState>((set, get) => ({
 
     const { user } = useAuthStore.getState();
     const outletId = cloudOutletId(getTenantOutletId(user)) || cloudOutletId(user?.outletId);
-    const subtotal = state.cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const taxAmount = subtotal * state.taxRate;
-    const totalAmount = subtotal + taxAmount;
+    const totals = calculateOrderTotals(state.cart, state.discountType, state.discountValue);
+    const taxAmount = totals.taxAmount;
+    const totalAmount = totals.totalAmount;
 
     try {
       const { data: orderData, error: orderError } = await supabase

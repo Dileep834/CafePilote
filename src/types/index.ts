@@ -39,6 +39,9 @@ export interface Product {
   purchasePrice: number;
   sellingPrice: number;
   gst: number;
+  isTaxable?: boolean;
+  hsnCode?: string;
+  taxCategory?: 'food' | 'beverage' | 'packaged' | 'service';
   barcode: string;
   isActive: boolean;
 }
@@ -106,3 +109,7 @@ export interface Order {
   createdAt: string;
   source: 'pos' | 'qr'; // Whether placed by staff or customer self-order
 }
+
+// Enterprise Enums
+export type InventoryMode = 'disabled' | 'track' | 'strict';
+export type KitchenStatus = 'queued' | 'sent' | 'acknowledged' | 'preparing' | 'completed';
