@@ -122,28 +122,43 @@ export async function loadProductAvailabilityState(
   if (!outletId || productIds.length === 0) return map;
 
   try {
-    const { data } = await supabase
-      .from('product_outlet_availability')
-      .select('*')
-      .eq('outlet_id', outletId)
-      .in('product_id', productIds);
+    // Chunk .in() to avoid PostgREST URL/size failures on large menus
+    const chunkSize = 120;
+    for (let i = 0; i < productIds.length; i += chunkSize) {
+      const chunk = productIds.slice(i, i + chunkSize);
+      const { data, error } = await supabase
+        .from('product_outlet_availability')
+        .select('*')
+        .eq('outlet_id', outletId)
+        .in('product_id', chunk);
 
-    for (const row of data || []) {
-      const productId = String((row as { product_id?: string }).product_id || '');
-      if (!productId) continue;
-      map.set(productId, {
-        outletId: String((row as { outlet_id?: string }).outlet_id || outletId),
-        productId,
-        computedStatus: String((row as { computed_status?: string }).computed_status || 'available') as ProductOutletAvailability['computedStatus'],
-        manualStatus: ((row as { manual_status?: string | null }).manual_status || null) as ProductOutletAvailability['manualStatus'],
-        manualReason: ((row as { manual_reason?: string | null }).manual_reason || null),
-        manualUntil: ((row as { manual_until?: string | null }).manual_until || null),
-        manualBy: ((row as { manual_by?: string | null }).manual_by || null),
-        availableServings: Number((row as { available_servings?: number | null }).available_servings ?? NaN),
-        lowStockAt: Number((row as { low_stock_at?: number | null }).low_stock_at ?? NaN),
-        effectiveStatus: String((row as { effective_status?: string }).effective_status || 'available') as ProductOutletAvailability['effectiveStatus'],
-        updatedAt: ((row as { updated_at?: string | null }).updated_at || null),
-      });
+      if (error) {
+        console.warn('[availability] state chunk failed', error.message);
+        continue;
+      }
+
+      for (const row of data || []) {
+        const productId = String((row as { product_id?: string }).product_id || '');
+        if (!productId) continue;
+        map.set(productId, {
+          outletId: String((row as { outlet_id?: string }).outlet_id || outletId),
+          productId,
+          computedStatus: String(
+            (row as { computed_status?: string }).computed_status || 'available'
+          ) as ProductOutletAvailability['computedStatus'],
+          manualStatus: ((row as { manual_status?: string | null }).manual_status ||
+            null) as ProductOutletAvailability['manualStatus'],
+          manualReason: (row as { manual_reason?: string | null }).manual_reason || null,
+          manualUntil: (row as { manual_until?: string | null }).manual_until || null,
+          manualBy: (row as { manual_by?: string | null }).manual_by || null,
+          availableServings: Number((row as { available_servings?: number | null }).available_servings ?? NaN),
+          lowStockAt: Number((row as { low_stock_at?: number | null }).low_stock_at ?? NaN),
+          effectiveStatus: String(
+            (row as { effective_status?: string }).effective_status || 'available'
+          ) as ProductOutletAvailability['effectiveStatus'],
+          updatedAt: (row as { updated_at?: string | null }).updated_at || null,
+        });
+      }
     }
   } catch {
     return map;

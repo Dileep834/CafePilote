@@ -13,7 +13,8 @@ const DEFAULTS: Record<string, boolean> = {
   'bi.executive': true,
   'ai.copilot': true,
   'api.platform': true,
-  'offline.billing': false,
+  // Plan gate is primary (Pro/Enterprise). Runtime kill-switch via setLocal(false) or DB.
+  'offline.billing': true,
   'observability.panel': true,
   'franchise.royalty': false,
   'marketing.automation': false,

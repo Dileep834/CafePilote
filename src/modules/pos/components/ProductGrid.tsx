@@ -23,22 +23,92 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ProductAddonModal } from './ProductAddonModal';
 import { useProductAvailabilityMap } from '@/modules/availability';
+import { resolveCatalogItemType } from '@/modules/menu/lib/fetchCatalog';
 
 const NEW_HIDE_AFTER_SALES = 5;
 
+function isPosSellable(product: any): boolean {
+  if (!product || product.is_active === false) return false;
+  return resolveCatalogItemType(product) === 'ready_product';
+}
+
 const fetchProducts = async (companyId: string) => {
-  let query = supabase
-    .from('products')
-    .select('*, categories(name)')
-    .eq('is_active', true)
-    .eq('item_type', 'ready_product')
-    .order('name');
+  const { ConnectivityService } = await import('@/modules/offline/services/ConnectivityService');
+  const { CacheService } = await import('@/modules/offline/services/CacheService');
+  const online = ConnectivityService.isOnline();
+  const outletId = useTenantStore.getState().activeOutletId;
 
-  if (companyId) query = query.eq('company_id', companyId);
+  const loadFromServer = async () => {
+    // Prefer ready_product; many tenants still have null/legacy item_type
+    // Include null company_id rows (legacy catalog) for the active company scope
+    let query = supabase
+      .from('products')
+      .select('*, categories(name)')
+      .eq('is_active', true)
+      .order('name');
+    if (companyId) {
+      query = query.or(`company_id.eq.${companyId},company_id.is.null`);
+    }
 
-  const { data, error } = await query;
-  if (error) throw error;
-  return data;
+    let { data, error } = await query;
+    if (error) {
+      // or() unsupported / RLS — plain company filter
+      let plain = supabase
+        .from('products')
+        .select('*, categories(name)')
+        .eq('is_active', true)
+        .order('name');
+      if (companyId) plain = plain.eq('company_id', companyId);
+      const fb = await plain;
+      if (fb.error) throw fb.error;
+      data = fb.data;
+    }
+
+    const rows = (data || []).filter(isPosSellable);
+    // If company scope returned nothing, try unscoped active sellables once
+    if (!rows.length && companyId) {
+      const { data: allActive, error: allErr } = await supabase
+        .from('products')
+        .select('*, categories(name)')
+        .eq('is_active', true)
+        .order('name')
+        .limit(5000);
+      if (!allErr && allActive?.length) {
+        return allActive.filter(isPosSellable);
+      }
+    }
+    return rows;
+  };
+
+  if (online) {
+    try {
+      const data = await loadFromServer();
+      // Warm cache in background — never block POS render on IndexedDB write
+      if (data.length) {
+        queueMicrotask(() => {
+          void CacheService.putProducts(
+            outletId,
+            data.map((p: any) => ({ id: p.id, data: p }))
+          ).then(() =>
+            CacheService.putSetting('catalog_last_refreshed_at', new Date().toISOString(), outletId)
+          );
+        });
+      }
+      return data;
+    } catch (err) {
+      const cached = await CacheService.getPosProducts(companyId || null);
+      if (cached.length) return cached;
+      throw err;
+    }
+  }
+
+  const cached = await CacheService.getPosProducts(companyId || null);
+  if (!cached.length) {
+    throw new Error(
+      'No offline product cache. Go online once, open Sync Center → Refresh catalog, then try again.'
+    );
+  }
+  return cached;
 };
 
 function prepMinutes(product: any) {
@@ -129,7 +199,7 @@ export function ProductGrid({
     queryFn: () => fetchProducts(companyId),
   });
 
-  const { map: availabilityMap, ready: availabilityReady } = useProductAvailabilityMap(
+  const { map: availabilityMap } = useProductAvailabilityMap(
     outletId,
     (products as any[]) || [],
     'pos'
@@ -144,8 +214,8 @@ export function ProductGrid({
   }, [cart]);
 
   const handleQuickAdd = (product: any) => {
-    if (!availabilityReady) return;
     const availability = availabilityMap.get(product.id);
+    // While availability is still loading, allow sell (fail-open for POS speed)
     if (availability && !availability.canSell) return;
     if (shouldOpenModifierSheet(product) && !(qtyByProduct.get(product.id) || 0)) {
       setSelectedProductForAddons(product);
@@ -234,8 +304,11 @@ export function ProductGrid({
 
   if (error) {
     return (
-      <div className="flex h-full items-center justify-center p-8 text-sm text-red-500">
-        Error loading products
+      <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center text-sm text-red-600">
+        <p className="font-medium">Error loading products</p>
+        <p className="max-w-md text-xs text-red-500/90">
+          {(error as Error)?.message || 'Unknown error'}
+        </p>
       </div>
     );
   }
@@ -409,14 +482,27 @@ export function ProductGrid({
           ) : (
             <div className="flex flex-col items-center justify-center py-16 text-center text-slate-400">
               <UtensilsCrossed className="mb-2 h-8 w-8 opacity-30" />
-              <p className="text-sm font-medium text-slate-500">No products match</p>
+              <p className="text-sm font-medium text-slate-500">
+                {!products?.length
+                  ? 'No products loaded'
+                  : searchQuery.trim()
+                    ? 'No products match your search'
+                    : 'No products match'}
+              </p>
+              {!products?.length ? (
+                <p className="mt-2 max-w-sm text-xs text-slate-500">
+                  Open Sync Center → Refresh catalog while online, or check Products master for this
+                  company.
+                </p>
+              ) : null}
             </div>
           )
         ) : (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-6 2xl:grid-cols-7">
             {filteredProducts.map((product) => {
               const availability = availabilityMap.get(product.id);
-              const blocked = !availabilityReady || (availability ? !availability.canSell : false);
+              // Fail-open: only block when we know canSell is false (never while loading)
+              const blocked = Boolean(availability && !availability.canSell);
               const hiddenByPolicy = availability ? !availability.canShow : false;
               if (hiddenByPolicy) return null;
               const minutes = prepMinutes(product);
@@ -497,7 +583,7 @@ export function ProductGrid({
                     </div>
                     {blocked ? (
                       <Badge variant="outline" className="border-rose-200 text-[10px] text-rose-600">
-                        {availability?.badge || 'Blocked'}
+                        {availability?.badge || 'Unavailable'}
                       </Badge>
                     ) : qty > 0 ? (
                       <div

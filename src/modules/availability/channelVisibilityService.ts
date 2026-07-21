@@ -10,17 +10,28 @@ export async function loadChannelVisibilityMap(
   if (!outletId || productIds.length === 0) return map;
 
   try {
-    const { data } = await supabase
-      .from('product_channel_visibility')
-      .select('product_id, visibility_mode')
-      .eq('outlet_id', outletId)
-      .eq('channel', channel)
-      .in('product_id', productIds);
+    const chunkSize = 120;
+    for (let i = 0; i < productIds.length; i += chunkSize) {
+      const chunk = productIds.slice(i, i + chunkSize);
+      const { data, error } = await supabase
+        .from('product_channel_visibility')
+        .select('product_id, visibility_mode')
+        .eq('outlet_id', outletId)
+        .eq('channel', channel)
+        .in('product_id', chunk);
 
-    for (const row of data || []) {
-      const productId = String((row as { product_id?: string }).product_id || '');
-      const mode = String((row as { visibility_mode?: string }).visibility_mode || 'inherit') as ChannelVisibilityMode;
-      if (productId) map.set(productId, mode);
+      if (error) {
+        console.warn('[availability] channel chunk failed', error.message);
+        continue;
+      }
+
+      for (const row of data || []) {
+        const productId = String((row as { product_id?: string }).product_id || '');
+        const mode = String(
+          (row as { visibility_mode?: string }).visibility_mode || 'inherit'
+        ) as ChannelVisibilityMode;
+        if (productId) map.set(productId, mode);
+      }
     }
   } catch {
     return map;

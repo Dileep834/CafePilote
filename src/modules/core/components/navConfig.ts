@@ -16,6 +16,7 @@ import {
   Package,
   PanelLeft,
   ReceiptText,
+  RefreshCw,
   ScrollText,
   Settings,
   Shield,
@@ -73,6 +74,14 @@ export const NAV_GROUPS: NavGroup[] = [
         requiredPermission: PERMISSIONS.POS_ACCESS,
         requiredPlanModule: 'pos',
         featureFlag: 'pos',
+      },
+      {
+        name: 'Sync Center',
+        href: '/erp/sync-center',
+        icon: RefreshCw,
+        requiredPermission: PERMISSIONS.POS_ACCESS,
+        requiredPlanModule: 'pos',
+        featureFlag: 'offlineSync',
       },
       {
         name: 'Online Orders',

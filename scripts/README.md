@@ -34,6 +34,7 @@ Both refresh the `company_subscriptions.plan_id` CHECK so allowed values are:
 | 8 | `assign_orphans_to_hq.sql` | Attach orphan rows to HQ |
 | 9 | `payment_gateway_settings_schema.sql` | `outlet_payment_gateways` |
 | 10 | Seed scripts as needed | `seed_*.sql` |
+| 11 | **`offline_idempotency_schema.sql`** | Offline POS `client_uuid` / unique idempotency (Pro/Enterprise sync) |
 
 ## Canonical ownership (avoid duplicates)
 

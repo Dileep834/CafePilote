@@ -56,6 +56,7 @@ const DailyStockUpdate = React.lazy(() => import('../pages/Inventory/DailyStockU
 const StockAdjustments = React.lazy(() => import('../pages/Inventory/StockAdjustments'));
 const WasteEntry = React.lazy(() => import('../pages/Waste/WasteEntry'));
 const NotFound = React.lazy(() => import('../pages/NotFound'));
+const SyncCenterPage = React.lazy(() => import('../modules/offline/pages/SyncCenterPage'));
 
 const ProtectedRoute = ({
   children,
@@ -214,6 +215,18 @@ const AppRoutes = () => {
                 requiredFeatureFlag="auditLogs"
               >
                 <AuditLogsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="sync-center"
+            element={
+              <ProtectedRoute
+                requiredPermission={PERMISSIONS.POS_ACCESS}
+                requiredPlanModule="pos"
+                requiredFeatureFlag="offlineSync"
+              >
+                <SyncCenterPage />
               </ProtectedRoute>
             }
           />

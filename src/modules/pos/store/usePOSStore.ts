@@ -440,6 +440,117 @@ export const usePOSStore = create<POSState>((set, get) => ({
     let intentId: string | null = null;
 
     try {
+      // --- Enterprise Offline POS: never lose the sale when connectivity drops ---
+      const { ConnectivityService } = await import('@/modules/offline/services/ConnectivityService');
+      const { isOfflineBillingAllowed } = await import('@/modules/offline/lib/capabilities');
+      const { PaymentService } = await import('@/modules/offline/services/PaymentService');
+      const { useTenantStore } = await import('@/store/useTenantStore');
+      const planId = useTenantStore.getState().planId;
+      const offlineCapable = isOfflineBillingAllowed(planId);
+      const isOnline = ConnectivityService.isOnline();
+
+      if (!isOnline) {
+        if (!offlineCapable) {
+          throw new Error(
+            'You are offline. Offline billing requires Professional or Enterprise. Reconnect to complete this sale.'
+          );
+        }
+        PaymentService.assertAllowed(state.paymentMethod);
+
+        const { OrderService } = await import('@/modules/offline/services/OrderService');
+        const offlineResult = await OrderService.checkoutOffline({
+          outletId,
+          companyId: useTenantStore.getState().companyId,
+          customerName: state.customerName || (state.activeTableLabel ? `Table ${state.activeTableLabel}` : null),
+          customerPhone: state.customerPhone || null,
+          totalAmount,
+          taxAmount,
+          discountAmount,
+          paymentMethod: state.paymentMethod,
+          tenderedAmount: tenderedNumeric,
+          changeDue,
+          tableId: state.activeTableId,
+          tableNumber: state.activeTableLabel,
+          orderSource: 'pos',
+          notes: state.activeTableLabel ? `Paid dine-in - ${state.activeTableLabel} (offline)` : 'Offline POS sale',
+          idempotencyKey,
+          lines: state.cart.map((item) => ({
+            productId: item.productId,
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            notes: item.notes,
+          })),
+          splitLines: options?.splitLines || null,
+          gatewayReference: paymentReference
+            ? (paymentReference as unknown as Record<string, unknown>)
+            : null,
+          actorId: user?.id || null,
+          kitchenStatus: state.activeTableId ? 'delivered' : 'pending',
+          fireKot: !state.activeTableId,
+          strictInventory: false,
+        });
+
+        const orderId = offlineResult.orderId;
+        const cartSnapshot = [...state.cart];
+        const tableId = state.activeTableId;
+        const tableLabel = state.activeTableLabel;
+
+        if (tableId) {
+          await useTableBillStore.getState().settleBill(tableId, orderId);
+        }
+
+        set({
+          cart: [],
+          tenderedAmount: '',
+          paymentMethod: 'cash',
+          customerName: '',
+          customerPhone: '',
+          discountValue: 0,
+          serviceCharge: 0,
+          orderNotes: '',
+          activeTableId: null,
+          activeTableLabel: null,
+          lastOrder: {
+            id: orderId,
+            cart: cartSnapshot,
+            paymentMethod: state.paymentMethod,
+            tenderedAmount: state.tenderedAmount,
+            taxAmount,
+            discountAmount,
+            totalAmount,
+            changeDue,
+            paymentReference,
+            tableLabel,
+            outletId,
+            customer: { name: state.customerName, phone: state.customerPhone },
+            timestamp: new Date().toISOString(),
+            // Printed temp numbers must never change after sync
+            offlineTempOrderNumber: offlineResult.tempOrderNumber,
+            offlineTempInvoiceNumber: offlineResult.tempInvoiceNumber,
+            offlineMode: true,
+          } as never,
+        });
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('cafepilots:orders-updated', {
+              detail: {
+                orderId,
+                outletId,
+                totalAmount,
+                offline: true,
+                tempOrderNumber: offlineResult.tempOrderNumber,
+              },
+            })
+          );
+          window.dispatchEvent(new CustomEvent('cafepilots:offline-order-saved', {
+            detail: { orderId, tempOrderNumber: offlineResult.tempOrderNumber },
+          }));
+        }
+        return;
+      }
+
       const { intent, reused } = await createOrGetPaymentIntent({
         idempotencyKey,
         outletId,

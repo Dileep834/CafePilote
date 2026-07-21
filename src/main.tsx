@@ -3,6 +3,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import './index.css';
 import App from './App.tsx';
 import { ErrorDialog } from './components/ErrorDialog';
+import { bootstrapOfflinePos } from './modules/offline/bootstrap';
+
+// Start connectivity + offline sync engine as early as possible (crash-safe queue lives in IndexedDB)
+bootstrapOfflinePos();
 
 const rootElement = document.getElementById('root');
 let reactRoot: Root | null = null;

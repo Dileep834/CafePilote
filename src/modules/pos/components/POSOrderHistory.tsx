@@ -109,10 +109,90 @@ function HistoryBody({
   const load = async () => {
     setLoading(true);
     setError(null);
+    setMsg(null);
     try {
       if (!branchOutletId) {
         setOrders([]);
         setError('Select a branch to view order history');
+        return;
+      }
+
+      const { ConnectivityService } = await import('@/modules/offline/services/ConnectivityService');
+      const online = ConnectivityService.isOnline();
+
+      const loadLocalFallback = async (): Promise<HistoryOrder[]> => {
+        const { OfflineOrderRepository } = await import(
+          '@/modules/offline/repositories/OfflineOrderRepository'
+        );
+        const { getOfflineDB } = await import('@/modules/offline/db/CafePilotsOfflineDB');
+        const localOrders = await OfflineOrderRepository.listPending();
+        // Also include recently synced local history (keep local rows)
+        const allLocal = await getOfflineDB()
+          .orders.where('outlet_id')
+          .equals(branchOutletId)
+          .toArray();
+
+        const byId = new Map<string, (typeof allLocal)[number]>();
+        for (const o of [...allLocal, ...localOrders]) byId.set(o.local_id, o);
+
+        const mapped: HistoryOrder[] = [];
+        for (const order of byId.values()) {
+          if (order.outlet_id && order.outlet_id !== branchOutletId) continue;
+          if (payFilter === 'cancelled' || payFilter === 'refunded') continue;
+          if (!['completed', 'paid', 'settled'].includes(String(order.status || 'completed'))) {
+            continue;
+          }
+
+          const created = dayjs(order.created_at);
+          if (range === 'today' && !created.isAfter(dayjs().startOf('day').subtract(1, 'ms'))) continue;
+          if (range === '7days' && created.isBefore(dayjs().subtract(7, 'day').startOf('day'))) continue;
+          if (range === '30days' && created.isBefore(dayjs().subtract(30, 'day').startOf('day'))) continue;
+          if (range === 'custom') {
+            if (created.isBefore(dayjs(customFrom).startOf('day'))) continue;
+            if (created.isAfter(dayjs(customTo).endOf('day'))) continue;
+          }
+
+          const items = await getOfflineDB()
+            .order_items.where('order_local_id')
+            .equals(order.local_id)
+            .toArray();
+
+          mapped.push({
+            id: order.server_id || order.local_id,
+            created_at: order.created_at,
+            customer_name: order.customer_name,
+            customer_phone: order.customer_phone,
+            table_number: order.table_number,
+            order_source: order.order_source,
+            total_amount: order.total_amount,
+            payment_method: order.payment_method,
+            status: order.status,
+            bill_number: order.server_order_number || order.temp_order_number,
+            items: items.map((it) => ({
+              id: it.local_id,
+              product_id: it.product_id,
+              product_name: it.product_name,
+              quantity: it.quantity,
+              unit_price: it.unit_price,
+              total_price: it.total_price,
+            })),
+          });
+        }
+
+        return mapped
+          .sort((a, b) => dayjs(b.created_at).valueOf() - dayjs(a.created_at).valueOf())
+          .slice(0, 150);
+      };
+
+      if (!online) {
+        const local = await loadLocalFallback();
+        setOrders(local);
+        if (local.length) {
+          setMsg('Offline — showing local orders (TMP bill numbers until sync).');
+          setError(null);
+        } else {
+          setError('Offline — no local orders cached for this branch yet.');
+        }
         return;
       }
 
@@ -150,8 +230,68 @@ function HistoryBody({
       if (qErr) throw qErr;
       setOrders((data || []) as unknown as HistoryOrder[]);
     } catch (e: any) {
-      setError(e?.message || 'Could not load order history');
-      setOrders([]);
+      const raw = String(e?.message || e || '');
+      const isNetwork =
+        /failed to fetch|networkerror|fetch|offline|timeout/i.test(raw) ||
+        e?.name === 'TypeError';
+
+      try {
+        const { OfflineOrderRepository } = await import(
+          '@/modules/offline/repositories/OfflineOrderRepository'
+        );
+        const { getOfflineDB } = await import('@/modules/offline/db/CafePilotsOfflineDB');
+        const allLocal = branchOutletId
+          ? await getOfflineDB().orders.where('outlet_id').equals(branchOutletId).toArray()
+          : await OfflineOrderRepository.listPending();
+
+        const mapped: HistoryOrder[] = [];
+        for (const order of allLocal) {
+          const items = await getOfflineDB()
+            .order_items.where('order_local_id')
+            .equals(order.local_id)
+            .toArray();
+          mapped.push({
+            id: order.server_id || order.local_id,
+            created_at: order.created_at,
+            customer_name: order.customer_name,
+            customer_phone: order.customer_phone,
+            table_number: order.table_number,
+            order_source: order.order_source,
+            total_amount: order.total_amount,
+            payment_method: order.payment_method,
+            status: order.status,
+            bill_number: order.server_order_number || order.temp_order_number,
+            items: items.map((it) => ({
+              id: it.local_id,
+              product_id: it.product_id,
+              product_name: it.product_name,
+              quantity: it.quantity,
+              unit_price: it.unit_price,
+              total_price: it.total_price,
+            })),
+          });
+        }
+
+        mapped.sort((a, b) => dayjs(b.created_at).valueOf() - dayjs(a.created_at).valueOf());
+        setOrders(mapped.slice(0, 150));
+        if (isNetwork && mapped.length) {
+          setMsg('Server unreachable — showing local offline orders.');
+          setError(null);
+        } else {
+          setError(
+            isNetwork
+              ? 'Server unreachable — no local orders found. Check internet and retry.'
+              : raw || 'Could not load order history'
+          );
+        }
+      } catch {
+        setOrders([]);
+        setError(
+          isNetwork
+            ? 'Server unreachable. Check internet connection and try Refresh.'
+            : raw || 'Could not load order history'
+        );
+      }
     } finally {
       setLoading(false);
     }

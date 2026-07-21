@@ -47,7 +47,8 @@ export type FeatureFlagKey =
   | 'controlPanel'
   | 'suppliers'
   | 'vouchers'
-  | 'liteOnboarding';
+  | 'liteOnboarding'
+  | 'offlineSync';
 
 export type FeatureFlags = Record<FeatureFlagKey, boolean>;
 
@@ -93,6 +94,7 @@ const ALL_OFF = Object.fromEntries(
       'suppliers',
       'vouchers',
       'liteOnboarding',
+      'offlineSync',
     ] as FeatureFlagKey[]
   ).map((k) => [k, false])
 ) as FeatureFlags;
@@ -127,6 +129,7 @@ export const FEATURE_MIN_PLAN: Record<FeatureFlagKey, PlanMarketingId> = {
   recipes: 'professional',
   vouchers: 'professional',
   controlPanel: 'professional',
+  offlineSync: 'professional',
   multiOutlet: 'enterprise',
   franchise: 'enterprise',
   whiteLabel: 'enterprise',
@@ -198,6 +201,7 @@ const PROFESSIONAL_FLAGS: FeatureFlags = {
   recipes: true,
   vouchers: true,
   controlPanel: true,
+  offlineSync: true,
 };
 
 const ENTERPRISE_FLAGS: FeatureFlags = {
