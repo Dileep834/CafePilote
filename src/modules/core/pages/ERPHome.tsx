@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -41,6 +41,13 @@ import { BRAND, type RoleType } from '@/constants';
 import { PERMISSIONS, type PermissionId } from '@/constants/permissions';
 import { supabase } from '@/lib/supabase';
 import { hasPlanModule, type PlanModuleId } from '@/lib/planLimits';
+import type { FeatureFlagKey } from '@/lib/featureFlags';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
+import {
+  LiteOnboardingWizard,
+  shouldShowLiteOnboarding,
+} from '@/modules/core/components/LiteOnboardingWizard';
+import { UpgradeLockedCard } from '@/components/UpgradeLockedCard';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/useAuthStore';
 import { usePermissionsStore } from '@/store/usePermissionsStore';
@@ -102,6 +109,7 @@ type ModuleCard = {
   path: string;
   permission: PermissionId;
   planModule?: PlanModuleId;
+  featureFlag?: FeatureFlagKey;
 };
 
 type ModuleSection = {
@@ -183,6 +191,7 @@ const sections: ModuleSection[] = [
         path: '/erp/online-orders',
         permission: PERMISSIONS.POS_ACCESS,
         planModule: 'pos',
+        featureFlag: 'onlineOrders' as const,
       },
       {
         title: 'Tables',
@@ -421,9 +430,11 @@ function canSeeModule(
   item: ModuleCard,
   role: RoleType | undefined,
   hasPermission: (role: RoleType, permissionId: PermissionId) => boolean,
-  planId: string | null | undefined
+  planId: string | null | undefined,
+  hasFlag: (flag: FeatureFlagKey) => boolean
 ) {
   if (!role) return false;
+  if (item.featureFlag && !hasFlag(item.featureFlag)) return false;
   return hasPlanModule(planId, item.planModule) && hasPermission(role, item.permission);
 }
 
@@ -1165,6 +1176,8 @@ export function ERPHome() {
   const planId = useTenantStore((s) => s.planId);
   const companyName = useTenantStore((s) => s.companyName);
   const outlets = useTenantStore((s) => s.outlets);
+  const { has: hasFlag, marketingPlan, planLabel } = useFeatureFlags();
+  const [liteWizardOpen, setLiteWizardOpen] = useState(false);
   const tables = useTableStore((s) => s.tables);
   const fetchTables = useTableStore((s) => s.fetchTables);
   const bills = useTableBillStore((s) => s.bills);
@@ -1192,12 +1205,18 @@ export function ERPHome() {
         .map((section) => ({
           ...section,
           items: section.items.filter((item) =>
-            canSeeModule(item, user?.role, hasPermission, planId)
+            canSeeModule(item, user?.role, hasPermission, planId, hasFlag)
           ),
         }))
         .filter((section) => section.items.length > 0),
-    [hasPermission, planId, user?.role]
+    [hasFlag, hasPermission, planId, user?.role]
   );
+
+  useEffect(() => {
+    if (shouldShowLiteOnboarding(marketingPlan === 'lite')) {
+      setLiteWizardOpen(true);
+    }
+  }, [marketingPlan]);
 
   useEffect(() => {
     void fetchTables(activeOutletId || undefined);
@@ -1598,6 +1617,8 @@ export function ERPHome() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-24 sm:pb-6">
+      <LiteOnboardingWizard open={liteWizardOpen} onClose={() => setLiteWizardOpen(false)} />
+
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
@@ -1605,12 +1626,19 @@ export function ERPHome() {
               <span>{companyName || 'CafePilots'}</span>
               <span className="h-1 w-1 rounded-full bg-slate-300" aria-hidden />
               <span>{activeOutlet?.name || 'All active branches'}</span>
+              <span className="h-1 w-1 rounded-full bg-slate-300" aria-hidden />
+              <span className="rounded-md bg-orange-50 px-1.5 py-0.5 text-[10px] font-black tracking-wider text-[#FF6A00]">
+                {planLabel}
+              </span>
             </div>
             <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
-              Operations command center
+              {marketingPlan === 'lite' ? 'Your café workspace' : 'Operations command center'}
             </h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-500">
-              {user?.name ? `${user.name}, ` : ''}today's service health is ready at a glance.
+              {user?.name ? `${user.name}, ` : ''}
+              {marketingPlan === 'lite'
+                ? 'a simple setup for selling, tables, stock, and reports.'
+                : "today's service health is ready at a glance."}
             </p>
           </div>
           <div className="hidden flex-wrap gap-2 sm:flex">
@@ -1760,6 +1788,43 @@ export function ERPHome() {
                 </div>
               </div>
             ))}
+
+            {(!hasFlag('aiCopilot') || !hasFlag('executiveBI') || !hasFlag('onlineOrders')) && (
+              <div className="space-y-3 pt-2">
+                <h3 className="px-0.5 text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Grow with CafePilots
+                </h3>
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  {!hasFlag('onlineOrders') && (
+                    <UpgradeLockedCard
+                      flag="onlineOrders"
+                      title="Online Orders"
+                      description="Accept Swiggy, Zomato, ONDC and website orders in one hub."
+                      onUpgrade={() => navigate('/erp/settings')}
+                      compact
+                    />
+                  )}
+                  {!hasFlag('executiveBI') && (
+                    <UpgradeLockedCard
+                      flag="executiveBI"
+                      title="Executive BI"
+                      description="Board-ready KPIs, trends, and outlet comparisons."
+                      onUpgrade={() => navigate('/erp/settings')}
+                      compact
+                    />
+                  )}
+                  {!hasFlag('aiCopilot') && (
+                    <UpgradeLockedCard
+                      flag="aiCopilot"
+                      title="AI Copilot"
+                      description="Ask questions about sales, stock, and purchase suggestions."
+                      onUpgrade={() => navigate('/erp/settings')}
+                      compact
+                    />
+                  )}
+                </div>
+              </div>
+            )}
           </section>
         </section>
 

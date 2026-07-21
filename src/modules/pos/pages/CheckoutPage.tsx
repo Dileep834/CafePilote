@@ -142,6 +142,7 @@ export function CheckoutPage() {
   const [pinOpen, setPinOpen] = useState(false);
   const [pendingApprovalId, setPendingApprovalId] = useState<string | null>(null);
   const idempotencyRef = useRef<string>('');
+  const checkoutErrorRef = useRef<HTMLDivElement | null>(null);
   const [receiptPref, setReceiptPref] = useState<ReceiptPref>('print');
   const [receiptStatus, setReceiptStatus] = useState('Not sent');
 
@@ -623,7 +624,13 @@ export function CheckoutPage() {
       if (receiptPref === 'whatsapp') window.setTimeout(() => handleWhatsAppReceipt(), 400);
       setIsSuccess(true);
     } catch (err) {
-      setCheckoutError((err as Error)?.message || 'Checkout failed. Please try again.');
+      const message = (err as Error)?.message || 'Checkout failed. Please try again.';
+      setCheckoutError(message);
+      // Surface failure above the fold — inventory / payment errors were easy to miss
+      // when only rendered under the desktop Complete button.
+      window.requestAnimationFrame(() => {
+        checkoutErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
     } finally {
       setIsCompleting(false);
     }
@@ -761,8 +768,9 @@ export function CheckoutPage() {
       className="flex min-h-[calc(100vh-64px)] w-full flex-col bg-slate-50 pb-[var(--checkout-mobile-footer-space)] shadow-inner -m-4 overflow-visible sm:-m-6 md:h-[calc(100vh-64px)] md:flex-row md:overflow-hidden md:bg-white md:pb-0 lg:-m-8"
       style={
         {
-          '--checkout-mobile-footer-space':
-            'calc(8.5rem + var(--cafepilots-visual-bottom, 0px) + env(safe-area-inset-bottom, 0px))',
+          '--checkout-mobile-footer-space': checkoutError
+            ? 'calc(12.5rem + var(--cafepilots-visual-bottom, 0px) + env(safe-area-inset-bottom, 0px))'
+            : 'calc(8.5rem + var(--cafepilots-visual-bottom, 0px) + env(safe-area-inset-bottom, 0px))',
         } as React.CSSProperties
       }
     >
@@ -879,6 +887,27 @@ export function CheckoutPage() {
               ))}
             </div>
           </div>
+
+          {checkoutError && (
+            <div
+              ref={checkoutErrorRef}
+              role="alert"
+              className="shrink-0 animate-in fade-in slide-in-from-top-1 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm font-semibold text-rose-800 shadow-sm duration-200"
+            >
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" />
+                <div className="min-w-0 space-y-1">
+                  <p className="text-[11px] font-black uppercase tracking-wider text-rose-500">
+                    Payment blocked
+                  </p>
+                  <p className="leading-snug break-words">{checkoutError}</p>
+                  <p className="text-xs font-medium text-rose-600/90">
+                    Cash shown as paid is only tender entered — the order was not completed.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Customer */}
           <div className="shrink-0 space-y-2 rounded-2xl border border-slate-100 bg-slate-50/50 p-3">
@@ -1598,11 +1627,6 @@ export function CheckoutPage() {
                 </>
               )}
             </Button>
-            {checkoutError && (
-              <p className="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
-                {checkoutError}
-              </p>
-            )}
           </div>
         </div>
       </div>
@@ -1615,6 +1639,15 @@ export function CheckoutPage() {
             'calc(var(--cafepilots-visual-bottom, 0px) + env(safe-area-inset-bottom, 0px))',
         }}
       >
+        {checkoutError && (
+          <div
+            role="alert"
+            className="mb-2 max-h-20 overflow-y-auto rounded-xl border border-rose-200 bg-rose-50 px-2.5 py-2 text-[11px] font-semibold leading-snug text-rose-700"
+          >
+            <span className="font-black uppercase tracking-wider text-rose-500">Blocked · </span>
+            {checkoutError}
+          </div>
+        )}
         <div className="mb-2 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">

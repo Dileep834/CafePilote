@@ -9,6 +9,7 @@ import { usePermissionsStore } from '@/store/usePermissionsStore';
 import { useTenantStore } from '@/store/useTenantStore';
 import { isSuperAdmin } from '@/lib/access';
 import { hasPlanModule } from '@/lib/planLimits';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { NAV_GROUPS } from './navConfig';
 
 const DEFAULT_OPEN_GROUPS = new Set(['service', 'menu']);
@@ -28,21 +29,28 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
   const user = useAuthStore((s) => s.user);
   const hasPermission = usePermissionsStore((s) => s.hasPermission);
   const planId = useTenantStore((s) => s.planId);
+  const { has: hasFlag, marketingPlan, planLabel } = useFeatureFlags();
   const sa = isSuperAdmin(user);
   const role = user?.role;
+  const isLite = marketingPlan === 'lite';
 
   const visibleGroups = useMemo(() => {
     return NAV_GROUPS.map((g) => ({
       ...g,
       items: g.items.filter((item) => {
         if (item.superAdminOnly && !sa) return false;
+        if (item.featureFlag && !sa && !hasFlag(item.featureFlag)) return false;
         if (!sa && !hasPlanModule(planId, item.requiredPlanModule)) return false;
         if (!item.requiredPermission) return true;
         if (!role) return false;
         return hasPermission(role, item.requiredPermission);
       }),
-    })).filter((g) => g.items.length > 0);
-  }, [hasPermission, planId, role, sa]);
+    })).filter((g) => {
+      if (!g.items.length) return false;
+      if (isLite && g.hideOnLite) return false;
+      return true;
+    });
+  }, [hasFlag, hasPermission, isLite, planId, role, sa]);
 
   const activeGroupIds = useMemo(() => {
     return visibleGroups
@@ -91,6 +99,10 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         >
           <CafePilotsLogo size={34} withWordmark withDivider onDark />
         </Link>
+      </div>
+
+      <div className="mx-2.5 mt-2 rounded-lg bg-white/5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-orange-200/90">
+        {planLabel} plan
       </div>
 
       <nav className="min-h-0 flex-1 touch-pan-y space-y-3 overflow-y-auto overscroll-contain px-2.5 py-3 pb-5 [-webkit-overflow-scrolling:touch]">

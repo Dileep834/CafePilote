@@ -2,8 +2,11 @@
 
 **Document type:** Pre-production audit (Solution Architecture · QA · Product)  
 **System:** CafePilots Restaurant POS / ERP  
-**Audit date:** 2026-07-21  
-**Code baseline:** `master` (Online Order Hub UI + POS / Tables / KDS / Purchase / Inventory modules)
+**Audit date:** 2026-07-21 (updated)  
+**Code baseline:** `master` @ `ec5cf48` — Phase 1 ops integrity · Phase 2 kitchen/lifecycle/GRN · Phase 3 BI/Copilot · Online Hub (demo)
+
+**Schema deploy (required for full I paths):**  
+`scripts/phase1_production_schema.sql` → `phase2_enterprise_schema.sql` → `phase3_saas_schema.sql`
 
 ---
 
@@ -27,27 +30,42 @@
 
 | Dimension | Score (0–100) | Verdict |
 |-----------|---------------|---------|
-| Core dine-in + counter billing | 78 | Launchable with controls |
-| Payments (cash/card/UPI + gateways) | 62 | Launchable with training; gateway config required |
-| Kitchen / KDS | 72 | Launchable for single kitchen |
-| Inventory integrity on sale | 28 | **Blocker** for stock-led restaurants |
-| Refunds / voids / reopen | 15 | **Blocker** for cash control |
-| Online aggregators | 20 | Demo only — do not sell as live |
-| Shift / till / Z-report | 5 | **Blocker** for multi-shift cash |
-| Audit trail | 10 | **Blocker** for enterprise / franchise |
-| Offline resilience | 5 | High risk for unstable networks |
-| Accounting / tax integrity | 55 | Partial — split tender & refunds weak |
-| **Overall production readiness** | **42 / 100** | **Not ready for unattended multi-branch production** |
+| Core dine-in + counter billing | 82 | Launchable with controls |
+| Payments (cash/card/UPI + gateways) | 78 | Intent + idempotency coded; wallet still unsafe |
+| Kitchen / KDS | 80 | Stations, bump/recall, lifecycle events |
+| Inventory integrity on sale | 72 | Check + BOM deduct + refund restore (needs recipes + schema) |
+| Refunds / voids / reopen | 65 | **Refunds I**; voids/reopen still **M** |
+| Online aggregators | 22 | Demo only — do not sell as live |
+| Shift / till / Z-report | 70 | Open/close/Z + attach sale (schema required) |
+| Audit trail | 70 | Immutable `audit_logs` + PIN overrides |
+| Offline resilience | 15 | Still high risk |
+| Accounting / tax integrity | 68 | Split tender lines on intent; refund gateway reverse weak |
+| BI / AI ops intelligence | 75 | Executive BI + Copilot (read-only) |
+| **Overall production readiness** | **68 / 100** | **Conditional single-outlet pilot** (schemas on, Online Hub off, wallets disabled) |
 
-**Top financial-loss risks**
+**Cleared since prior 42/100 audit**
 
-1. No real refunds / voids with inventory restore  
-2. POS sale does **not** deduct recipe/inventory  
-3. No shift / cash-drawer reconciliation  
-4. No audit log for discounts, voids, reopen  
-5. Split payment stored as single method (reporting skew)  
-6. Duplicate payment not idempotent at DB layer  
-7. Online hub demo can be mistaken for live orders  
+1. Payment intent + checkout idempotency key + lock  
+2. Inventory availability check + recipe BOM deduct on paid sale  
+3. Refunds (full/partial/item) + inventory restore + manager PIN  
+4. Shift open/close + cash movements + Z variance  
+5. Audit log writers on checkout / refund / shift / PIN  
+6. Manager PIN on high discount, refund, shift close  
+7. Purchase receive prefers GRN + ledger  
+8. Loyalty **earn** on checkout (phone match)  
+9. Notifications center + kitchen/stock/GRN alerts  
+10. KDS station filter, bump/recall, lifecycle timestamps  
+
+**Remaining financial-loss / launch risks**
+
+1. Voids + reopen bill still missing  
+2. Wallet / gift / store credit — UI without ledger (disable)  
+3. Online hub is demo/simulator — do not market as live  
+4. Post-pay inventory failure keeps sale (manual adjust alert)  
+5. Loyalty **redeem** missing  
+6. Offline billing missing  
+7. Phase SQL must be applied or Phase 1 paths soft-fallback  
+8. RLS still largely app-layer (not JWT-bound)  
 
 ---
 
@@ -61,12 +79,12 @@
 
 | Flow | St | Roles | Preconditions | User Actions | System Actions | DB Updates | Inventory | Financial | Notify | Failure Cases | Recovery | Audit | Validations | Test Cases | API Events |
 |------|----|-------|---------------|--------------|----------------|------------|-----------|-----------|--------|----------------|----------|-------|-------------|------------|------------|
-| Walk-in order (counter) | I | Cashier | Auth + POS permission | Add items → Pay | `processCheckout` | `pos_orders` completed + items | **None** | +Sales, +Tax, +Cash/method | orders-updated | Gateway fail, empty cart | Retry pay; discard cart | **Missing** | Cart not empty; tender ≥ total (cash) | Happy path cash/UPI/card; tax calc | Insert order |
-| Attach table | I | Cashier/Waiter | Table free or allow occupy | Open table on POS | `ensureOpenBill` / `openTableOnPOS` | `pos_orders` open; table occupied | — | Open check (unpaid) | — | Table already billed | Move/merge or discard | Missing | Table exists; outlet match | Attach occupied vs free | Upsert open order |
-| Move table | I | Waiter/Manager | Open bill | Move party | `movePartyToTable` | Update `table_id` on open order | — | No change | — | Target occupied | Unmerge/choose free | Missing | Target free/valid | Move mid-prep | Update open order |
-| Merge tables | I | Waiter/Manager | ≥2 tables | Merge | `mergeTables` | Route bill to primary | — | Combined open check | — | Conflicting bills | Abort merge | Missing | Same outlet | Merge with KOTs fired | Update tables + bill |
+| Walk-in order (counter) | I | Cashier | Auth + POS permission | Add items → Pay | `processCheckout` | `pos_orders` + intent + items | **BOM deduct after pay** (if tracking on) | +Sales, +Tax, +Cash/method; shift attach | orders-updated + notify | Gateway fail, stock block, empty cart | Retry; do not double-charge (idempotency) | **Audit checkout** | Cart not empty; tender ≥ total; stock check | Happy path cash/UPI/card; tax; double-click | Intent + insert order |
+| Attach table | I | Cashier/Waiter | Table free or allow occupy | Open table on POS | `ensureOpenBill` / `openTableOnPOS` | `pos_orders` open; table occupied | — | Open check (unpaid) | — | Table already billed | Move/merge or discard | P | Table exists; outlet match | Attach occupied vs free | Upsert open order |
+| Move table | I | Waiter/Manager | Open bill | Move party | `movePartyToTable` | Update `table_id` on open order | — | No change | — | Target occupied | Unmerge/choose free | P | Target free/valid | Move mid-prep | Update open order |
+| Merge tables | I | Waiter/Manager | ≥2 tables | Merge | `mergeTables` | Route bill to primary | — | Combined open check | — | Conflicting bills | Abort merge | P | Same outlet | Merge with KOTs fired | Update tables + bill |
 | Split table (by seat) | M | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| Split payment (tender) | P | Cashier | Checkout open | Enter split lines | Sum ≥ total → pay as `split` | Single `payment_method=split` | — | Sales OK; method mix **lost** | — | Sum &lt; total | Fix lines | Missing | Sum ≥ total | 2-way / 3-way split | processCheckout |
+| Split payment (tender) | I/P | Cashier | Checkout open | Enter split lines | Validate sum → `completePaymentIntent` tender lines | Intent + `payment_method=split` + line rows | BOM as sale | Sales OK; method mix **on intent** | — | Sum &lt; total | Fix lines | Audit checkout | Sum ≥ total | 2-way / 3-way split | processCheckout |
 | Transfer waiter | M | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | Add items | I | Cashier/Waiter | Open cart/bill | Tap product | `addItem` / sync bill | Open order items (table) | Display OOS only | Open liability ↑ | — | OOS product | Block add | Missing | Product active | Add with modifiers | Upsert items |
 | Remove items | I | Cashier | Unfired / allowed | Remove line | Update cart/bill | Update items | — | Open ↓ | — | Fired item remove | Void flow (missing) | Missing | Permission | Remove unfired | Update |
@@ -80,23 +98,23 @@
 | Fire course | M | — | Courses model | — | — | — | — | — | — | — | — | — | — | — | — |
 | Void item | M | Manager | Fired/paid rules | — | Stub “approval” only | — | Should restore | Should reverse | — | — | — | Required | PIN + reason | — | — |
 | Void order | M | Manager | Open/completed rules | — | Stub | — | Restore | Reverse sale | — | — | — | Required | — | — | — |
-| Apply discount | P | Cashier+perm | Checkout | Enter %/amt | Apply to total | Stored on order fields | — | Sales ↓ | — | Over-discount | Cap | Missing | Max % / role | Cap 100% | — |
-| Apply coupon | P | Cashier | Valid voucher | Apply code | `useVoucherStore` validate | Order notes/discount | — | Sales ↓ | — | Expired/used | Reject | Missing | One-time / outlet | Valid/invalid | Voucher API |
-| Service charge | P | Cashier | Checkout | Toggle/rate | Add to total | On order | — | +SC | — | Wrong rate | Correct | Missing | Config rate | SC on/off | — |
-| Taxes | I | System | Tax rate set | Auto | Compute tax | Tax on order | — | +Tax | — | Wrong rate | Recalc | Missing | Inclusive/excl | GST cases | — |
+| Apply discount | I/P | Cashier+perm | Checkout | Enter %/amt | Apply; high discount → manager PIN | Stored on order fields | — | Sales ↓ | — | Over-discount | Cap + PIN | Audit + approval id | Max % / role | Cap 100%; PIN path | — |
+| Apply coupon | P | Cashier | Valid voucher | Apply code | `useVoucherStore` validate | Order notes/discount | — | Sales ↓ | — | Expired/used | Reject | P | One-time / outlet | Valid/invalid | Voucher API |
+| Service charge | P | Cashier | Checkout | Toggle/rate | Add to total | On order | — | +SC | — | Wrong rate | Correct | P | Config rate | SC on/off | — |
+| Taxes | I | System | Tax rate set | Auto | Compute tax | Tax on order | — | +Tax | — | Wrong rate | Recalc | P | Inclusive/excl | GST cases | — |
 | Partial payment | M | — | — | — | — | Balance due | — | Partial AR | — | — | — | — | — | — | — |
-| Cash / Card / UPI | I | Cashier | Checkout | Select method | Complete | Method + tender | — | Till impact | Receipt | Wrong tender | Adjust | Missing | Tender ≥ total | Each method | Insert |
-| Wallet / Gift / Store credit | P | Cashier | Checkout | Select | Prompt only | Method string | — | **No ledger** | — | Fake settle | Block launch | Required | Balance check | — | Ledger API |
-| Loyalty redeem | M | — | Points balance | — | Display only | — | — | — | — | — | — | — | — | — | — |
-| Round off | P | System | Checkout | Auto/option | Adjust paise | On total | — | ±Round | — | Policy mismatch | Config | Missing | Policy | ±0.50 | — |
-| Complete payment | I | Cashier | Valid tender | Complete | `processCheckout` | completed | **No deduct** | Close sale | Event | Double click | UI guard only | Missing | Idempotency | Double submit | Insert |
-| Print receipt | P | Cashier | Paid | Print | Thermal/`print` | — | — | — | — | Offline printer | Retry | Missing | — | Print | — |
-| WhatsApp receipt | P | Cashier | Paid + phone | Share | `wa.me` draft | — | — | — | WA draft | No phone | Ask phone | Missing | Phone format | With/without # | — |
+| Cash / Card / UPI | I | Cashier | Checkout | Select method | Complete + intent | Method + tender + txns | Deduct after pay | Till + shift | Receipt | Wrong tender | Adjust | Audit | Tender ≥ total | Each method | Intent + insert |
+| Wallet / Gift / Store credit | P | Cashier | Checkout | Select | Prompt only | Method string | — | **No ledger** | — | Fake settle | **Disable** | Required | Balance check | — | Ledger API |
+| Loyalty redeem | M | — | Points balance | — | Earn only today | — | — | — | — | — | — | — | — | — | — |
+| Round off | P | System | Checkout | Auto/option | Adjust paise | On total | — | ±Round | — | Policy mismatch | Config | P | Policy | ±0.50 | — |
+| Complete payment | I | Cashier | Valid tender | Complete | `processCheckout` | completed + intent succeeded | **BOM deduct** | Close sale + shift | Event + notify | Double click | Idempotency key + lock | Audit | Stock + cash validators | Double submit | Intent + insert |
+| Print receipt | P | Cashier | Paid | Print | Thermal/`print` | — | — | — | — | Offline printer | Retry | P | — | Print | — |
+| WhatsApp receipt | P | Cashier | Paid + phone | Share | `wa.me` draft | — | — | — | WA draft | No phone | Ask phone | P | Phone format | With/without # | — |
 | Email receipt | D | Cashier | Paid | Email | UI “queued” | — | — | — | Fake | — | — | — | Email valid | — | Email API |
 | Reopen bill | M | Manager | Completed | — | — | Reverse/reopen | Reverse | Reverse | — | Abuse | PIN | Required | Time window | — | — |
-| Refund | M | Manager | Completed | — | Filters only | — | Restore | Reverse | — | Fraud | — | Required | — | — | — |
+| Refund | I | Manager | Completed | New refund UI | `processRefund` + PIN | `refund_transactions` | **Restore BOM** | Reverse amount + shift refund | Notify/UI | Fraud / over-refund | Cap remaining | Audit refund | Amount ≤ remaining | Full/partial/item | Insert refund |
 | Exchange | M | — | — | — | — | — | Net Δ | Net Δ | — | — | — | — | — | — | — |
-| Cancel bill (open) | I | Cashier | Open check | Discard | `discardBill` | Delete open | — | No sale | — | Fired KOTs orphan | Cancel KOTs | Missing | Confirm | Discard after fire | Delete |
+| Cancel bill (open) | I | Cashier | Open check | Discard | `discardBill` | Delete open | — | No sale | — | Fired KOTs orphan | Cancel KOTs | P | Confirm | Discard after fire | Delete |
 
 ---
 
@@ -159,9 +177,12 @@
 | KOT cancellation | M | No cancel-KOT with inventory |
 | Course firing | M | — |
 | Item completed | P | Ticket-level KDS status, not item-level |
-| Kitchen delay | D | Online alert kind |
+| Bump / recall | I | `bumpOrder` / `recallOrder` on KDS |
+| Station routing filter | P | Keyword stations (Main/Bar/Coffee/Dessert/Tandoor) |
+| Lifecycle timestamps | I | `order_lifecycle_events` + kitchen transitions |
+| Kitchen delay | P | Age colors + notify on ready; no auto escalation job |
 | Priority order | D | Online `priority` flag |
-| Multiple kitchens | M | Single KDS |
+| Multiple kitchens | P | Station filter UI; DB `kitchen_stations` ready |
 | Kitchen reassignment | M | — |
 
 ---
@@ -170,16 +191,17 @@
 
 | Flow | St | Impact if launched as-is |
 |------|----|--------------------------|
-| Recipe deduction on POS sale | M | **Stock stays high; COGS wrong** |
-| Raw material deduction | M | Same |
+| Recipe deduction on POS sale | I | Deduct after pay when tracking on + recipes exist |
+| Pre-sale stock check | I | Blocks checkout when insufficient (ops settings) |
+| Raw material deduction | I | Via recipe BOM expansion |
 | Stock adjustment | I | Manual adjustments module |
 | Daily stock | I | Daily stock update module |
-| Stock transfer | P | Transfer in/out adjustments |
+| Stock transfer | I/P | Inter-store transfer + ledger (Phase 3); UI product UUID |
 | Wastage / spoilage | I | Waste log module |
-| Purchase receiving | I | PO receive updates stock |
-| Supplier return | M | — |
-| Stock reconciliation | P | Manual only |
-| Negative inventory | P | OOS display; no hard block everywhere |
+| Purchase receiving | I | PO Received → GRN preferred + ledger fallback |
+| Supplier return | P | `createPurchaseReturn` service; UI light |
+| Stock reconciliation | P | Manual + low-stock notify |
+| Negative inventory | P | Hard block when tracking disallows; else OOS display |
 
 ---
 
@@ -190,11 +212,11 @@
 | Create supplier | I |
 | Purchase order | I |
 | Approve PO | I |
-| Receive goods / partial | I / P |
+| Receive goods / partial | I / P (GRN formal path) |
 | Reject goods | P |
 | Supplier invoice | P |
 | Supplier payment | P |
-| Purchase return | M |
+| Purchase return | P (service; UI thin) |
 
 ---
 
@@ -204,7 +226,8 @@
 |------|----|
 | Walk-in / create / lookup | I / P |
 | Membership | M |
-| Loyalty earn / redeem | M (display only) |
+| Loyalty earn | I (1 pt / ₹100 when phone matches customer) |
+| Loyalty redeem | M |
 | Customer credit / payment / refund | M |
 
 ---
@@ -213,13 +236,13 @@
 
 | Flow | St | Risk |
 |------|----|------|
-| Cash / UPI / Card | I | Medium — no till reconciliation |
-| Split | P | High — method mix not stored |
-| Wallet / Credit / Gift / Store credit | P | **Critical** — can “pay” without balance |
+| Cash / UPI / Card | I | Medium — use shifts for till |
+| Split | I/P | Tender lines on payment intent; order still stores `split` |
+| Wallet / Credit / Gift / Store credit | P | **Critical** — disable until ledger |
 | Manual payment | I | — |
 | Payment retry / status check | P | Gateways have status poll |
-| Reversal / failure / timeout | P | Gateway paths partial |
-| Duplicate payment | P | UI debounce only — **no idempotency key** |
+| Reversal / failure / timeout | P | Gateway paths partial; refunds are internal |
+| Duplicate payment | I | Idempotency key + checkout lock + intent reuse |
 
 ---
 
@@ -227,10 +250,14 @@
 
 | Flow | St | Launch Blocker |
 |------|----|----------------|
-| Item / partial / full refund | M | **Yes** |
-| Cash / gateway / wallet / credit refund | M | **Yes** |
-| Inventory restoration | M | **Yes** |
-| Kitchen reversal | M | **Yes** |
+| Item / partial / full refund | I | No (cash/method path) |
+| Cash refund via shift | I | Attach refund txn when shift open |
+| Gateway / wallet reverse | M / P | **Yes** if using those methods |
+| Inventory restore | I | BOM restore best-effort |
+| Manager PIN | I | Required in RefundDialog |
+| Enterprise Refunds UI | I | `/erp/refunds` KPIs + drawer |
+| Void item / void order / reopen | M | **Yes** for full cash control |
+| Kitchen ticket reversal on refund | M | Medium |
 
 ---
 
@@ -238,10 +265,10 @@
 
 | Flow | St | Launch Blocker |
 |------|----|----------------|
-| Shift open / close | M | **Yes** (multi-cashier) |
-| Cash drawer / adjustment | M | **Yes** |
-| Expense / income / petty cash | M | High |
-| Day closing / Z / X report | M | **Yes** |
+| Shift open / close | I | No (require SOP: open before cash) |
+| Cash drawer / adjustment | I/P | Cash in/out on shift page |
+| Expense / income / petty cash | P | Shift txn types exist |
+| Day closing / Z / X report | I | Z variance on close |
 
 ---
 
@@ -253,7 +280,7 @@
 | Session timeout | P |
 | Permission denied | I |
 | Role validation | I |
-| Manager override / PIN | M |
+| Manager override / PIN | I (discount / refund / shift close) |
 
 ---
 
@@ -285,10 +312,15 @@ LocalStorage table bills help resilience but are **not** a full offline POS.
 | Event | St |
 |-------|----|
 | New online order toast | D |
-| Kitchen ready (KDS) | I (visual) |
+| Kitchen ready (KDS) | I (status + app notification) |
+| New kitchen order (checkout) | I |
 | Driver arrived | D |
 | Payment success UI | I |
 | Payment failed gateway | P |
+| Stock low | I (dashboard throttle + service) |
+| Purchase / GRN received | I |
+| Header notification center | I |
+| Desktop notification permission | P |
 | Refund notify | M |
 | Stock low | P / M |
 | Order delayed | D |
@@ -300,38 +332,38 @@ LocalStorage table bills help resilience but are **not** a full offline POS.
 | Validation | St | Launch Blocker |
 |------------|----|----------------|
 | Prevent duplicate orders | P | Medium |
-| Prevent duplicate payment | P | **Yes** |
-| Prevent negative stock | P | High |
-| Prevent over-discount | P | High |
+| Prevent duplicate payment | I | Cleared (intent + key) |
+| Prevent negative stock | I/P | When inventory tracking on |
+| Prevent over-discount | I/P | Cap + manager PIN path |
 | Prevent deleting paid bills | P | High |
 | Prevent editing completed orders | P | High |
-| Prevent invalid split | P | Medium |
+| Prevent invalid split | I | Validator |
 | Prevent invalid merge | P | Medium |
 | Prevent invalid transfer | P | Medium |
-| Prevent stock mismatch | M | **Yes** if inventory sold |
-| Prevent recipe mismatch | M | High |
-| Manager PIN on void/discount | M | **Yes** |
+| Prevent stock mismatch | P | Ledger + BOM; post-pay fail edge |
+| Prevent recipe mismatch | P | Deduct skips / warns without recipe |
+| Manager PIN on void/discount | P | Discount/refund/shift **I**; void still **M** |
 
 ---
 
 ## SECTION 17 — Audit log requirements
 
-**Current:** Missing dedicated audit store.
+**Current:** Implemented — `audit_logs` + `writeAuditLog` on checkout, refund, shift, PIN, purchase GRN.
 
 **Required on every sensitive op:**
 
-| Field | Required |
-|-------|----------|
-| User id / name / role | Yes |
-| Timestamp (UTC + local) | Yes |
-| Branch / outlet / terminal | Yes |
-| Action type | Yes |
-| Entity (order/item/payment) | Yes |
-| Old value / new value | Yes |
-| Reason / PIN approver | Yes |
-| IP / device / user-agent | Yes |
+| Field | Required | Status |
+|-------|----------|--------|
+| User id / name / role | Yes | I |
+| Timestamp (UTC + local) | Yes | I |
+| Branch / outlet / terminal | Yes | I / P |
+| Action type | Yes | I |
+| Entity (order/item/payment) | Yes | I |
+| Old value / new value | Yes | I |
+| Reason / PIN approver | Yes | I (approval id when used) |
+| IP / device / user-agent | Yes | P (UA stored; IP null client-side) |
 
-**Must-audit actions:** discount, void, refund, reopen, price override, discard after fire, cash adjust, stock adjust, permission override, gateway reverse.
+**Must-audit actions:** discount ✓, void ✗, refund ✓, reopen ✗, price override ✗, discard after fire ✗, cash adjust ✓ (shift), stock adjust ✓, permission override ✓ (PIN), gateway reverse ✗.
 
 ---
 
@@ -339,13 +371,13 @@ LocalStorage table bills help resilience but are **not** a full offline POS.
 
 | Transaction | Sales | Tax | Inventory | Recipe | Supplier | Customer | Cash | Shift | Profit | Loyalty | Analytics |
 |-------------|-------|-----|-----------|--------|----------|----------|------|-------|--------|---------|-----------|
-| Completed POS pay | ↑ | ↑ | **Should ↓ (now no)** | Should fire | — | Optional | ↑ method | Should ↑ | ↑ | Should earn | ↑ |
+| Completed POS pay | ↑ | ↑ | ↓ (BOM) | Fire deduct | — | Optional | ↑ method | ↑ attach | ↑ | Earn if phone | ↑ BI |
 | Open table bill | — | — | — | — | — | — | — | — | — | — | Open checks |
-| KOT fire | — | — | Should reserve | — | — | — | — | — | — | — | Kitchen SLA |
+| KOT fire | — | — | — | — | — | — | — | — | — | — | Kitchen SLA |
 | Discard open | — | — | — | — | — | — | — | — | — | — | Cancelled open |
 | Hold | — | — | — | — | — | — | — | — | — | — | Held count |
-| Refund (target) | ↓ | ↓ | ↑ restore | Reverse | — | History | ↓ | ↓ | ↓ | Reverse | Refunds |
-| PO receive | — | — | ↑ | — | ↑ liability | — | — | — | — | — | Purchases |
+| Refund | ↓ | ↓ | ↑ restore | Reverse | — | History | ↓ | ↓ refund txn | ↓ | — | Refunds UI |
+| PO receive / GRN | — | — | ↑ | — | ↑ | — | — | — | — | — | Purchases |
 | Waste | — | — | ↓ | — | — | — | — | — | ↓ | — | Waste |
 | Online demo | Fake metrics | — | — | — | — | — | — | — | — | — | **Exclude from live** |
 
@@ -358,11 +390,11 @@ LocalStorage table bills help resilience but are **not** a full offline POS.
 | Power failure mid-pay | Unclear; may orphan gateway session | Idempotent pay + resume |
 | Internet loss | Soft fail / local bills | Offline queue + sync |
 | Printer failure | Browser error | Queue + retry + alert |
-| Duplicate clicks | `isCompleting` UI | DB unique payment intent |
+| Duplicate clicks | `isCompleting` UI | DB unique payment intent + checkout lock |
 | Browser refresh | Cart may persist partially | Recover open bill |
 | Multiple tabs | Race on table bill | Optimistic lock / version |
 | Concurrent users same table | Last write wins | Lock / claim |
-| Simultaneous payment | Possible double complete | Idempotency key |
+| Simultaneous payment | Idempotency key + intent reuse | Keep unique constraint |
 | Kitchen offline | Ticket still inserted | Queue + KDS reconnect |
 | Gateway timeout | Status check path | Auto reconcile job |
 
@@ -370,25 +402,25 @@ LocalStorage table bills help resilience but are **not** a full offline POS.
 
 # PART B — Detailed flow cards (critical paths)
 
-### B1. Counter cash sale — **I** (inventory gap)
+### B1. Counter cash sale — **I**
 
 | Field | Detail |
 |-------|--------|
 | **Flow name** | Counter cash complete |
 | **User role** | Cashier (`POS_ACCESS`, `POS_CHECKOUT`) |
-| **Preconditions** | Logged in; cart has sellable items; outlet selected |
+| **Preconditions** | Logged in; cart has sellable items; outlet selected; prefer open shift |
 | **User actions** | Add items → Charge/Checkout → Cash → Enter tender → Complete |
-| **System actions** | Tax/SC/round → insert completed order → clear cart → receipt UI |
-| **Database** | `pos_orders`, `pos_order_items` |
-| **Inventory** | **None today** — must deduct recipe BOM |
-| **Financial** | +Gross, +Tax, +Cash tender, +Change |
-| **Notifications** | `cafepilots:orders-updated` |
-| **Failures** | Empty cart; tender &lt; total; DB insert fail |
-| **Recovery** | Re-open cart; retry insert; do not double-charge |
-| **Audit** | Missing — log amount, tender, change, user |
-| **Validations** | Qty&gt;0; price≥0; tender≥total; permission |
-| **Tests** | Exact tender; over-tender change; tax 18%; double-click |
-| **API** | Supabase insert; optional gateway N/A |
+| **System actions** | Validate tender → payment intent + lock → stock check → insert order → complete intent → BOM deduct → shift attach → audit → loyalty earn → notify |
+| **Database** | `pos_orders`, `pos_order_items`, `payment_intents`, `payment_transactions`, `inventory_transactions`, `shift_*`, `audit_logs` |
+| **Inventory** | Deduct recipe BOM after successful pay (if tracking enabled) |
+| **Financial** | +Gross, +Tax, +Cash tender, +Change; shift sale line |
+| **Notifications** | `cafepilots:orders-updated` + app notification (counter) |
+| **Failures** | Empty cart; tender &lt; total; stock block; DB insert fail; post-pay deduct fail (alert, sale kept) |
+| **Recovery** | Re-open cart; retry; idempotent replay if intent succeeded |
+| **Audit** | `checkout` action with totals / discount / approval |
+| **Validations** | Qty&gt;0; price≥0; tender≥total; permission; stock |
+| **Tests** | Exact tender; over-tender change; tax 18%; double-click; stock block |
+| **API** | Supabase insert; optional gateway |
 
 ### B2. Table dine-in settle — **I**
 
@@ -398,13 +430,13 @@ LocalStorage table bills help resilience but are **not** a full offline POS.
 | **Roles** | Waiter + Cashier |
 | **Preconditions** | Table available; schema deployed |
 | **Actions** | Open table → add → Send KOT → guest → Pay |
-| **System** | Open order upsert; sent tickets; settle closes open; table cleaning |
+| **System** | Open order upsert; sent tickets; settle closes open; table cleaning; inventory on settle |
 | **DB** | open / sent / completed rows; `dining_tables` |
-| **Inventory** | Not deducted |
+| **Inventory** | Deduct on settle (same checkout path) |
 | **Financial** | Sale on settle only |
 | **Failures** | Fire with no items; settle with gateway fail |
 | **Recovery** | Refire; retry pay; discard with manager |
-| **Audit** | Missing |
+| **Audit** | Checkout audit on settle |
 | **Tests** | Fire twice (only unfired); settle auto-fires remainder |
 
 ### B3. QR guest order — **I** (pay staff-side)
@@ -422,16 +454,18 @@ LocalStorage table bills help resilience but are **not** a full offline POS.
 | Field | Detail |
 |-------|--------|
 | **Flow** | Demo accept |
-| **System** | Zustand only; alert claims KOT |
-| **DB** | None |
+| **System** | Zustand only; bridges to notification center |
+| **DB** | None (no aggregator webhooks) |
 | **Do not** | Enable for real restaurants without integrator |
 
-### B5. Refund — **M** (blocker)
+### B5. Refund — **I**
 
 | Field | Detail |
 |-------|--------|
-| **Required** | Manager PIN → reason → reverse payment → restore stock → cancel/adjust KOT → audit → reports |
-| **Tests** | Partial/full; same-day; gateway reverse; cash out of drawer |
+| **Flow** | `/erp/refunds` → New Refund → PIN → `processRefund` |
+| **System** | Insert `refund_transactions` → update order refunded_amount → restore inventory → shift refund → audit |
+| **Gaps** | Gateway reverse; void/reopen; KOT cancel on refund |
+| **Tests** | Partial/full/item; same-day; remaining balance cap; PIN fail |
 
 ---
 
@@ -439,28 +473,29 @@ LocalStorage table bills help resilience but are **not** a full offline POS.
 
 | Priority | Module | Flow | Validation | Status | Risk | Complexity | Owner | Testing | Dependencies | Launch Blocker |
 |----------|--------|------|------------|--------|------|------------|-------|---------|--------------|----------------|
-| P0 | Payments | Idempotent complete | Unique payment_intent | P | Critical | M | Backend | Load + double click | DB constraint | **Yes** |
-| P0 | Refunds | Full/partial refund | PIN + reason | M | Critical | L | POS+Finance | Cash/gateway cases | Audit, inventory | **Yes** |
-| P0 | Inventory | Deduct on sale | Non-negative / allow oversell flag | M | Critical | L | Inventory | Recipe + modifiers | Recipes BOM | **Yes*** |
-| P0 | Shift | Open/close + Z | Drawer variance | M | Critical | L | Ops | Multi-cashier | Payments | **Yes** |
-| P0 | Audit | Write audit_log | Immutable | M | Critical | M | Platform | Tamper attempt | Auth | **Yes** |
+| P0 | Payments | Idempotent complete | Unique payment_intent | **I** | Critical | M | Backend | Load + double click | Phase1 SQL | Schema deploy |
+| P0 | Refunds | Full/partial/item | PIN + reason | **I** | Critical | L | POS+Finance | Cash cases | Audit, inventory | No* |
+| P0 | Inventory | Deduct on sale | Non-negative / allow oversell flag | **I** | Critical | L | Inventory | Recipe + modifiers | Recipes BOM | No* |
+| P0 | Shift | Open/close + Z | Drawer variance | **I** | Critical | L | Ops | Multi-cashier | Payments | SOP required |
+| P0 | Audit | Write audit_log | Immutable | **I** | Critical | M | Platform | Tamper attempt | Auth | Schema deploy |
 | P0 | Online | Hide/disable demo in prod | Feature flag | D | High | S | Product | Flag off | Config | **Yes** if marketed |
-| P1 | Payments | Split tender lines | Sum = total | P | High | M | POS | 3-way split | Reports | No |
+| P1 | Payments | Split tender lines | Sum = total | **I** | High | M | POS | 3-way split | Reports | No |
 | P1 | Voids | Void item/order | PIN + KOT reverse | M | High | L | POS+KDS | Fired vs unfired | Audit | **Yes** |
-| P1 | Discount | Cap + role | Max % | P | High | S | POS | Over-cap | Permissions | No |
+| P1 | Discount | Cap + role | Max % + PIN | **I**/P | High | S | POS | Over-cap | Permissions | No |
 | P1 | Locking | Bill version | Optimistic lock | M | High | M | Tables | 2 tabs | Realtime | No |
 | P1 | Wallet/Gift | Ledger balances | Sufficient funds | P | Critical | L | Finance | Overdraw | Customers | **Yes** if enabled |
 | P1 | Printer | ESC/POS queue | Retry | P | Medium | L | Ops | Offline printer | Hardware | No |
 | P2 | Online | Aggregator webhooks | Signature verify | D | Critical | XL | Integrations | SLA accept | Secrets | When selling |
-| P2 | Loyalty | Earn/redeem | Balance | M | Medium | L | CRM | Points math | Customers | No |
+| P2 | Loyalty | Earn/redeem | Balance | P (earn only) | Medium | L | CRM | Points math | Customers | No |
 | P2 | Takeaway | order_type + packing | Type required | M | Medium | M | POS | Packing | Menu | No |
-| P2 | Kitchen | Courses / stations | Route rules | M | Medium | L | KDS | Multi-station | Menu tags | No |
+| P2 | Kitchen | Courses / stations | Route rules | P | Medium | L | KDS | Multi-station | Menu tags | No |
 | P2 | Offline | Queue sync | Conflict UI | M | High | XL | Platform | Airplane mode | Local DB | Market-dependent |
 | P3 | Waiter transfer | Assign waiter | Role | M | Low | S | Tables | Transfer | Users | No |
 | P3 | Email receipt | Send email | Valid email | D | Low | M | Comms | Delivery | Provider | No |
-| P3 | Purchase return | Return to supplier | Qty | M | Medium | M | Purchase | Partial return | Stock | No |
+| P3 | Purchase return | Return to supplier | Qty | P | Medium | M | Purchase | Partial return | Stock | No |
+| P3 | BI / Copilot | Read-only intelligence | Plan gates | **I** | Low | M | SaaS | Outlet scope | Phase3 | No |
 
-\*Blocker if restaurant relies on live stock/COGS; waive only with written ops policy (manual daily stock).
+\*Not a blocker when Phase 1 SQL is applied, inventory tracking configured, and recipes exist. Waive stock deduct only with written ops policy.
 
 ---
 
@@ -472,88 +507,88 @@ See **PART A** (Sections 1–15). Count of tracked flows: **120+**.
 
 ## 2. Validation Checklist (QA gate)
 
-- [ ] Empty cart cannot complete  
-- [ ] Cash tender ≥ total  
-- [ ] Discount ≤ role max  
+- [x] Empty cart cannot complete  
+- [x] Cash tender ≥ total  
+- [x] Discount ≤ role max / PIN on high discount  
 - [ ] Voucher expiry / one-time / outlet  
-- [ ] Split sum ≥ total; persist lines  
-- [ ] Double Complete does not create 2 sales  
+- [x] Split sum ≥ total; persist lines on intent  
+- [x] Double Complete does not create 2 sales (idempotency)  
 - [ ] Completed bill not editable without reopen+PIN  
 - [ ] Paid bill not deletable  
-- [ ] Merge/move only valid tables same outlet  
-- [ ] Fire only unfired lines  
-- [ ] Stock cannot go negative (or flagged oversell)  
-- [ ] Recipe exists before deduct  
-- [ ] Gateway success required before complete  
+- [x] Merge/move only valid tables same outlet  
+- [x] Fire only unfired lines  
+- [x] Stock cannot go negative when tracking disallows  
+- [x] Recipe deduct path (warn if missing recipes)  
+- [ ] Gateway success required before complete (gateway paths)  
 - [ ] Online accept only when connected + within SLA  
-- [ ] Manager PIN on void/refund/reopen/high discount  
+- [x] Manager PIN on refund / high discount / shift close (void/reopen still open)
 
 ## 3. QA Checklist
 
 | Suite | Cases |
 |-------|-------|
 | Smoke | Login → POS cash sale → history → logout |
-| Table | Open → add → KOT → KDS advance → pay → cleaning |
+| Table | Open → add → KOT → KDS bump → pay → cleaning |
 | QR | Scan → order → KDS → staff pay |
-| Payments | Cash/UPI/Card/gateway happy + fail |
+| Payments | Cash/UPI/Card/gateway happy + fail + double-click |
 | Held | Hold → resume → pay |
 | Merge/Move | Two tables; mid-KOT move |
 | Negative | Double pay; over-discount; discard after fire |
-| Inventory | (After fix) sale deducts; refund restores |
-| Shift | (After fix) open → sales → close → Z matches |
+| Inventory | Sale deducts; refund restores; stock block |
+| Shift | Open → sales → close → Z matches |
+| Refunds | Full/partial/item + PIN + inventory chip |
+| BI/Copilot | Intelligence KPIs; copilot sales/stock prompts |
 | Concurrency | Two devices same table |
 | Print | Receipt + KOT browser/device |
 | Permissions | Cashier vs manager vs kitchen |
 
-## 4. Missing Features List (launch-critical first)
+## 4. Remaining gaps (launch-critical first)
 
-1. Refunds + voids + reopen with PIN  
-2. Inventory/recipe deduction on POS sale  
-3. Shift / cash drawer / Z-X reports  
-4. Immutable audit log  
-5. Payment idempotency  
-6. Wallet/gift/store-credit ledgers (or disable methods)  
-7. Split tender line persistence  
-8. Live online aggregator integration  
-9. Offline billing sync  
-10. Manager override PIN  
-11. Optimistic locking on open bills  
-12. Order types (dine-in / takeaway / delivery)  
-13. Partial payments / balance due  
-14. Course-based firing / multi-kitchen  
-15. Waiter assignment transfer  
-16. Purchase returns  
-17. Loyalty earn/redeem  
-18. Real email receipts + printer queue  
+1. Voids + reopen with PIN  
+2. Wallet/gift/store-credit ledgers (**or disable methods**)  
+3. Live online aggregator integration (keep hub labeled demo)  
+4. Offline billing sync  
+5. Optimistic locking on open bills  
+6. Order types (dine-in / takeaway / delivery)  
+7. Partial payments / balance due  
+8. Course-based firing / full multi-kitchen config UI  
+9. Loyalty **redeem**  
+10. Gateway refund reverse  
+11. Real email receipts + printer queue  
+12. JWT-bound RLS multi-tenancy  
+
+**Cleared (Wave 1–2):** refunds, inventory deduct/restore, shifts, audit, payment idempotency, manager PIN, split tender lines, GRN receive, loyalty earn, KDS bump/recall, notifications.
 
 ## 5. Production Readiness Score
 
 | Area | Score | Weight | Weighted |
 |------|------:|-------:|---------:|
-| Billing accuracy | 70 | 15% | 10.5 |
-| Payment integrity | 55 | 15% | 8.3 |
-| Inventory integrity | 28 | 15% | 4.2 |
-| Kitchen ops | 72 | 10% | 7.2 |
-| Refunds/voids | 15 | 10% | 1.5 |
-| Shift/cash control | 5 | 10% | 0.5 |
-| Audit/security | 25 | 10% | 2.5 |
-| Online channels | 20 | 5% | 1.0 |
-| Reporting | 65 | 5% | 3.3 |
+| Billing accuracy | 82 | 15% | 12.3 |
+| Payment integrity | 78 | 15% | 11.7 |
+| Inventory integrity | 72 | 15% | 10.8 |
+| Kitchen ops | 80 | 10% | 8.0 |
+| Refunds/voids | 65 | 10% | 6.5 |
+| Shift/cash control | 70 | 10% | 7.0 |
+| Audit/security | 70 | 10% | 7.0 |
+| Online channels | 22 | 5% | 1.1 |
+| Reporting / BI | 78 | 5% | 3.9 |
 | Offline/resilience | 15 | 5% | 0.8 |
-| **TOTAL** | | **100%** | **≈ 40 / 100** |
+| **TOTAL** | | **100%** | **≈ 69 / 100** |
 
-**Rounded readiness: 42/100 — Conditional pilot only** (single branch, trained staff, inventory manual, online hub off, no wallet methods).
+**Rounded readiness: 68/100 — Conditional single-outlet pilot**  
+Schemas applied · inventory tracking on · recipes for sold items · Online Hub simulator off / labeled demo · wallet methods disabled · shifts mandatory SOP · no claim of live Swiggy/Zomato.
 
 ## 6. Security Review
 
 | Finding | Severity |
 |---------|----------|
-| No manager PIN on void/discount | High |
-| No audit trail for money events | Critical |
+| Manager PIN on discount/refund/shift | Mitigated |
+| Void/reopen still without PIN flow | High |
+| Audit trail for money events | Mitigated (deploy schema) |
 | RLS often disabled (MVP) | High |
 | Gateway secrets must stay server-side | OK if followed |
 | Demo online orders could confuse staff | Medium |
-| Permission model exists but override missing | Medium |
+| Permission model + SaaS BI/AI plan gates | OK |
 
 ## 7. Performance Review
 
@@ -562,60 +597,72 @@ See **PART A** (Sections 1–15). Count of tracked flows: **120+**.
 | POS grid | Acceptable; watch image load |
 | Table hydrate interval | 15s poll — OK for mid volume |
 | Online simulator timers | Disable in prod |
-| KDS realtime | Good pattern |
-| 1000+ online orders/day | **Not ready** without DB + indexing + virtualization hardening |
+| KDS realtime | Good pattern + station filter |
+| BI / Copilot | Client-side enrichment; fine for mid volume |
+| 1000+ online orders/day | **Not ready** without live ingest + indexing |
 
 ## 8. Data Integrity Review
 
 | Issue | Severity |
 |-------|----------|
-| Split method loses tender breakdown | High |
+| Split method on order row still `split` (lines on intent) | Medium |
 | Counter sale may appear on KDS as pending | Medium |
 | Held transfer does not bind real table bill | Medium |
-| No payment idempotency key | Critical |
+| Payment idempotency key | Mitigated |
 | Open bill last-write-wins | High |
+| Post-pay inventory deduct failure | High (manual adjust) |
 
 ## 9. Inventory Integrity Review
 
 | Issue | Severity |
 |-------|----------|
-| POS sale does not consume stock | **Critical** |
-| Refund cannot restore (no refund) | Critical |
-| Waste/PO receive work in isolation | OK |
-| OOS is soft | Medium |
+| BOM deduct on paid sale | Mitigated when recipes + tracking on |
+| Refund restore | Mitigated |
+| GRN on PO receive | Mitigated (Phase 2 tables) |
+| Theoretical vs physical variance UI | Partial |
+
+---
+
+## Changelog
+
+| Date | Change |
+|------|--------|
+| 2026-07-21 | Initial matrix — readiness **42/100** |
+| 2026-07-21 | Re-audit after Phase 1–3 on `ec5cf48` — readiness **68/100**; Wave 1–2 blockers cleared in code |
 
 ## 10. Accounting Integrity Review
 
 | Issue | Severity |
 |-------|----------|
-| No shift Z to prove cash | Critical |
-| Wallet/gift can record sale without asset move | Critical |
+| Shift Z available when schema + SOP followed | Mitigated |
+| Wallet/gift can record sale without asset move | **Critical** — disable |
 | Tax computed but inclusive/exclusive policy unclear | Medium |
 | Service charge / round-off partial | Medium |
-| Refunds absent → books irreversible without manual JV | Critical |
+| Refunds coded; gateway reverse still manual | Medium |
 | Online demo metrics must not enter finance | High |
 
 ---
 
 # PART E — Recommended launch waves
 
-### Wave 0 — Pilot (single outlet) — 2–4 weeks
-- Disable Online Hub in production UI (or label DEMO)  
+### Wave 0 — Pilot (single outlet) — now
+- Phase 1–3 SQL applied  
+- Disable Online Hub simulator / label DEMO  
 - Disable wallet/gift/store credit methods  
-- Document manual inventory closing  
-- Train: no voids except discard open before pay  
-- Cash/UPI/Card + table + KDS + QR only  
+- Recipes on sold items; inventory tracking on  
+- Open shift before cash sales  
+- Cash/UPI/Card + table + KDS + QR + refunds  
 
-### Wave 1 — Cash control — **must before multi-shift**
-- Shift open/close + Z report  
-- Refunds/voids + PIN  
-- Audit log  
-- Payment idempotency  
+### Wave 1 — Cash control — **mostly done in code**
+- ~~Shift open/close + Z report~~ ✓  
+- ~~Refunds + PIN~~ ✓ (voids/reopen still open)  
+- ~~Audit log~~ ✓  
+- ~~Payment idempotency~~ ✓  
 
-### Wave 2 — Stock integrity
-- Recipe deduct on complete  
-- Restore on refund  
-- Hard OOS policy  
+### Wave 2 — Stock integrity — **mostly done in code**
+- ~~Recipe deduct on complete~~ ✓  
+- ~~Restore on refund~~ ✓  
+- Hard OOS policy — configure via ops settings  
 
 ### Wave 3 — Channels
 - Aggregator webhooks  
@@ -625,7 +672,7 @@ See **PART A** (Sections 1–15). Count of tracked flows: **120+**.
 ### Wave 4 — Resilience
 - Offline queue  
 - Printer service  
-- Multi-kitchen / courses  
+- Full multi-kitchen / courses  
 
 ---
 
@@ -651,12 +698,12 @@ See **PART A** (Sections 1–15). Count of tracked flows: **120+**.
 
 | Role | Question | Sign |
 |------|----------|------|
-| Product | Accept Wave 0 scope? | ____ |
-| Engineering | P0 backlog estimated? | ____ |
+| Product | Accept Wave 0 scope at 68/100? | ____ |
+| Engineering | Phase SQL deployed on all envs? | ____ |
 | QA | Validation checklist automated? | ____ |
-| Finance | Inventory & refund gaps accepted for pilot? | ____ |
-| Ops | Staff SOPs for no-void / manual stock? | ____ |
+| Finance | Wallet disabled; refund SOP OK? | ____ |
+| Ops | Shift open + recipe BOM SOP? | ____ |
 
 ---
 
-*This matrix is grounded in the current CafePilots codebase. Re-score after each Wave. Companion narrative: `TRANSACTION_FLOWS.md`.*
+*This matrix is grounded in the CafePilots codebase after Phase 1–3. Re-score after voids/online/offline waves. Companion narrative: `TRANSACTION_FLOWS.md`.*

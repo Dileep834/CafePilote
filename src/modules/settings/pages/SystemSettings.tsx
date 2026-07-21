@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSettingsStore } from '../store/useSettingsStore';
 import type { TableViewMode, TableBoardLayout } from '../store/useSettingsStore';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -13,15 +13,20 @@ import { BRAND, HQ_COMPANY_NAME } from '@/constants';
 import { PERMISSIONS } from '@/constants/permissions';
 import { cn } from '@/lib/utils';
 import { OutletFloorPlanMapper } from '@/modules/floordesigner/components/OutletFloorPlanMapper';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { isSuperAdmin } from '@/lib/access';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { useHasPermission } from '@/hooks/useHasPermission';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
+
+type SettingsTab = 'general' | 'payments' | 'permissions';
 
 export function SystemSettings() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuthStore();
   const canManageSettings = useHasPermission(PERMISSIONS.SETTINGS_MANAGE);
+  const { has: hasFlag, planLabel } = useFeatureFlags();
   const settings = useSettingsStore();
   const planId = useTenantStore((s) => s.planId);
   const setPlanId = useTenantStore((s) => s.setPlanId);
@@ -39,10 +44,26 @@ export function SystemSettings() {
     tableBoardLayout: settings.tableBoardLayout,
   });
   const [isSaved, setIsSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState<'general' | 'payments' | 'permissions'>('general');
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<SettingsTab>(
+    tabParam === 'payments' || tabParam === 'permissions' ? tabParam : 'general'
+  );
   const canManageSubscriptions = isSuperAdmin(user);
   const activePlanId = normalizePlanId(planId);
-  const canUseStaffManagement = canManageSubscriptions || hasPlanModule(activePlanId, 'staff');
+  const canUseStaffManagement =
+    (canManageSubscriptions || hasPlanModule(activePlanId, 'staff')) && hasFlag('staff');
+  const canUsePaymentsTab = hasFlag('payments');
+
+  useEffect(() => {
+    if (tabParam === 'payments' || tabParam === 'permissions' || tabParam === 'general') {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+
+  const selectTab = (tab: SettingsTab) => {
+    setActiveTab(tab);
+    setSearchParams(tab === 'general' ? {} : { tab }, { replace: true });
+  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,14 +119,16 @@ export function SystemSettings() {
             <Settings className="w-6 h-6 text-orange-600" />
             System Configuration
           </h1>
-          <p className="text-slate-500 text-sm">Manage global preferences and staff access levels.</p>
+          <p className="text-slate-500 text-sm">
+            Manage preferences for the <span className="font-semibold text-slate-700">{planLabel}</span> plan.
+          </p>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex border-b border-slate-200">
         <button
-          onClick={() => setActiveTab('general')}
+          onClick={() => selectTab('general')}
           className={`px-6 py-3 font-bold text-sm transition-colors border-b-2 -mb-px flex items-center gap-2 ${
             activeTab === 'general'
               ? 'border-orange-600 text-orange-700'
@@ -117,7 +140,7 @@ export function SystemSettings() {
         </button>
         {canUseStaffManagement && (
           <button
-            onClick={() => setActiveTab('permissions')}
+            onClick={() => selectTab('permissions')}
             className={`px-6 py-3 font-bold text-sm transition-colors border-b-2 -mb-px flex items-center gap-2 ${
               activeTab === 'permissions'
                 ? 'border-orange-600 text-orange-700'
@@ -128,17 +151,19 @@ export function SystemSettings() {
             Roles & Permissions
           </button>
         )}
-        <button
-          onClick={() => setActiveTab('payments')}
-          className={`px-6 py-3 font-bold text-sm transition-colors border-b-2 -mb-px flex items-center gap-2 ${
-            activeTab === 'payments'
-              ? 'border-orange-600 text-orange-700'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <CreditCard className="w-4 h-4" />
-          Payment Gateways
-        </button>
+        {canUsePaymentsTab && (
+          <button
+            onClick={() => selectTab('payments')}
+            className={`px-6 py-3 font-bold text-sm transition-colors border-b-2 -mb-px flex items-center gap-2 ${
+              activeTab === 'payments'
+                ? 'border-orange-600 text-orange-700'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <CreditCard className="w-4 h-4" />
+            Payment Gateways
+          </button>
+        )}
       </div>
 
       {activeTab === 'general' ? (
@@ -467,7 +492,7 @@ export function SystemSettings() {
           </div>
         </div>
       </div>
-      ) : activeTab === 'payments' ? (
+      ) : activeTab === 'payments' && canUsePaymentsTab ? (
         <div className="animate-in fade-in slide-in-from-right-4 duration-300">
           <PaymentGatewaySettings />
         </div>

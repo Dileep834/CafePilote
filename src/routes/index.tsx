@@ -30,6 +30,7 @@ import { SuppliersList } from '../modules/purchase/pages/SuppliersList';
 import { FranchiseManagement } from '../modules/franchise/pages/FranchiseManagement';
 import { CustomerManagement } from '../modules/crm/pages/CustomerManagement';
 import { SystemSettings as ERPSystemSettings } from '../modules/settings/pages/SystemSettings';
+import { ControlPanelPage } from '../modules/controlPanel';
 import { UserManagement } from '../modules/users/pages/UserManagement';
 import { UserLogs } from '../modules/users/pages/UserLogs';
 import { VoucherManagement } from '../modules/marketing/pages/VoucherManagement';
@@ -396,6 +397,14 @@ const AppRoutes = () => {
             }
           />
           <Route
+            path="control-panel"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.SETTINGS_MANAGE} requiredPlanModule="settings">
+                <ControlPanelPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="settings"
             element={
               <ProtectedRoute requiredPermission={PERMISSIONS.SETTINGS_MANAGE} requiredPlanModule="settings">
@@ -428,6 +437,7 @@ const AppRoutes = () => {
         <Route path="/dashboard" element={<Navigate to="/erp" replace />} />
         <Route path="/reports" element={<Navigate to="/erp/reports" replace />} />
         <Route path="/settings" element={<Navigate to="/erp/settings" replace />} />
+        <Route path="/control-panel" element={<Navigate to="/erp/control-panel" replace />} />
         <Route path="/users" element={<Navigate to="/erp/users" replace />} />
         <Route path="/sales/entry" element={<Navigate to="/erp/pos" replace />} />
 

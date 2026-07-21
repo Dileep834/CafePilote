@@ -2,8 +2,9 @@
 
 Complete guide to how money and orders move through CafePilots POS / ERP.
 
-**Last updated:** 2026-07-21  
-**Scope:** Counter POS, table billing, held orders, payments, QR guest ordering, kitchen (KDS), Online Order Hub, refunds, inventory, reports.
+**Last updated:** 2026-07-21 (Phase 1–3 re-audit)  
+**Scope:** Counter POS, table billing, held orders, payments, QR guest ordering, kitchen (KDS), Online Order Hub (demo), refunds, inventory, shifts, audit, BI/Copilot.  
+**Readiness:** See `TRANSACTION_FLOW_MATRIX.md` — **68/100** conditional pilot.
 
 ---
 
@@ -26,8 +27,15 @@ Complete guide to how money and orders move through CafePilots POS / ERP.
 | `pos_orders` | Sales, open checks, kitchen tickets, held orders |
 | `pos_order_items` | Line items |
 | `dining_tables` | Table status + QR tokens |
-| `customers` | Optional CRM at checkout |
-| `inventory` / `daily_stock` / `sale_items` | Legacy Sales Entry only — **not** POS checkout |
+| `customers` | Optional CRM at checkout (+ loyalty points) |
+| `payment_intents` / `payment_transactions` | Checkout idempotency + tender lines |
+| `refund_transactions` | Full / partial / item refunds |
+| `inventory` / `inventory_transactions` | Stock + ledger movements |
+| `shift_headers` / `shift_transactions` | Till open/close + Z |
+| `audit_logs` | Immutable sensitive-action trail |
+| `order_lifecycle_events` | Kitchen / order state timestamps |
+| `purchase_grn` (+ items) | Goods received formalization |
+| `app_notifications` | In-app / desktop alerts |
 
 ### `pos_orders.status`
 
@@ -37,23 +45,24 @@ Complete guide to how money and orders move through CafePilots POS / ERP.
 | `sent` | Kitchen ticket (shown on KDS) |
 | `held` | Parked counter order |
 | `completed` | Paid sale |
+| `refunded` | Fully refunded |
 
 ### `kitchen_status`
 
-`pending` → `preparing` → `ready` → `delivered`
+`pending` → `preparing` → `ready` → `delivered` (bump advances; recall restores to ready)
 
 ### Schema scripts
 
-- `01_pos_orders.sql` — base tables  
-- `02_kds_updates.sql` — kitchen status  
-- `scripts/table_billing_schema.sql` — table billing columns  
-- `03_fix_pos_rls.sql` — RLS (often disabled for MVP)
+- Phase 1: `scripts/phase1_production_schema.sql`  
+- Phase 2: `scripts/phase2_enterprise_schema.sql`  
+- Phase 3: `scripts/phase3_saas_schema.sql`  
+- Legacy: table billing / KDS / RLS scripts as before  
 
 ### External services
 
 - **Supabase** — DB + KDS realtime  
 - **Paytm / PhonePe / Amazon Pay** — `server/paymentGateways.js`, `api/payment-gateways/*`  
-- **No Razorpay** in codebase today
+- **No Razorpay** in codebase today  
 
 ---
 
@@ -113,20 +122,27 @@ flowchart TD
 
 ```
 Add items → Cart → Charge / Quick settle → Payment → pos_orders (completed)
+  → payment intent → stock check → BOM deduct → shift attach → audit → loyalty earn
 ```
 
 1. Staff adds products → `usePOSStore.addItem`
-2. Optional discount, notes, customer on cart
+2. Optional discount, notes, customer on cart (high discount → manager PIN on checkout)
 3. **Full checkout:** navigate to `/erp/pos/checkout` → choose method → `handleCompleteOrder` → `processCheckout`
 4. **Quick settle:** set method + tender on cart → `processCheckout` → success via `?settled=quick`
-5. Tax applied (default 18%), insert:
-   - `pos_orders` — `status: completed`, `order_source: 'pos'`
-   - `pos_order_items` — line items
-6. Cart cleared; `lastOrder` set; event `cafepilots:orders-updated`
+5. Tax applied (default 18%), then Phase 1 path:
+   - create/reuse `payment_intents` (idempotency key + checkout lock)
+   - `checkInventoryForSale` (blocks if tracking disallows negative)
+   - insert `pos_orders` / `pos_order_items`
+   - `completePaymentIntent` (+ tender lines for split)
+   - `deductInventoryForSale` (recipe BOM)
+   - `attachSaleToOpenShift` + `writeAuditLog`
+   - `earnLoyaltyPoints` when customer phone matches
+6. Cart cleared; `lastOrder` set; event `cafepilots:orders-updated` (+ notification for counter kitchen)
 7. Success UI → print / WhatsApp receipt (optional)
 
-**Tables:** `pos_orders`, `pos_order_items` (+ optional `customers`)  
-**Note:** Counter completed orders get `kitchen_status: pending` and can appear on KDS.
+**Tables:** `pos_orders`, `pos_order_items`, `payment_*`, `inventory_transactions`, `shift_*`, `audit_logs`  
+**Note:** Counter completed orders get `kitchen_status: pending` and can appear on KDS.  
+**Modules:** `/erp/shifts`, `/erp/refunds`, `/erp/audit`, `/erp/intelligence`, `/erp/copilot`
 
 ---
 
@@ -195,13 +211,13 @@ Seat table → Open bill → Add items → Send to kitchen → Guest eats → Pa
 
 ## 6. Split payment & table move / merge
 
-### Split payment — Partial
+### Split payment — Implemented (intent lines)
 
 **Entry:** Cart Split → `/erp/pos/checkout?split=1`, or Split method on checkout  
 
-**Flow:** Staff enters split lines → sum must cover total → `processCheckout` with `payment_method: 'split'`  
+**Flow:** Staff enters split lines → sum must cover total → `processCheckout` with `payment_method: 'split'` → `completePaymentIntent` stores **per-method tender lines** on the intent.
 
-**Gap:** No per-method tender rows stored — only a single `split` method on the order.
+**Note:** Order row still stores `payment_method: 'split'`; detailed mix lives on `payment_transactions` / intent lines.
 
 ### Table move / merge — Production
 
@@ -217,12 +233,12 @@ Seat table → Open bill → Add items → Send to kitchen → Guest eats → Pa
 
 | Method | Real money movement | Persisted as |
 |--------|---------------------|--------------|
-| Cash | Manual tender / change | `payment_method`, `tendered_amount`, `change_due` |
-| Card | Manual (terminal outside app) | `card` |
-| UPI | Manual “Mark received” | `upi` |
-| Wallet / gift / store credit | Prompt only — no ledger | method string |
-| Split | Multi-line UI | single `split` |
-| Paytm / PhonePe / Amazon Pay | Live gateway when configured | method + provider IDs in notes |
+| Cash | Manual tender / change | `payment_method`, `tendered_amount`, `change_due` + intent |
+| Card | Manual (terminal outside app) | `card` + intent |
+| UPI | Manual “Mark received” | `upi` + intent |
+| Wallet / gift / store credit | Prompt only — **no ledger** | method string — **disable in pilot** |
+| Split | Multi-line UI | `split` on order + **tender lines on intent** |
+| Paytm / PhonePe / Amazon Pay | Live gateway when configured | method + provider IDs in notes + intent |
 
 ### Gateway flow (Paytm / PhonePe / Amazon Pay)
 
@@ -303,12 +319,14 @@ pending → preparing → ready → delivered
 
 - Fetches `pos_orders` where kitchen status ≠ `delivered` and status ∉ `{open, held}`
 - Realtime channel: `kds_orders_channel`
+- Station filter + bump / recall (Phase 2)
+- Lifecycle timestamps on `order_lifecycle_events`
 
 ---
 
 ## 10. Online Order Hub (Swiggy / Zomato / ONDC / etc.)
 
-**Status:** Demo / stub  
+**Status:** Demo / stub — **do not sell as live**  
 
 **Entry**
 
@@ -352,34 +370,37 @@ Seed / Demo simulator → Local Zustand order
 
 ## 11. Refunds / voids
 
-**Status:** Mostly stub  
+**Status:** Refunds **Production** (schema required) · Voids / reopen **Missing**
 
 | Action | Behavior | Status |
 |--------|----------|--------|
+| `/erp/refunds` | Full / partial / item refund + PIN + inventory restore | **I** |
 | Checkout **Void Bill** | Notice only (“manager approval”) | Stub |
-| History filters cancelled / refunded | Query filters only | No write path |
+| History filters cancelled / refunded | Query filters + refunded status | Partial |
 | History **Reorder** | Re-adds lines to cart | Works |
 | Discard open table bill | Deletes cloud open check | Ops cancel, not refund |
 | Discard held | Deletes held row | Works |
 | Online hub `refunded` | Demo status | Demo |
+| Reopen paid bill | — | **M** |
 
-There is **no** POS action that marks a completed sale as refunded or reverses tender.
+Refunds write `refund_transactions`, may set order `refunded`, restore BOM stock, and audit. Gateway reverse is still manual / SOP.
 
 ---
 
 ## 12. Inventory on sale
 
-**Status:** Not wired to POS  
+**Status:** Wired to POS checkout (Phase 1) when recipes + tracking + schema are on  
 
 | Path | Deducts stock? |
 |------|----------------|
-| `processCheckout` | No |
-| Table / QR / kitchen | No |
-| Online hub accept | No |
-| Legacy `SalesEntry` (`/sales/entry` → redirects to POS) | Yes (recipes → inventory) |
-| Product grid OOS | Display only |
+| `processCheckout` | **Yes** — check before pay, BOM deduct after pay |
+| Refund path | **Yes** — restore on refund |
+| Table / QR / kitchen fire | No (deduct on **pay**, not fire) |
+| Online hub accept | No (demo) |
+| PO receive | GRN + ledger (Phase 2) |
+| Product grid OOS | Soft display; hard block via checkout stock check when tracking on |
 
-POS records sales **without** consuming inventory / recipe BOM.
+**Gap:** If deduct fails after payment, sale stays — staff must adjust manually (alert).
 
 ---
 
@@ -387,12 +408,13 @@ POS records sales **without** consuming inventory / recipe BOM.
 
 **Status:** Production  
 
-**Write:** Every paid checkout → `pos_orders` + `pos_order_items` (`status: completed`)
+**Write:** Every paid checkout → `pos_orders` + `pos_order_items` (`status: completed`) + intent / shift / audit side effects
 
 **Read**
 
 - `src/modules/reports/store/useReportStore.ts` — `status = completed`
 - `src/modules/pos/components/POSOrderHistory.tsx`
+- `/erp/intelligence` Executive BI · `/erp/copilot` AI Copilot
 - Event `cafepilots:orders-updated` after checkout
 
 Open / sent / held rows are **excluded** from sales revenue reports by design.
@@ -403,7 +425,7 @@ Open / sent / held rows are **excluded** from sales revenue reports by design.
 
 | Channel | Order created | Kitchen | Customer pays | Staff settles |
 |---------|---------------|---------|---------------|---------------|
-| Counter POS | On checkout | Optional (pending on complete) | At counter | Same step |
+| Counter POS | On checkout | Optional (pending on complete) | At counter | Same step (+ deduct/shift) |
 | Table dine-in | Open check early | On Send | At counter / table | Checkout |
 | QR guest | On submit | Immediate | Later | Staff on POS |
 | Online Hub | Demo local only | Simulated alert | N/A (demo) | N/A |
@@ -420,25 +442,35 @@ Open / sent / held rows are **excluded** from sales revenue reports by design.
 | Table bills | `src/modules/tables/store/useTableBillStore.ts` |
 | Tables UI | `src/modules/tables/pages/TablesDashboard.tsx` |
 | Kitchen | `src/modules/kitchen/` |
+| Ops (refund/shift/audit/inventory) | `src/modules/ops/` |
+| SaaS (BI/Copilot/API) | `src/modules/saas/` |
 | QR guest | `src/modules/customer/` |
 | Online hub | `src/modules/pos/onlineOrders/` |
 | Gateways (client) | `src/modules/pos/services/paymentGatewayService.ts` |
 | Gateways (server) | `server/paymentGateways.js`, `api/payment-gateways/` |
 | Reports | `src/modules/reports/` |
-| Schema | `scripts/table_billing_schema.sql`, `01_pos_orders.sql`, `02_kds_updates.sql` |
+| Schema | `scripts/phase1_production_schema.sql`, `phase2_enterprise_schema.sql`, `phase3_saas_schema.sql` |
 
 ---
 
 ## 16. Known gaps (roadmap)
 
 1. **Online Order Hub** → real aggregator webhooks + DB  
-2. **Refunds / voids** → manager-approved write path  
-3. **Inventory** → deduct on `processCheckout` / recipe fire  
-4. **Split tender** → persist multiple payment lines  
-5. **Wallet / gift / credit** → balance ledger  
+2. **Voids / reopen bill** → manager-approved write path  
+3. **Wallet / gift / credit** → balance ledger (disable until then)  
+4. **Loyalty redeem** (earn exists)  
+5. **Offline billing** queue  
 6. **Guest QR payment** → optional pay-before-fire  
-7. **Razorpay** (or other) if required by market  
+7. **Gateway refund reverse** automation  
+8. **Hard OOS policy** as outlet default  
 
 ---
 
-*Generated from the CafePilots codebase. Update this file when transaction paths change.*
+## Related
+
+- Scorecard matrix: `TRANSACTION_FLOW_MATRIX.md` (**68/100**)
+- Phase docs: `PHASE1_README.md`, `PHASE2_README.md`, `PHASE3_README.md`
+
+---
+
+*Generated from the CafePilots codebase after Phase 1–3. Update when transaction paths change.*

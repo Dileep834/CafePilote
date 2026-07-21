@@ -14,6 +14,21 @@ type Props = {
   onBranchChange?: (outletId: string) => void;
 };
 
+/** Display outlet names in Title Case when stored as ALL CAPS / all lower. */
+function formatBranchDisplayName(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return trimmed;
+  const hasLower = /[a-z]/.test(trimmed);
+  const hasUpper = /[A-Z]/.test(trimmed);
+  // Keep intentional mixed/camel case (e.g. CafePilots, VileParle)
+  if (hasLower && hasUpper) return trimmed;
+  return trimmed
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 export function BranchSwitcher({ className, onBranchChange }: Props) {
   const user = useAuthStore((s) => s.user);
   const canSwitchBranchByPermission = useHasPermission(PERMISSIONS.BRANCH_SWITCH);
@@ -65,13 +80,13 @@ export function BranchSwitcher({ className, onBranchChange }: Props) {
         <MapPin className="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5" style={{ color: BRAND.orange }} />
         {!canSelect ? (
           <span className="max-w-[72px] truncate text-[11px] font-bold text-[#0D1B2A] sm:max-w-[120px] sm:text-xs md:max-w-[180px] lg:max-w-[220px]">
-            {active?.name || 'Branch'}
+            {formatBranchDisplayName(active?.name || 'Branch')}
           </span>
         ) : (
-          <label className="flex min-w-0 max-w-full items-center gap-1">
+          <label className="relative flex min-w-0 max-w-full items-center gap-1 pr-4">
             <span className="sr-only">Branch</span>
             <select
-              className="max-w-[72px] cursor-pointer truncate border-0 bg-transparent text-[11px] font-bold text-[#0D1B2A] focus:outline-none sm:max-w-[120px] sm:text-xs md:max-w-[180px] lg:max-w-[220px]"
+              className="max-w-[72px] cursor-pointer appearance-none truncate border-0 bg-transparent text-[11px] font-bold text-[#0D1B2A] focus:outline-none sm:max-w-[120px] sm:text-xs md:max-w-[180px] lg:max-w-[220px]"
               value={activeOutletId || ''}
               disabled={isLoading}
               onChange={(e) => {
@@ -81,11 +96,11 @@ export function BranchSwitcher({ className, onBranchChange }: Props) {
             >
               {outlets.map((o) => (
                 <option key={o.id} value={o.id}>
-                  {o.name}
+                  {formatBranchDisplayName(o.name)}
                 </option>
               ))}
             </select>
-            <ChevronDown className="h-3 w-3 shrink-0 text-slate-400 sm:h-3.5 sm:w-3.5" />
+            <ChevronDown className="pointer-events-none absolute right-0 h-3 w-3 shrink-0 text-slate-400 sm:h-3.5 sm:w-3.5" />
           </label>
         )}
       </div>
