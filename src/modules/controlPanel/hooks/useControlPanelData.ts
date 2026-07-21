@@ -137,11 +137,11 @@ export function useControlPanelData() {
       }
 
       try {
-        const { count } = await supabase
+        const { count, error } = await supabase
           .from('app_notifications')
           .select('id', { count: 'exact', head: true })
           .eq('is_read', false);
-        pendingAlerts = count ?? 0;
+        pendingAlerts = error ? 0 : (count ?? 0);
       } catch {
         pendingAlerts = 0;
       }

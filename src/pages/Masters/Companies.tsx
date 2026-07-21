@@ -152,7 +152,7 @@ const Companies: React.FC = () => {
     } catch (error: any) {
       setCompanies(previous);
       showFeedback(
-        'Could not update subscription. Run ensure_hq_company.sql or saas_tenant_floor_patch.sql first.',
+        `Could not update subscription: ${error?.message || 'unknown error'}. Run scripts/ensure_hq_company.sql (or company_subscriptions_schema.sql) in Supabase.`,
         'error'
       );
       console.error('Error updating subscription', error);

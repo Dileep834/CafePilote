@@ -92,8 +92,8 @@ export function ControlPanelPage() {
     return CONTROL_MODULE_CARDS.filter((mod) => {
       const flag = CONTROL_MODULE_FLAGS[mod.id] || mod.featureFlag;
       if (flag && !hasFlag(flag)) return false;
-      if (isSuperAdmin(user)) return true;
       if (mod.requiredPlanModule && !hasPlanModule(planId, mod.requiredPlanModule)) return false;
+      if (isSuperAdmin(user)) return true;
       if (mod.requiredPermission && user?.role && !hasPermission(user.role, mod.requiredPermission)) {
         return false;
       }

@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { applyInventoryDelta, getStockLevels } from './inventoryLedgerService';
 import type { DeductionLine, SaleLineInput } from '../types';
 import { loadOpsSettings } from './managerPinService';
+import { loadAvailabilityPolicy } from '@/modules/availability';
 
 type RecipeIngredientRow = {
   raw_material_id: string;
@@ -153,7 +154,12 @@ export async function checkInventoryForSale(params: {
   const deductions = await expandRecipeDeductions(params.lines);
   if (!deductions.length) return { ok: true, deductions: [] };
 
-  if (settings.allowNegativeStock) {
+  const policy = await loadAvailabilityPolicy(params.outletId);
+  if (
+    settings.allowNegativeStock ||
+    policy.inventoryEnforcement === 'track' ||
+    policy.inventoryEnforcement === 'warn'
+  ) {
     return { ok: true, deductions };
   }
 

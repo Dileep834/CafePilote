@@ -55,6 +55,7 @@ import { useVisualViewportBottom } from '@/hooks/useVisualViewportBottom';
 import { supabase } from '@/lib/supabase';
 import { getScopedCompanyId } from '@/lib/tenantScope';
 import { ManagerPinDialog } from '@/modules/ops/components/ManagerPinDialog';
+import { loadAvailabilityPolicy } from '@/modules/availability';
 import {
   createIdempotencyKey,
   loadOpsSettings,
@@ -140,6 +141,7 @@ export function CheckoutPage() {
   const [isCompleting, setIsCompleting] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
   const [pinOpen, setPinOpen] = useState(false);
+  const [pinReason, setPinReason] = useState<'discount' | 'inventory'>('discount');
   const [pendingApprovalId, setPendingApprovalId] = useState<string | null>(null);
   const idempotencyRef = useRef<string>('');
   const checkoutErrorRef = useRef<HTMLDivElement | null>(null);
@@ -567,12 +569,46 @@ export function CheckoutPage() {
     // High discount → manager PIN
     const discountPct = subtotal > 0 ? (discountAmount / subtotal) * 100 : 0;
     const settings = await loadOpsSettings(outletId);
+    const availabilityPolicy = await loadAvailabilityPolicy(outletId);
     if (
       !managerApprovalId &&
       needsManagerPinForDiscount(discountPct, settings.discountPinThresholdPct)
     ) {
+      setPinReason('discount');
       setPinOpen(true);
       return;
+    }
+    if (
+      !managerApprovalId &&
+      availabilityPolicy.inventoryTrackingEnabled &&
+      availabilityPolicy.inventoryEnforcement === 'warn' &&
+      availabilityPolicy.warnSaleRequiresPin
+    ) {
+      const { loadProductAvailabilityState, resolveProductAvailability } = await import(
+        '@/modules/availability'
+      );
+      const stateMap = await loadProductAvailabilityState(
+        outletId,
+        cart.map((item) => item.productId)
+      );
+      const needsStockPin = cart.some((item) => {
+        const resolved = resolveProductAvailability({
+          product: { id: item.productId, is_active: true },
+          policy: availabilityPolicy,
+          channel: 'pos',
+          state: stateMap.get(item.productId),
+        });
+        return Boolean(
+          resolved.requireManagerApproval ||
+            resolved.status === 'out_of_stock' ||
+            resolved.status === 'low_stock'
+        );
+      });
+      if (needsStockPin) {
+        setPinReason('inventory');
+        setPinOpen(true);
+        return;
+      }
     }
 
     if (!idempotencyRef.current) {
@@ -1696,13 +1732,21 @@ export function CheckoutPage() {
 
       <ManagerPinDialog
         open={pinOpen}
-        title="Discount requires approval"
-        description="Discount exceeds the configured threshold."
-        action="discount"
+        title={pinReason === 'discount' ? 'Discount requires approval' : 'Stock warning requires approval'}
+        description={
+          pinReason === 'discount'
+            ? 'Discount exceeds the configured threshold.'
+            : 'This outlet is set to warn on stock shortage and requires manager approval.'
+        }
+        action={pinReason === 'discount' ? 'discount' : 'inventory_warning_sale'}
         outletId={outletId}
         userId={user?.id}
         entityType="checkout"
-        payload={{ discountAmount, discountPct: subtotal > 0 ? (discountAmount / subtotal) * 100 : 0 }}
+        payload={{
+          discountAmount,
+          discountPct: subtotal > 0 ? (discountAmount / subtotal) * 100 : 0,
+          reason: pinReason,
+        }}
         onCancel={() => setPinOpen(false)}
         onApproved={(approvalId) => {
           setPinOpen(false);

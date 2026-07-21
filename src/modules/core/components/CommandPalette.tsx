@@ -4,7 +4,10 @@ import { Clock3, Keyboard, Search, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/useAuthStore';
 import { usePermissionsStore } from '@/store/usePermissionsStore';
+import { useTenantStore } from '@/store/useTenantStore';
 import { isSuperAdmin } from '@/lib/access';
+import { hasPlanModule } from '@/lib/planLimits';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { NAV_GROUPS } from './navConfig';
 
 type CommandPaletteProps = {
@@ -16,6 +19,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const hasPermission = usePermissionsStore((state) => state.hasPermission);
+  const planId = useTenantStore((s) => s.planId);
+  const { has: hasFlag } = useFeatureFlags();
   const [query, setQuery] = useState('');
   const [recent, setRecent] = useState<string[]>(() => {
     try {
@@ -32,7 +37,10 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       group.items
         .filter((item) => {
           if (item.superAdminOnly && !superAdmin) return false;
+          if (item.featureFlag && !hasFlag(item.featureFlag)) return false;
+          if (!hasPlanModule(planId, item.requiredPlanModule)) return false;
           if (!item.requiredPermission) return true;
+          if (superAdmin) return true;
           if (!role) return false;
           return hasPermission(role, item.requiredPermission);
         })
@@ -41,7 +49,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           group: group.label,
         }))
     );
-  }, [hasPermission, user]);
+  }, [hasFlag, hasPermission, planId, user]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

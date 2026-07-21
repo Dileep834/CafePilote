@@ -1,4 +1,12 @@
-export type CatalogStatus = 'active' | 'inactive' | 'hidden' | 'archived';
+export type CatalogStatus =
+  | 'active'
+  | 'inactive'
+  | 'hidden'
+  | 'archived'
+  | 'low_stock'
+  | 'out_of_stock'
+  | 'discontinued'
+  | 'seasonal';
 
 export type ProductGroupBy = 'flat' | 'category' | 'brand';
 
@@ -28,6 +36,11 @@ export type CatalogProduct = {
   isActive: boolean;
   isHidden: boolean;
   isArchived: boolean;
+  availabilityStatus?: CatalogStatus;
+  computedAvailabilityStatus?: string | null;
+  manualAvailabilityStatus?: string | null;
+  availabilityReason?: string | null;
+  availableServings?: number | null;
   imageUrl?: string | null;
   updatedAt?: string | null;
   createdAt?: string | null;

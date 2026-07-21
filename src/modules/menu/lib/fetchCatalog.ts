@@ -42,7 +42,10 @@ export function itemTypeLabel(type: string) {
   return type === 'raw_material' ? 'Raw material' : 'Ready product';
 }
 
-export async function fetchCatalogProducts(companyId?: string | null): Promise<CatalogProduct[]> {
+export async function fetchCatalogProducts(
+  companyId?: string | null,
+  outletId?: string | null
+): Promise<CatalogProduct[]> {
   const selectFull =
     'id, code, name, category_id, company_id, brand, unit, min_stock, purchase_price, selling_price, gst, barcode, is_active, item_type, supplier_name, image_url, updated_at, created_at, categories(name)';
   const selectBase =
@@ -63,6 +66,16 @@ export async function fetchCatalogProducts(companyId?: string | null): Promise<C
   }
 
   const stockMap = new Map<string, number>();
+  const availabilityMap = new Map<
+    string,
+    {
+      effective_status?: string | null;
+      computed_status?: string | null;
+      manual_status?: string | null;
+      manual_reason?: string | null;
+      available_servings?: number | null;
+    }
+  >();
   try {
     const { data: inv } = await supabase
       .from('inventory')
@@ -77,10 +90,45 @@ export async function fetchCatalogProducts(companyId?: string | null): Promise<C
     // inventory optional
   }
 
+  if (outletId) {
+    try {
+      const { data: availability } = await supabase
+        .from('product_outlet_availability')
+        .select('product_id, effective_status, computed_status, manual_status, manual_reason, available_servings')
+        .eq('outlet_id', outletId);
+      for (const row of availability || []) {
+        const pid = String((row as { product_id?: string }).product_id || '');
+        if (!pid) continue;
+        availabilityMap.set(pid, row as {
+          effective_status?: string | null;
+          computed_status?: string | null;
+          manual_status?: string | null;
+          manual_reason?: string | null;
+          available_servings?: number | null;
+        });
+      }
+    } catch {
+      // optional table
+    }
+  }
+
   return (data || []).map((row: Record<string, unknown>) => {
     const id = String(row.id);
     const minStock = toNumber(row.min_stock);
     const stockQty = stockMap.has(id) ? stockMap.get(id)! : null;
+    const availability = availabilityMap.get(id);
+    const manualStatus = availability?.manual_status
+      ? (String(availability.manual_status) as CatalogProduct['availabilityStatus'])
+      : null;
+    const availabilityStatus = manualStatus
+      ? manualStatus
+      : availability?.effective_status
+        ? (String(availability.effective_status) as CatalogProduct['availabilityStatus'])
+        : row.is_active === false
+          ? 'inactive'
+          : Boolean(row.is_hidden)
+            ? 'hidden'
+            : 'active';
     return {
       id,
       code: String(row.code || ''),
@@ -99,6 +147,14 @@ export async function fetchCatalogProducts(companyId?: string | null): Promise<C
       isActive: row.is_active !== false,
       isHidden: Boolean(row.is_hidden),
       isArchived: Boolean(row.is_archived) || row.is_active === false,
+      availabilityStatus,
+      computedAvailabilityStatus: (availability?.computed_status as string | null) || null,
+      manualAvailabilityStatus: (availability?.manual_status as string | null) || null,
+      availabilityReason: (availability?.manual_reason as string | null) || null,
+      availableServings:
+        availability?.available_servings === null || availability?.available_servings === undefined
+          ? null
+          : toNumber(availability.available_servings),
       imageUrl: (row.image_url as string | null) || null,
       updatedAt: (row.updated_at as string | null) || null,
       createdAt: (row.created_at as string | null) || null,

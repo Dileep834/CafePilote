@@ -24,6 +24,8 @@ import {
   List,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import { useProductAvailabilityMap } from '@/modules/availability';
 import { CustomerCartModal } from './CustomerCartModal';
 import { GuestLogin } from './GuestLogin';
 import { GuestOrderStatus } from './GuestOrderStatus';
@@ -47,7 +49,17 @@ function dietaryIcon(pref: string) {
   return null;
 }
 
-function ProductListCard({ product, onAdd }: { product: any; onAdd: () => void }) {
+function ProductListCard({
+  product,
+  onAdd,
+  blocked,
+  badge,
+}: {
+  product: any;
+  onAdd: () => void;
+  blocked?: boolean;
+  badge?: string;
+}) {
   return (
     <div className="bg-white rounded-2xl p-3 flex gap-3 border border-black/[0.04] shadow-[0_4px_16px_rgba(13,27,42,0.04)]">
       <div
@@ -81,22 +93,38 @@ function ProductListCard({ product, onAdd }: { product: any; onAdd: () => void }
           <span className="font-extrabold text-lg" style={{ color: BRAND.orange }}>
             {formatCurrency(safePrice(product))}
           </span>
-          <button
-            type="button"
-            onClick={onAdd}
-            aria-label={`Add ${product.name}`}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-white active:scale-95 shadow-md"
-            style={{ backgroundColor: BRAND.orange, boxShadow: `0 6px 16px ${BRAND.orange}40` }}
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+          {blocked ? (
+            <Badge variant="outline" className="border-rose-200 text-rose-600">
+              {badge || 'Out Of Stock'}
+            </Badge>
+          ) : (
+            <button
+              type="button"
+              onClick={onAdd}
+              aria-label={`Add ${product.name}`}
+              className="w-9 h-9 rounded-full flex items-center justify-center text-white active:scale-95 shadow-md"
+              style={{ backgroundColor: BRAND.orange, boxShadow: `0 6px 16px ${BRAND.orange}40` }}
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function ProductGridCard({ product, onAdd }: { product: any; onAdd: () => void }) {
+function ProductGridCard({
+  product,
+  onAdd,
+  blocked,
+  badge,
+}: {
+  product: any;
+  onAdd: () => void;
+  blocked?: boolean;
+  badge?: string;
+}) {
   return (
     <div className="bg-white rounded-2xl p-2.5 flex flex-col border border-black/[0.04] shadow-[0_4px_16px_rgba(13,27,42,0.04)]">
       <div
@@ -129,15 +157,21 @@ function ProductGridCard({ product, onAdd }: { product: any; onAdd: () => void }
         <span className="font-extrabold text-sm tabular-nums" style={{ color: BRAND.orange }}>
           {formatCurrency(safePrice(product))}
         </span>
-        <button
-          type="button"
-          onClick={onAdd}
-          aria-label={`Add ${product.name}`}
-          className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-white active:scale-95 shadow-md"
-          style={{ backgroundColor: BRAND.orange, boxShadow: `0 6px 16px ${BRAND.orange}40` }}
-        >
-          <Plus className="w-4 h-4" />
-        </button>
+        {blocked ? (
+          <Badge variant="outline" className="border-rose-200 px-1.5 text-[10px] text-rose-600">
+            {badge || 'OOS'}
+          </Badge>
+        ) : (
+          <button
+            type="button"
+            onClick={onAdd}
+            aria-label={`Add ${product.name}`}
+            className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-white active:scale-95 shadow-md"
+            style={{ backgroundColor: BRAND.orange, boxShadow: `0 6px 16px ${BRAND.orange}40` }}
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -322,9 +356,16 @@ export function CustomerMenu() {
       return data ?? [];
     },
   });
+  const { map: availabilityMap, ready: availabilityReady } = useProductAvailabilityMap(
+    table?.outletId || outletId || null,
+    (products as any[]) || [],
+    'qr'
+  );
 
   const menuProducts = useMemo(() => {
     return (products ?? []).filter((p: any) => {
+      const resolved = availabilityMap.get(String(p.id || ''));
+      if (resolved && !resolved.canShow) return false;
       const price = Number(p.selling_price ?? p.sellingPrice ?? p.price ?? 0);
       const type = (p.item_type || '').toLowerCase();
       const isRaw = type === 'raw_material' || type === 'raw';
@@ -336,7 +377,7 @@ export function CustomerMenu() {
       }
       return false;
     });
-  }, [products]);
+  }, [availabilityMap, products]);
 
   const categories = useMemo(() => {
     const names = Array.from(
@@ -571,23 +612,43 @@ export function CustomerMenu() {
                       </div>
                     ) : layoutMode === 'list' ? (
                       <div className="space-y-3">
-                        {items.map((product: any) => (
-                          <ProductListCard
-                            key={product.id}
-                            product={product}
-                            onAdd={() => addItem(product)}
-                          />
-                        ))}
+                        {items.map((product: any) => {
+                          const availability = availabilityMap.get(String(product.id || ''));
+                          const blocked =
+                            !availabilityReady || (availability ? !availability.canSell : false);
+                          return (
+                            <ProductListCard
+                              key={product.id}
+                              product={product}
+                              blocked={blocked}
+                              badge={availability?.badge}
+                              onAdd={() => {
+                                if (blocked) return;
+                                addItem(product);
+                              }}
+                            />
+                          );
+                        })}
                       </div>
                     ) : (
                       <div className="grid grid-cols-2 gap-2.5">
-                        {items.map((product: any) => (
-                          <ProductGridCard
-                            key={product.id}
-                            product={product}
-                            onAdd={() => addItem(product)}
-                          />
-                        ))}
+                        {items.map((product: any) => {
+                          const availability = availabilityMap.get(String(product.id || ''));
+                          const blocked =
+                            !availabilityReady || (availability ? !availability.canSell : false);
+                          return (
+                            <ProductGridCard
+                              key={product.id}
+                              product={product}
+                              blocked={blocked}
+                              badge={availability?.badge}
+                              onAdd={() => {
+                                if (blocked) return;
+                                addItem(product);
+                              }}
+                            />
+                          );
+                        })}
                       </div>
                     )}
                   </div>

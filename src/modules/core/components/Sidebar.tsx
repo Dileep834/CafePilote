@@ -38,10 +38,14 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
     return NAV_GROUPS.map((g) => ({
       ...g,
       items: g.items.filter((item) => {
+        // Platform-only entries stay Super Admin exclusive
         if (item.superAdminOnly && !sa) return false;
-        if (item.featureFlag && !sa && !hasFlag(item.featureFlag)) return false;
-        if (!sa && !hasPlanModule(planId, item.requiredPlanModule)) return false;
+        // Plan UI always follows active planId (including SA preview of Lite)
+        if (item.featureFlag && !hasFlag(item.featureFlag)) return false;
+        if (!hasPlanModule(planId, item.requiredPlanModule)) return false;
         if (!item.requiredPermission) return true;
+        // Super Admin keeps route access via ProtectedRoute; menu still needs a role check
+        if (sa) return true;
         if (!role) return false;
         return hasPermission(role, item.requiredPermission);
       }),
@@ -60,22 +64,31 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
       .map((g) => g.id);
   }, [location.pathname, visibleGroups]);
 
+  const activeGroupKey = useMemo(() => activeGroupIds.join('|'), [activeGroupIds]);
+
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {};
     for (const g of NAV_GROUPS) {
-      init[g.id] = DEFAULT_OPEN_GROUPS.has(g.id) || activeGroupIds.includes(g.id);
+      init[g.id] = DEFAULT_OPEN_GROUPS.has(g.id);
     }
     return init;
   });
 
   useEffect(() => {
-    if (!activeGroupIds.length) return;
+    if (!activeGroupKey) return;
+    const ids = activeGroupKey.split('|').filter(Boolean);
     setOpenGroups((prev) => {
+      let changed = false;
       const next = { ...prev };
-      for (const id of activeGroupIds) next[id] = true;
-      return next;
+      for (const id of ids) {
+        if (next[id] !== true) {
+          next[id] = true;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
     });
-  }, [activeGroupIds]);
+  }, [activeGroupKey]);
 
   const toggleGroup = (id: string) => {
     setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -101,8 +114,15 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         </Link>
       </div>
 
-      <div className="mx-2.5 mt-2 rounded-lg bg-white/5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-orange-200/90">
-        {planLabel} plan
+      <div className="mx-2.5 mt-2 space-y-1">
+        <div className="rounded-lg bg-white/5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-orange-200/90">
+          {planLabel} plan
+        </div>
+        {isLite && (
+          <p className="px-1 text-[10px] font-medium leading-snug text-slate-400">
+            Simplified menu — upgrade to unlock kitchen, AI, and more.
+          </p>
+        )}
       </div>
 
       <nav className="min-h-0 flex-1 touch-pan-y space-y-3 overflow-y-auto overscroll-contain px-2.5 py-3 pb-5 [-webkit-overflow-scrolling:touch]">
@@ -121,7 +141,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
                   groupActive ? 'text-orange-300' : 'text-slate-400 hover:text-slate-200'
                 )}
               >
-                <span>{group.label}</span>
+                <span>{isLite && group.id === 'stock' ? 'Inventory' : group.label}</span>
                 <ChevronDown
                   className={cn('w-3.5 h-3.5 transition-transform', open ? 'rotate-0' : '-rotate-90')}
                 />

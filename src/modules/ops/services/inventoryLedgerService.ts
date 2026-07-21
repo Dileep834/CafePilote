@@ -73,6 +73,31 @@ export async function applyInventoryDelta(
     console.warn('[inventory] ledger insert skipped', err);
   }
 
+  try {
+    const { recalculateProductAvailability } = await import('@/modules/availability');
+    await recalculateProductAvailability({
+      outletId: input.outletId,
+      productIds: [input.productId],
+      source:
+        input.movementType === 'sale'
+          ? 'sale'
+          : input.movementType === 'refund'
+            ? 'refund'
+            : input.movementType === 'purchase'
+              ? 'purchase'
+              : input.movementType === 'adjustment'
+                ? 'adjustment'
+                : input.movementType === 'opening'
+                  ? 'opening'
+                  : input.movementType === 'waste'
+                    ? 'waste'
+                    : 'transfer',
+      userId: input.createdBy || null,
+    });
+  } catch (err) {
+    console.warn('[availability] recalc skipped', err);
+  }
+
   return { productId: input.productId, before, after, delta: input.quantityDelta };
 }
 

@@ -20,7 +20,9 @@ import {
   HeartOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { ProductAddonModal } from './ProductAddonModal';
+import { useProductAvailabilityMap } from '@/modules/availability';
 
 const NEW_HIDE_AFTER_SALES = 5;
 
@@ -39,19 +41,6 @@ const fetchProducts = async (companyId: string) => {
   return data;
 };
 
-function isProductOutOfStock(product: any) {
-  const explicit =
-    product.is_out_of_stock === true ||
-    String(product.stock_status || '').toLowerCase() === 'out_of_stock' ||
-    String(product.status || '').toLowerCase() === 'out_of_stock';
-  if (explicit) return true;
-  if (product.track_stock === false || product.item_type !== 'ready_product') return false;
-  const qty = Number(
-    product.current_stock ?? product.stock_quantity ?? product.stock ?? product.quantity ?? 0
-  );
-  return qty <= 0 && (product.current_stock !== undefined || product.stock_quantity !== undefined);
-}
-
 function prepMinutes(product: any) {
   const raw = Number(product.preparation_time ?? product.prep_time ?? product.prep_minutes);
   if (Number.isFinite(raw) && raw > 0) return Math.round(raw);
@@ -64,7 +53,6 @@ function prepMinutes(product: any) {
 }
 
 function shouldOpenModifierSheet(product: any) {
-  if (isProductOutOfStock(product)) return false;
   if (product.has_modifiers || product.allow_customization || product.is_combo) return true;
   if (Array.isArray(product.modifier_groups) && product.modifier_groups.length > 0) return true;
   if (Array.isArray(product.variants) && product.variants.length > 0) return true;
@@ -107,6 +95,7 @@ export function ProductGrid({
   const user = useAuthStore((s) => s.user);
   const activeOutletId = useTenantStore((s) => s.activeOutletId);
   const companyId = getScopedCompanyId(user);
+  const outletId = activeOutletId || user?.outletId || null;
   const userKey = user?.id || user?.email || 'local-staff';
   const favList = useMemo(() => byUser[userKey] || [], [byUser, userKey]);
   const pinnedList = useMemo(() => pinnedByUser[userKey] || [], [pinnedByUser, userKey]);
@@ -140,6 +129,12 @@ export function ProductGrid({
     queryFn: () => fetchProducts(companyId),
   });
 
+  const { map: availabilityMap, ready: availabilityReady } = useProductAvailabilityMap(
+    outletId,
+    (products as any[]) || [],
+    'pos'
+  );
+
   const qtyByProduct = useMemo(() => {
     const map = new Map<string, number>();
     for (const item of cart) {
@@ -149,7 +144,9 @@ export function ProductGrid({
   }, [cart]);
 
   const handleQuickAdd = (product: any) => {
-    if (isProductOutOfStock(product)) return;
+    if (!availabilityReady) return;
+    const availability = availabilityMap.get(product.id);
+    if (availability && !availability.canSell) return;
     if (shouldOpenModifierSheet(product) && !(qtyByProduct.get(product.id) || 0)) {
       setSelectedProductForAddons(product);
       return;
@@ -418,7 +415,10 @@ export function ProductGrid({
         ) : (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-6 2xl:grid-cols-7">
             {filteredProducts.map((product) => {
-              const outOfStock = isProductOutOfStock(product);
+              const availability = availabilityMap.get(product.id);
+              const blocked = !availabilityReady || (availability ? !availability.canSell : false);
+              const hiddenByPolicy = availability ? !availability.canShow : false;
+              if (hiddenByPolicy) return null;
               const minutes = prepMinutes(product);
               const qty = qtyByProduct.get(product.id) || 0;
               const fav = isFavorite(product.id);
@@ -429,11 +429,11 @@ export function ProductGrid({
                 <button
                   key={product.id}
                   type="button"
-                  disabled={outOfStock}
+                  disabled={blocked}
                   onClick={() => handleQuickAdd(product)}
                   className={cn(
                     'group relative flex flex-col rounded-xl bg-white p-1.5 text-left shadow-sm transition',
-                    outOfStock
+                    blocked
                       ? 'cursor-not-allowed opacity-50'
                       : 'hover:shadow-md active:scale-[0.98]'
                   )}
@@ -456,7 +456,12 @@ export function ProductGrid({
                         New
                       </span>
                     )}
-                    {outOfStock && (
+                    {availability && availability.badge !== 'Available' && (
+                      <span className="absolute bottom-1 left-1 rounded bg-white/95 px-1.5 py-px text-[8px] font-bold uppercase text-slate-700 shadow-sm">
+                        {availability.badge}
+                      </span>
+                    )}
+                    {blocked && (
                       <div className="absolute inset-0 flex items-center justify-center bg-slate-900/50">
                         <PackageX className="h-5 w-5 text-white" />
                       </div>
@@ -490,7 +495,11 @@ export function ProductGrid({
                         {minutes} min
                       </p>
                     </div>
-                    {outOfStock ? null : qty > 0 ? (
+                    {blocked ? (
+                      <Badge variant="outline" className="border-rose-200 text-[10px] text-rose-600">
+                        {availability?.badge || 'Blocked'}
+                      </Badge>
+                    ) : qty > 0 ? (
                       <div
                         className="flex h-8 items-center rounded-full bg-slate-900 px-0.5 text-white"
                         onClick={(e) => e.stopPropagation()}

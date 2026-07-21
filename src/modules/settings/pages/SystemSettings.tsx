@@ -13,6 +13,7 @@ import { BRAND, HQ_COMPANY_NAME } from '@/constants';
 import { PERMISSIONS } from '@/constants/permissions';
 import { cn } from '@/lib/utils';
 import { OutletFloorPlanMapper } from '@/modules/floordesigner/components/OutletFloorPlanMapper';
+import { ProductAvailabilitySettings } from '../components/ProductAvailabilitySettings';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { isSuperAdmin } from '@/lib/access';
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -75,12 +76,13 @@ export function SystemSettings() {
 
   const handleSubscriptionChange = async (nextPlanId: SubscriptionPlanId) => {
     if (!canManageSubscriptions) return;
+    // Apply immediately so sidebar / flags update before any async hydrate
     setPlanId(nextPlanId);
 
     if (!companyId) return;
 
     try {
-      await supabase.from('company_subscriptions').upsert(
+      const { error } = await supabase.from('company_subscriptions').upsert(
         {
           company_id: String(companyId),
           plan_id: nextPlanId,
@@ -89,8 +91,14 @@ export function SystemSettings() {
         },
         { onConflict: 'company_id' }
       );
+      if (error) {
+        console.warn('[settings] subscription save failed', error.message);
+      }
+      // Re-assert local plan in case a concurrent hydrate raced
+      setPlanId(nextPlanId);
     } catch {
       /* Keep local/demo mode usable even before the subscription SQL is applied. */
+      setPlanId(nextPlanId);
     }
   };
 
@@ -337,16 +345,25 @@ export function SystemSettings() {
                   >
                     <div className="flex justify-between items-start mb-1">
                       <p className="font-bold text-slate-800">{p.label}</p>
-                      {on && <CheckCircle2 className="w-5 h-5" style={{ color: BRAND.orange }} />}
+                      {on && (
+                        <span className="rounded-md bg-[#FF6A00] px-1.5 py-0.5 text-[9px] font-black uppercase text-white">
+                          Active
+                        </span>
+                      )}
                     </div>
-                    <p className="text-[11px] text-slate-500">
-                      {p.maxProducts ? `${p.maxProducts} products` : 'Unlimited products'} ·{' '}
-                      {p.maxUsers ? `${p.maxUsers} users` : 'Unlimited users'} · {p.maxOutlets} branch{p.maxOutlets === 1 ? '' : 'es'}
+                    <p className="text-xs text-slate-500 line-clamp-3">{p.bestFor}</p>
+                    <p className="mt-2 text-[11px] font-bold text-slate-600">
+                      {p.monthlyPrice != null ? `₹${p.monthlyPrice}/mo` : 'Custom'}
                     </p>
                   </button>
                 );
               })}
             </div>
+            <p className="text-xs font-semibold text-slate-500">
+              Active plan: <span className="text-slate-800">{planLabel}</span>
+              {' — '}
+              sidebar and modules update immediately after you select a plan.
+            </p>
             <p className="text-[10px] text-slate-400">
               {canManageSubscriptions
                 ? 'Super Admin can change subscriptions here or from Company Management.'
@@ -354,6 +371,8 @@ export function SystemSettings() {
             </p>
           </div>
         </div>
+
+        <ProductAvailabilitySettings canManageSubscriptions={canManageSubscriptions} />
 
         <ErrorBoundary area="floor plan mapper">
           <OutletFloorPlanMapper

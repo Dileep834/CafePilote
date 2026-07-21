@@ -86,13 +86,15 @@ export type OutletOpsSettings = {
   outletId: string;
   inventoryTrackingEnabled: boolean;
   allowNegativeStock: boolean;
+  inventoryEnforcementMode?: 'track' | 'warn' | 'strict';
   discountPinThresholdPct: number;
   managerPinConfigured: boolean;
 };
 
 export const DEFAULT_OPS_SETTINGS: Omit<OutletOpsSettings, 'outletId'> = {
-  inventoryTrackingEnabled: true,
+  inventoryTrackingEnabled: false,
   allowNegativeStock: false,
+  inventoryEnforcementMode: 'strict',
   discountPinThresholdPct: 10,
   managerPinConfigured: false,
 };

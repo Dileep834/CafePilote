@@ -24,6 +24,9 @@ type NotificationState = {
   hydrateFromServer: (outletId?: string | null) => Promise<void>;
 };
 
+/** Avoid spamming REST when phase SQL table is not deployed yet */
+let appNotificationsUnavailable = false;
+
 export const useNotificationStore = create<NotificationState>()(
   persist(
     (set, get) => ({
@@ -53,14 +56,29 @@ export const useNotificationStore = create<NotificationState>()(
       unreadCount: () => get().items.filter((i) => !i.read).length,
 
       hydrateFromServer: async (outletId) => {
-        if (!outletId) return;
+        if (!outletId || appNotificationsUnavailable) return;
         try {
-          const { data } = await supabase
+          const { data, error } = await supabase
             .from('app_notifications')
             .select('*')
             .eq('outlet_id', outletId)
             .order('created_at', { ascending: false })
             .limit(50);
+          if (error) {
+            // 404 / missing relation — fall back to local-only notifications
+            const code = String(error.code || '');
+            const msg = String(error.message || '').toLowerCase();
+            if (
+              code === 'PGRST205' ||
+              code === '42P01' ||
+              msg.includes('does not exist') ||
+              msg.includes('not find') ||
+              (error as { status?: number }).status === 404
+            ) {
+              appNotificationsUnavailable = true;
+            }
+            return;
+          }
           if (!data?.length) return;
           set({
             items: data.map((row) => ({
@@ -77,7 +95,7 @@ export const useNotificationStore = create<NotificationState>()(
             })),
           });
         } catch {
-          /* table may not exist */
+          appNotificationsUnavailable = true;
         }
       },
     }),
@@ -115,7 +133,8 @@ export async function pushAppNotification(params: {
   }
 
   try {
-    await supabase.from('app_notifications').insert([
+    if (appNotificationsUnavailable) return;
+    const { error } = await supabase.from('app_notifications').insert([
       {
         outlet_id: params.outletId || null,
         user_id: params.userId || null,
@@ -127,8 +146,11 @@ export async function pushAppNotification(params: {
         severity: params.severity || 'info',
       },
     ]);
+    if (error) {
+      appNotificationsUnavailable = true;
+    }
   } catch {
-    /* optional table */
+    appNotificationsUnavailable = true;
   }
 }
 

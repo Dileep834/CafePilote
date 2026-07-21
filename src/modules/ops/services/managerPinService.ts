@@ -49,6 +49,9 @@ export async function loadOpsSettings(outletId: string | null | undefined): Prom
       outletId,
       inventoryTrackingEnabled: data.inventory_tracking_enabled !== false,
       allowNegativeStock: Boolean(data.allow_negative_stock),
+      inventoryEnforcementMode:
+        (String(data.inventory_enforcement_mode || '') as 'track' | 'warn' | 'strict') ||
+        (Boolean(data.allow_negative_stock) ? 'track' : 'strict'),
       discountPinThresholdPct: Number(data.discount_pin_threshold_pct ?? 10),
       managerPinConfigured: Boolean(data.manager_pin_hash) || Boolean(localStorage.getItem(LOCAL_PIN_KEY)),
     };
@@ -68,6 +71,7 @@ export async function saveOpsSettings(
     JSON.stringify({
       inventoryTrackingEnabled: next.inventoryTrackingEnabled,
       allowNegativeStock: next.allowNegativeStock,
+          inventoryEnforcementMode: next.inventoryEnforcementMode || 'strict',
       discountPinThresholdPct: next.discountPinThresholdPct,
     })
   );
@@ -79,6 +83,7 @@ export async function saveOpsSettings(
       outlet_id: outletId,
       inventory_tracking_enabled: next.inventoryTrackingEnabled,
       allow_negative_stock: next.allowNegativeStock,
+      inventory_enforcement_mode: next.inventoryEnforcementMode || (next.allowNegativeStock ? 'track' : 'strict'),
       discount_pin_threshold_pct: next.discountPinThresholdPct,
       updated_at: new Date().toISOString(),
       updated_by: userId || null,

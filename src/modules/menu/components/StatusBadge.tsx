@@ -6,6 +6,10 @@ const STYLES: Record<CatalogStatus, string> = {
   inactive: 'bg-slate-100 text-slate-600 ring-slate-200',
   hidden: 'bg-orange-50 text-orange-700 ring-orange-100',
   archived: 'bg-rose-50 text-rose-700 ring-rose-100',
+  low_stock: 'bg-amber-50 text-amber-700 ring-amber-100',
+  out_of_stock: 'bg-rose-50 text-rose-700 ring-rose-100',
+  discontinued: 'bg-slate-200 text-slate-700 ring-slate-300',
+  seasonal: 'bg-sky-50 text-sky-700 ring-sky-100',
 };
 
 const LABELS: Record<CatalogStatus, string> = {
@@ -13,13 +17,19 @@ const LABELS: Record<CatalogStatus, string> = {
   inactive: 'Inactive',
   hidden: 'Hidden',
   archived: 'Archived',
+  low_stock: 'Low Stock',
+  out_of_stock: 'Out Of Stock',
+  discontinued: 'Discontinued',
+  seasonal: 'Seasonal',
 };
 
 export function resolveProductStatus(p: {
   isActive: boolean;
   isHidden?: boolean;
   isArchived?: boolean;
+  availabilityStatus?: CatalogStatus;
 }): CatalogStatus {
+  if (p.availabilityStatus) return p.availabilityStatus;
   if (p.isArchived) return 'archived';
   if (!p.isActive) return 'inactive';
   if (p.isHidden) return 'hidden';

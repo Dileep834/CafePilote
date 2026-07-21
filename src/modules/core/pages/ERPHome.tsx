@@ -208,6 +208,7 @@ const sections: ModuleSection[] = [
         path: '/erp/floor',
         permission: PERMISSIONS.FLOOR_MANAGE,
         planModule: 'floorDesigner',
+        featureFlag: 'floorDesigner',
       },
       {
         title: 'Kitchen KDS',
@@ -216,6 +217,7 @@ const sections: ModuleSection[] = [
         path: '/erp/kitchen',
         permission: PERMISSIONS.KITCHEN_ACCESS,
         planModule: 'kitchen',
+        featureFlag: 'kitchen',
       },
     ],
   },
@@ -246,6 +248,7 @@ const sections: ModuleSection[] = [
         path: '/erp/menu/recipes',
         permission: PERMISSIONS.RECIPES_MANAGE,
         planModule: 'recipes',
+        featureFlag: 'recipes',
       },
     ],
   },
@@ -260,6 +263,7 @@ const sections: ModuleSection[] = [
         path: '/erp/inventory',
         permission: PERMISSIONS.INVENTORY_VIEW,
         planModule: 'inventory',
+        featureFlag: 'inventory',
       },
       {
         title: 'Daily Stock',
@@ -268,6 +272,7 @@ const sections: ModuleSection[] = [
         path: '/erp/inventory/daily',
         permission: PERMISSIONS.INVENTORY_DAILY,
         planModule: 'inventory',
+        featureFlag: 'advancedInventory',
       },
       {
         title: 'Purchase Orders',
@@ -276,6 +281,7 @@ const sections: ModuleSection[] = [
         path: '/erp/purchase',
         permission: PERMISSIONS.PURCHASE_MANAGE,
         planModule: 'purchase',
+        featureFlag: 'purchase',
       },
       {
         title: 'Adjustments',
@@ -284,6 +290,7 @@ const sections: ModuleSection[] = [
         path: '/erp/inventory/adjustments',
         permission: PERMISSIONS.INVENTORY_ADJUST,
         planModule: 'inventory',
+        featureFlag: 'advancedInventory',
       },
       {
         title: 'Waste Log',
@@ -292,6 +299,7 @@ const sections: ModuleSection[] = [
         path: '/erp/inventory/waste',
         permission: PERMISSIONS.INVENTORY_WASTE,
         planModule: 'inventory',
+        featureFlag: 'advancedInventory',
       },
       {
         title: 'Suppliers',
@@ -300,6 +308,7 @@ const sections: ModuleSection[] = [
         path: '/erp/purchase/suppliers',
         permission: PERMISSIONS.SUPPLIERS_MANAGE,
         planModule: 'suppliers',
+        featureFlag: 'suppliers',
       },
     ],
   },
@@ -1382,6 +1391,7 @@ export function ERPHome() {
       icon: Globe2,
       permission: PERMISSIONS.POS_ACCESS,
       planModule: 'pos' as const,
+      featureFlag: 'onlineOrders' as const,
       variant: 'secondary' as const,
     },
     {
@@ -1390,6 +1400,7 @@ export function ERPHome() {
       icon: ChefHat,
       permission: PERMISSIONS.KITCHEN_ACCESS,
       planModule: 'kitchen' as const,
+      featureFlag: 'kitchen' as const,
       variant: 'secondary' as const,
     },
     {
@@ -1406,6 +1417,7 @@ export function ERPHome() {
       icon: ClipboardList,
       permission: PERMISSIONS.INVENTORY_DAILY,
       planModule: 'inventory' as const,
+      featureFlag: 'advancedInventory' as const,
       variant: 'secondary' as const,
     },
     {
@@ -1414,9 +1426,13 @@ export function ERPHome() {
       icon: Truck,
       permission: PERMISSIONS.PURCHASE_MANAGE,
       planModule: 'purchase' as const,
+      featureFlag: 'purchase' as const,
       variant: 'secondary' as const,
     },
-  ].filter((action) => canAccess(action.permission, action.planModule));
+  ].filter((action) => {
+    if (action.featureFlag && !hasFlag(action.featureFlag)) return false;
+    return canAccess(action.permission, action.planModule);
+  });
 
   const primaryAction = quickActions.find((a) => a.variant === 'primary') || quickActions[0];
 

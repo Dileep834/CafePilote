@@ -2,8 +2,11 @@ import {
   Archive,
   Copy,
   Eye,
+  EyeOff,
   MoreHorizontal,
   Pencil,
+  RotateCcw,
+  Tag,
   Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,7 +19,18 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { CatalogProduct } from '../types';
 
-export type ProductRowAction = 'view' | 'edit' | 'duplicate' | 'archive' | 'delete';
+export type ProductRowAction =
+  | 'view'
+  | 'edit'
+  | 'duplicate'
+  | 'archive'
+  | 'delete'
+  | 'mark_available'
+  | 'mark_out_of_stock'
+  | 'mark_hidden'
+  | 'mark_seasonal'
+  | 'mark_discontinued'
+  | 'clear_override';
 
 type Props = {
   product: CatalogProduct;
@@ -69,6 +83,43 @@ export function ProductActionMenu({ product, onAction }: Props) {
           onClick={() => onAction('archive', product)}
         >
           <Archive className="h-4 w-4 text-slate-400" /> Archive
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="cursor-pointer gap-2 rounded-lg px-2.5 py-2 text-sm font-medium"
+          onClick={() => onAction('mark_available', product)}
+        >
+          <RotateCcw className="h-4 w-4 text-slate-400" /> Mark Available
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="cursor-pointer gap-2 rounded-lg px-2.5 py-2 text-sm font-medium"
+          onClick={() => onAction('mark_out_of_stock', product)}
+        >
+          <Tag className="h-4 w-4 text-slate-400" /> Mark Out Of Stock
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="cursor-pointer gap-2 rounded-lg px-2.5 py-2 text-sm font-medium"
+          onClick={() => onAction('mark_hidden', product)}
+        >
+          <EyeOff className="h-4 w-4 text-slate-400" /> Hide Product
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="cursor-pointer gap-2 rounded-lg px-2.5 py-2 text-sm font-medium"
+          onClick={() => onAction('mark_seasonal', product)}
+        >
+          <Tag className="h-4 w-4 text-slate-400" /> Mark Seasonal
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="cursor-pointer gap-2 rounded-lg px-2.5 py-2 text-sm font-medium"
+          onClick={() => onAction('mark_discontinued', product)}
+        >
+          <Archive className="h-4 w-4 text-slate-400" /> Mark Discontinued
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="cursor-pointer gap-2 rounded-lg px-2.5 py-2 text-sm font-medium"
+          onClick={() => onAction('clear_override', product)}
+        >
+          <RotateCcw className="h-4 w-4 text-slate-400" /> Clear Override
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

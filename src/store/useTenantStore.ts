@@ -135,8 +135,8 @@ export const useTenantStore = create<TenantState>()(
 
         let outlets: TenantOutlet[] = [];
         let companyName: string | null = sa ? HQ_COMPANY_NAME : null;
-        // Do not keep a stale persisted plan when hydrating — prefer DB
-        let planId: SubscriptionPlanId = sa ? 'enterprise' : 'professional';
+        // Prefer DB subscription; do not force enterprise for Super Admin when a plan is saved
+        let planId: SubscriptionPlanId = get().planId || (sa ? 'enterprise' : 'professional');
 
         try {
           const { data: company } = await supabase
@@ -176,11 +176,9 @@ export const useTenantStore = create<TenantState>()(
             .maybeSingle();
           if (sub?.plan_id) {
             planId = normalizePlanId(sub.plan_id);
-          } else if (sa) {
-            planId = 'enterprise';
           }
         } catch {
-          if (sa) planId = 'enterprise';
+          /* keep current planId */
         }
 
         try {

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { supabase } from '@/lib/supabase';
 import { formatCurrency } from '@/utils/format';
 import { fetchInventoryDashboard } from '../lib/fetchInventory';
@@ -89,6 +90,9 @@ function useDebouncedValue<T>(value: T, delayMs: number) {
 
 export function CurrentInventory() {
   const { user } = useAuthStore();
+  const { has: hasFlag } = useFeatureFlags();
+  const canAdvancedInventory = hasFlag('advancedInventory');
+  const canPurchase = hasFlag('purchase');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<InventoryFilters>(DEFAULT_FILTERS);
@@ -210,10 +214,34 @@ export function CurrentInventory() {
     });
   };
 
-  const goReceive = () => navigate('/erp/inventory/daily');
-  const goCount = () => navigate('/erp/inventory/daily');
-  const goPurchase = () => navigate('/erp/purchase');
-  const goAdjust = () => navigate('/erp/inventory/adjustments');
+  const goReceive = () => {
+    if (!canAdvancedInventory) {
+      setActionMessage('Daily stock update is available on Professional and above. Upgrade to unlock.');
+      return;
+    }
+    navigate('/erp/inventory/daily');
+  };
+  const goCount = () => {
+    if (!canAdvancedInventory) {
+      setActionMessage('Stock count is available on Professional and above. Upgrade to unlock.');
+      return;
+    }
+    navigate('/erp/inventory/daily');
+  };
+  const goPurchase = () => {
+    if (!canPurchase) {
+      setActionMessage('Purchase orders unlock on Standard and above.');
+      return;
+    }
+    navigate('/erp/purchase');
+  };
+  const goAdjust = () => {
+    if (!canAdvancedInventory) {
+      setActionMessage('Stock adjustments are available on Professional and above. Upgrade to unlock.');
+      return;
+    }
+    navigate('/erp/inventory/adjustments');
+  };
 
   const handleRowAction = async (action: InventoryRowAction, item: InventoryItem) => {
     const qty = Math.max(1, reorderQuantity(item));
@@ -221,18 +249,34 @@ export function CurrentInventory() {
 
     switch (action) {
       case 'receive':
+        if (!canAdvancedInventory) {
+          setActionMessage('Receive stock unlocks with Professional (daily stock update).');
+          return;
+        }
         params.set('q', item.productName);
         params.set('focus', 'receive');
         navigate(`/erp/inventory/daily?${params.toString()}`);
         return;
       case 'adjust':
+        if (!canAdvancedInventory) {
+          setActionMessage('Adjustments unlock with Professional.');
+          return;
+        }
         navigate(`/erp/inventory/adjustments?${params.toString()}`);
         return;
       case 'history':
+        if (!canAdvancedInventory) {
+          setActionMessage('Stock history unlocks with Professional.');
+          return;
+        }
         params.set('history', '1');
         navigate(`/erp/inventory/adjustments?${params.toString()}`);
         return;
       case 'supplier':
+        if (!canPurchase) {
+          setActionMessage('Suppliers unlock on Standard and above.');
+          return;
+        }
         if (item.supplier && item.supplier !== '—') {
           navigate(`/erp/purchase/suppliers?q=${encodeURIComponent(item.supplier)}`);
         } else {
@@ -240,6 +284,10 @@ export function CurrentInventory() {
         }
         return;
       case 'recipe':
+        if (!hasFlag('recipes')) {
+          setActionMessage('Recipes unlock on Professional and above.');
+          return;
+        }
         navigate(`/erp/menu/recipes?productId=${encodeURIComponent(item.id)}`);
         return;
       case 'edit':
@@ -247,6 +295,10 @@ export function CurrentInventory() {
         navigate(`/erp/menu/products?${params.toString()}`);
         return;
       case 'purchase':
+        if (!canPurchase) {
+          setActionMessage('Purchase orders unlock on Standard and above.');
+          return;
+        }
         params.set('create', '1');
         params.set('qty', String(qty));
         if (item.unitCost > 0) params.set('unitPrice', String(item.unitCost));
@@ -300,35 +352,41 @@ export function CurrentInventory() {
           </p>
         </div>
         <div className="hidden flex-wrap gap-2 md:flex">
-          <Button
-            type="button"
-            className="h-11 rounded-xl bg-[#FF6A00] px-4 text-white transition-colors duration-200 hover:bg-[#e85f00]"
-            onClick={goReceive}
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden lg:inline">Receive Stock</span>
-            <span className="lg:hidden">Receive</span>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 rounded-xl border-slate-200"
-            onClick={goCount}
-          >
-            <ClipboardList className="h-4 w-4" />
-            <span className="hidden lg:inline">Stock Count</span>
-            <span className="lg:hidden">Count</span>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 rounded-xl border-slate-200"
-            onClick={goPurchase}
-          >
-            <ShoppingCart className="h-4 w-4" />
-            <span className="hidden lg:inline">Purchase Order</span>
-            <span className="lg:hidden">PO</span>
-          </Button>
+          {canAdvancedInventory ? (
+            <>
+              <Button
+                type="button"
+                className="h-11 rounded-xl bg-[#FF6A00] px-4 text-white transition-colors duration-200 hover:bg-[#e85f00]"
+                onClick={goReceive}
+              >
+                <Plus className="h-4 w-4" />
+                <span className="hidden lg:inline">Receive Stock</span>
+                <span className="lg:hidden">Receive</span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 rounded-xl border-slate-200"
+                onClick={goCount}
+              >
+                <ClipboardList className="h-4 w-4" />
+                <span className="hidden lg:inline">Stock Count</span>
+                <span className="lg:hidden">Count</span>
+              </Button>
+            </>
+          ) : null}
+          {canPurchase ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 rounded-xl border-slate-200"
+              onClick={goPurchase}
+            >
+              <ShoppingCart className="h-4 w-4" />
+              <span className="hidden lg:inline">Purchase Order</span>
+              <span className="lg:hidden">PO</span>
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -386,10 +444,14 @@ export function CurrentInventory() {
           }
           empty={kpis.inventoryValue <= 0}
           emptyMessage="No data yet"
-          emptyHint="Complete a stock count to track value."
-          actionLabel="Start Stock Count"
-          onAction={goCount}
-          onClick={goCount}
+          emptyHint={
+            canAdvancedInventory
+              ? 'Complete a stock count to track value.'
+              : 'Stock value updates as products and stock levels change.'
+          }
+          actionLabel={canAdvancedInventory ? 'Start Stock Count' : undefined}
+          onAction={canAdvancedInventory ? goCount : undefined}
+          onClick={canAdvancedInventory ? goCount : undefined}
         />
         <InventoryCard
           className="w-[min(78vw,260px)] shrink-0 snap-start md:w-auto md:min-w-0"
@@ -399,8 +461,8 @@ export function CurrentInventory() {
           icon={TrendingDown}
           tone="amber"
           onClick={() => setHealthFilter('Low')}
-          actionLabel={kpis.lowStock > 0 ? 'Create PO' : undefined}
-          onAction={kpis.lowStock > 0 ? goPurchase : undefined}
+          actionLabel={kpis.lowStock > 0 && canPurchase ? 'Create PO' : undefined}
+          onAction={kpis.lowStock > 0 && canPurchase ? goPurchase : undefined}
         />
         <InventoryCard
           className="w-[min(78vw,260px)] shrink-0 snap-start md:w-auto md:min-w-0"
@@ -410,8 +472,8 @@ export function CurrentInventory() {
           icon={PackageX}
           tone="red"
           onClick={() => setHealthFilter('Out of Stock')}
-          actionLabel={kpis.outOfStock > 0 ? 'Create PO' : undefined}
-          onAction={kpis.outOfStock > 0 ? goPurchase : undefined}
+          actionLabel={kpis.outOfStock > 0 && canPurchase ? 'Create PO' : undefined}
+          onAction={kpis.outOfStock > 0 && canPurchase ? goPurchase : undefined}
         />
         <InventoryCard
           className="w-[min(78vw,260px)] shrink-0 snap-start md:w-auto md:min-w-0"
@@ -435,10 +497,14 @@ export function CurrentInventory() {
           tone="blue"
           empty={kpis.todayConsumptionValue == null || kpis.todayConsumptionValue <= 0}
           emptyMessage="No data yet"
-          emptyHint="Run today's stock count."
-          actionLabel="Start Stock Count"
-          onAction={goCount}
-          onClick={goCount}
+          emptyHint={
+            canAdvancedInventory
+              ? "Run today's stock count."
+              : 'Consumption tracking unlocks on Professional.'
+          }
+          actionLabel={canAdvancedInventory ? 'Start Stock Count' : undefined}
+          onAction={canAdvancedInventory ? goCount : undefined}
+          onClick={canAdvancedInventory ? goCount : undefined}
         />
         <InventoryCard
           className="w-[min(78vw,260px)] shrink-0 snap-start md:w-auto md:min-w-0"
@@ -447,9 +513,15 @@ export function CurrentInventory() {
           subtitle={kpis.pendingPurchaseOrders > 0 ? 'Awaiting receive' : 'Nothing pending'}
           icon={Truck}
           tone="slate"
-          onClick={goPurchase}
-          actionLabel={kpis.pendingPurchaseOrders > 0 ? 'View POs' : 'Create PO'}
-          onAction={goPurchase}
+          onClick={canPurchase ? goPurchase : undefined}
+          actionLabel={
+            canPurchase
+              ? kpis.pendingPurchaseOrders > 0
+                ? 'View POs'
+                : 'Create PO'
+              : undefined
+          }
+          onAction={canPurchase ? goPurchase : undefined}
         />
       </div>
 
@@ -503,9 +575,13 @@ export function CurrentInventory() {
           color="#0D1B2A"
           valueFormatter={(v) => formatCurrency(v)}
           emptyTitle="No inventory valuation yet."
-          emptyMessage="Complete your first stock count to start tracking inventory value."
-          emptyActionLabel="Start Stock Count"
-          onEmptyAction={goCount}
+          emptyMessage={
+            canAdvancedInventory
+              ? 'Complete your first stock count to start tracking inventory value.'
+              : 'Valuation builds as stock levels are maintained.'
+          }
+          emptyActionLabel={canAdvancedInventory ? 'Start Stock Count' : undefined}
+          onEmptyAction={canAdvancedInventory ? goCount : undefined}
         />
         <InventoryChart
           title="Consumption Trend"
@@ -514,9 +590,13 @@ export function CurrentInventory() {
           color="#FF6A00"
           valueFormatter={(v) => formatCurrency(v)}
           emptyTitle="No consumption history yet."
-          emptyMessage="Consumption trends appear after daily stock counts are submitted."
-          emptyActionLabel="Start Stock Count"
-          onEmptyAction={goCount}
+          emptyMessage={
+            canAdvancedInventory
+              ? 'Consumption trends appear after daily stock counts are submitted.'
+              : 'Daily stock counts unlock on Professional.'
+          }
+          emptyActionLabel={canAdvancedInventory ? 'Start Stock Count' : undefined}
+          onEmptyAction={canAdvancedInventory ? goCount : undefined}
         />
       </div>
 
@@ -566,6 +646,7 @@ export function CurrentInventory() {
             variant="outline"
             className="h-9 shrink-0 rounded-lg border-white/20 bg-transparent text-white hover:bg-white/10"
             onClick={goAdjust}
+            disabled={!canAdvancedInventory}
           >
             Adjust
           </Button>
@@ -578,16 +659,18 @@ export function CurrentInventory() {
           >
             Export
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-9 shrink-0 rounded-lg border-white/20 bg-transparent text-white hover:bg-white/10"
-            onClick={goPurchase}
-          >
-            <span className="hidden sm:inline">Generate Purchase Order</span>
-            <span className="sm:hidden">Create PO</span>
-          </Button>
+          {canPurchase ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-9 shrink-0 rounded-lg border-white/20 bg-transparent text-white hover:bg-white/10"
+              onClick={goPurchase}
+            >
+              <span className="hidden sm:inline">Generate Purchase Order</span>
+              <span className="sm:hidden">Create PO</span>
+            </Button>
+          ) : null}
           <Button
             type="button"
             size="sm"
@@ -639,13 +722,15 @@ export function CurrentInventory() {
                 >
                   Reset Filter
                 </Button>
-                <Button
-                  type="button"
-                  className="h-11 rounded-xl bg-[#FF6A00] text-white hover:bg-[#e85f00]"
-                  onClick={goReceive}
-                >
-                  Receive Stock
-                </Button>
+                {canAdvancedInventory ? (
+                  <Button
+                    type="button"
+                    className="h-11 rounded-xl bg-[#FF6A00] text-white hover:bg-[#e85f00]"
+                    onClick={goReceive}
+                  >
+                    Receive Stock
+                  </Button>
+                ) : null}
               </div>
             </div>
           ) : (
@@ -665,16 +750,18 @@ export function CurrentInventory() {
       </div>
 
       {/* Mobile sticky CTA */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden">
-        <Button
-          type="button"
-          className="h-12 w-full rounded-xl bg-[#FF6A00] text-base text-white transition-colors duration-200 hover:bg-[#e85f00]"
-          onClick={goReceive}
-        >
-          <Plus className="h-5 w-5" />
-          Receive Stock
-        </Button>
-      </div>
+      {canAdvancedInventory ? (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden">
+          <Button
+            type="button"
+            className="h-12 w-full rounded-xl bg-[#FF6A00] text-base text-white transition-colors duration-200 hover:bg-[#e85f00]"
+            onClick={goReceive}
+          >
+            <Plus className="h-5 w-5" />
+            Receive Stock
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

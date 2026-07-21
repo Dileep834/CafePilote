@@ -31,6 +31,10 @@ import { ProductTable } from '@/modules/menu/components/ProductTable';
 import type { ProductRowAction } from '@/modules/menu/components/ProductActionMenu';
 import { fetchCatalogProducts } from '@/modules/menu/lib/fetchCatalog';
 import {
+  clearManualProductAvailability,
+  setManualProductAvailability,
+} from '@/modules/availability';
+import {
   loadPageSize,
   loadProductFilters,
   saveGroupBy,
@@ -86,6 +90,7 @@ function exportCsv(rows: CatalogProduct[]) {
 const Products: React.FC = () => {
   const { user } = useAuthStore();
   const planId = useTenantStore((s) => s.planId);
+  const activeOutletId = useTenantStore((s) => s.activeOutletId);
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
@@ -106,7 +111,7 @@ const Products: React.FC = () => {
     setLoading(true);
     try {
       const [prods, cats] = await Promise.all([
-        fetchCatalogProducts(companyId),
+        fetchCatalogProducts(companyId, activeOutletId || user?.outletId || null),
         (async () => {
           let q = supabase.from('categories').select('id, name').order('name');
           if (companyId) q = q.eq('company_id', companyId);
@@ -125,7 +130,7 @@ const Products: React.FC = () => {
 
   useEffect(() => {
     void fetchAll();
-  }, [user?.companyId, companyId]);
+  }, [user?.companyId, user?.outletId, companyId, activeOutletId]);
 
   useEffect(() => {
     saveProductFilters(filters);
@@ -242,6 +247,8 @@ const Products: React.FC = () => {
       setFormData({
         ...product.raw,
         item_type: product.itemType,
+        manual_availability_status: product.manualAvailabilityStatus || '',
+        manual_availability_reason: product.availabilityReason || '',
       });
     }
     setViewOnly(readOnly);
@@ -262,16 +269,50 @@ const Products: React.FC = () => {
     setSaving(true);
     try {
       const dataToSave = { ...formData };
+      const manualAvailabilityStatus = String(dataToSave.manual_availability_status || '').trim();
+      const manualAvailabilityReason = String(dataToSave.manual_availability_reason || '').trim();
       delete dataToSave.categories;
       delete dataToSave.categoryName;
+      delete dataToSave.manual_availability_status;
+      delete dataToSave.manual_availability_reason;
       if (dataToSave.id) {
         const { error } = await supabase.from('products').update(dataToSave).eq('id', dataToSave.id);
         if (error) throw error;
+        if (activeOutletId && manualAvailabilityStatus) {
+          await setManualProductAvailability({
+            outletId: activeOutletId,
+            productId: String(dataToSave.id),
+            status: manualAvailabilityStatus as never,
+            reason: manualAvailabilityReason || null,
+            userId: user?.id || null,
+            userName: user?.name || null,
+            userRole: user?.role || null,
+          });
+        } else if (activeOutletId && dataToSave.id) {
+          await clearManualProductAvailability({
+            outletId: activeOutletId,
+            productId: String(dataToSave.id),
+            userId: user?.id || null,
+            userName: user?.name || null,
+            userRole: user?.role || null,
+          });
+        }
       } else {
         const gate = checkProductLimit(planId, products.length);
         if (!gate.ok) throw new Error(gate.message);
-        const { error } = await supabase.from('products').insert([dataToSave]);
+        const { data, error } = await supabase.from('products').insert([dataToSave]).select('id').single();
         if (error) throw error;
+        if (activeOutletId && data?.id && manualAvailabilityStatus) {
+          await setManualProductAvailability({
+            outletId: activeOutletId,
+            productId: String(data.id),
+            status: manualAvailabilityStatus as never,
+            reason: manualAvailabilityReason || null,
+            userId: user?.id || null,
+            userName: user?.name || null,
+            userRole: user?.role || null,
+          });
+        }
       }
       handleClose();
       await fetchAll();
@@ -321,6 +362,77 @@ const Products: React.FC = () => {
       const { error } = await supabase.from('products').insert([copy]);
       if (error) window.alert(error.message);
       else await fetchAll();
+    }
+    if (!activeOutletId) return;
+    if (action === 'mark_available') {
+      await setManualProductAvailability({
+        outletId: activeOutletId,
+        productId: product.id,
+        status: 'available',
+        reason: 'Marked available from products screen',
+        userId: user?.id || null,
+        userName: user?.name || null,
+        userRole: user?.role || null,
+      });
+      await fetchAll();
+    }
+    if (action === 'mark_out_of_stock') {
+      await setManualProductAvailability({
+        outletId: activeOutletId,
+        productId: product.id,
+        status: 'out_of_stock',
+        reason: 'Marked out of stock from products screen',
+        userId: user?.id || null,
+        userName: user?.name || null,
+        userRole: user?.role || null,
+      });
+      await fetchAll();
+    }
+    if (action === 'mark_hidden') {
+      await setManualProductAvailability({
+        outletId: activeOutletId,
+        productId: product.id,
+        status: 'hidden',
+        reason: 'Hidden from products screen',
+        userId: user?.id || null,
+        userName: user?.name || null,
+        userRole: user?.role || null,
+      });
+      await fetchAll();
+    }
+    if (action === 'mark_seasonal') {
+      await setManualProductAvailability({
+        outletId: activeOutletId,
+        productId: product.id,
+        status: 'seasonal',
+        reason: 'Marked seasonal from products screen',
+        userId: user?.id || null,
+        userName: user?.name || null,
+        userRole: user?.role || null,
+      });
+      await fetchAll();
+    }
+    if (action === 'mark_discontinued') {
+      await setManualProductAvailability({
+        outletId: activeOutletId,
+        productId: product.id,
+        status: 'discontinued',
+        reason: 'Marked discontinued from products screen',
+        userId: user?.id || null,
+        userName: user?.name || null,
+        userRole: user?.role || null,
+      });
+      await fetchAll();
+    }
+    if (action === 'clear_override') {
+      await clearManualProductAvailability({
+        outletId: activeOutletId,
+        productId: product.id,
+        userId: user?.id || null,
+        userName: user?.name || null,
+        userRole: user?.role || null,
+      });
+      await fetchAll();
     }
   };
 
@@ -527,6 +639,28 @@ const Products: React.FC = () => {
               <MenuItem value="1">Active</MenuItem>
               <MenuItem value="0">Inactive</MenuItem>
             </TextField>
+            <TextField
+              select
+              fullWidth
+              label="Manual Availability"
+              value={String(formData.manual_availability_status || '')}
+              disabled={viewOnly}
+              onChange={(e) => setFormData({ ...formData, manual_availability_status: e.target.value })}
+            >
+              <MenuItem value="">Automatic / none</MenuItem>
+              <MenuItem value="available">Available</MenuItem>
+              <MenuItem value="out_of_stock">Out Of Stock</MenuItem>
+              <MenuItem value="hidden">Hidden</MenuItem>
+              <MenuItem value="seasonal">Seasonal</MenuItem>
+              <MenuItem value="discontinued">Discontinued</MenuItem>
+            </TextField>
+            <TextField
+              fullWidth
+              label="Availability Reason"
+              value={String(formData.manual_availability_reason || '')}
+              disabled={viewOnly}
+              onChange={(e) => setFormData({ ...formData, manual_availability_reason: e.target.value })}
+            />
           </Box>
           {viewOnly && formData.selling_price != null ? (
             <p className="mt-3 text-sm text-slate-500">Selling {formatCurrency(Number(formData.selling_price) || 0)}</p>

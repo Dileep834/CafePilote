@@ -1,47 +1,42 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useTenantStore } from '@/store/useTenantStore';
-import { isSuperAdmin } from '@/lib/access';
-import { useAuthStore } from '@/store/useAuthStore';
 import {
   getFeatureFlags,
   hasFeature,
   requiredPlanForFeature,
   toMarketingPlanId,
+  PLAN_MARKETING_LABEL,
   type FeatureFlagKey,
   type FeatureFlags,
   type PlanMarketingId,
 } from '@/lib/featureFlags';
-import { PLAN_MARKETING_LABEL } from '@/lib/featureFlags';
 
 /**
- * Plan-driven feature flags for the current tenant.
- * Super Admin sees all flags enabled.
+ * Plan-driven feature flags for the current tenant planId.
+ * Always respects the selected subscription (including when Super Admin
+ * previews Lite / Standard) so the sidebar and dashboards simplify correctly.
  */
 export function useFeatureFlags() {
   const planId = useTenantStore((s) => s.planId);
-  const user = useAuthStore((s) => s.user);
-  const sa = isSuperAdmin(user);
 
-  const flags = useMemo(() => {
-    const base = getFeatureFlags(planId);
-    if (!sa) return base;
-    const allOn = { ...base };
-    (Object.keys(allOn) as FeatureFlagKey[]).forEach((k) => {
-      allOn[k] = true;
-    });
-    return allOn;
-  }, [planId, sa]);
-
+  const flags = useMemo(() => getFeatureFlags(planId), [planId]);
   const marketingPlan = toMarketingPlanId(planId);
+
+  const has = useCallback((flag: FeatureFlagKey) => hasFeature(planId, flag), [planId]);
+  const requiredPlan = useCallback((flag: FeatureFlagKey) => requiredPlanForFeature(flag), []);
+  const requiredPlanLabel = useCallback(
+    (flag: FeatureFlagKey) => PLAN_MARKETING_LABEL[requiredPlanForFeature(flag)],
+    []
+  );
 
   return {
     planId,
     marketingPlan,
     planLabel: PLAN_MARKETING_LABEL[marketingPlan],
     flags,
-    has: (flag: FeatureFlagKey) => (sa ? true : hasFeature(planId, flag)),
-    requiredPlan: (flag: FeatureFlagKey) => requiredPlanForFeature(flag),
-    requiredPlanLabel: (flag: FeatureFlagKey) => PLAN_MARKETING_LABEL[requiredPlanForFeature(flag)],
+    has,
+    requiredPlan,
+    requiredPlanLabel,
   };
 }
 

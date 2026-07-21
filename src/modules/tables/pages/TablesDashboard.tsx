@@ -28,6 +28,7 @@ import {
 import { useAuthStore } from '@/store/useAuthStore';
 import { useTenantStore } from '@/store/useTenantStore';
 import { getPlanLimits } from '@/lib/planLimits';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { BRAND } from '@/constants';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/utils/format';
@@ -112,16 +113,25 @@ export function TablesDashboard() {
   const activeOutletId = useTenantStore((s) => s.activeOutletId);
   const hydrateTenant = useTenantStore((s) => s.hydrateFromUser);
   const planId = useTenantStore((s) => s.planId);
+  const { has: hasFlag } = useFeatureFlags();
+  const canFloorPlan = hasFlag('floorDesigner');
   const outletId =
     activeOutletId || user?.outletId || useTenantStore.getState().resolvedOutletId(user);
   const tableViewMode = useSettingsStore((s) => s.tableViewMode);
   const setTableViewMode = useSettingsStore((s) => s.setTableViewMode);
+  const effectiveViewMode = canFloorPlan ? tableViewMode : 'normal';
   const tableBoardLayout = useSettingsStore((s) => s.tableBoardLayout) ?? 'grid';
   const setTableBoardLayout = useSettingsStore((s) => s.setTableBoardLayout);
 
   useEffect(() => {
     void hydrateTenant(user);
   }, [user, hydrateTenant]);
+
+  useEffect(() => {
+    if (!canFloorPlan && tableViewMode === 'floor') {
+      setTableViewMode('normal');
+    }
+  }, [canFloorPlan, tableViewMode, setTableViewMode]);
 
   const {
     tables,
@@ -335,7 +345,7 @@ export function TablesDashboard() {
     }
   };
 
-  if (tableViewMode === 'floor') {
+  if (effectiveViewMode === 'floor') {
     return (
       <div className="flex flex-col h-full min-h-0 -m-4 md:-m-6">
         <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-b border-slate-200 bg-white">
@@ -349,7 +359,12 @@ export function TablesDashboard() {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <TableViewModeToggle value={tableViewMode} onChange={setTableViewMode} size="sm" />
+            <TableViewModeToggle
+              value={effectiveViewMode}
+              onChange={setTableViewMode}
+              size="sm"
+              allowFloor={canFloorPlan}
+            />
             <Button
               type="button"
               variant="outline"
@@ -400,7 +415,11 @@ export function TablesDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <TableViewModeToggle value={tableViewMode} onChange={setTableViewMode} />
+          <TableViewModeToggle
+            value={effectiveViewMode}
+            onChange={setTableViewMode}
+            allowFloor={canFloorPlan}
+          />
           <Button
             onClick={openAdd}
             className="h-11 px-5 rounded-xl text-white font-bold shadow-md"

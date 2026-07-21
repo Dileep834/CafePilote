@@ -9,11 +9,23 @@ type Props = {
   onChange: (mode: TableViewMode) => void;
   className?: string;
   size?: 'sm' | 'md';
+  /** When false, hide floor-plan option (Lite / plans without floor designer) */
+  allowFloor?: boolean;
 };
 
 /** Toggle between normal table cards and floor-plan view */
-export function TableViewModeToggle({ value, onChange, className, size = 'md' }: Props) {
+export function TableViewModeToggle({
+  value,
+  onChange,
+  className,
+  size = 'md',
+  allowFloor = true,
+}: Props) {
   const btn = size === 'sm' ? 'h-8 px-2.5 text-[11px]' : 'h-9 px-3 text-xs';
+
+  if (!allowFloor) {
+    return null;
+  }
 
   return (
     <div

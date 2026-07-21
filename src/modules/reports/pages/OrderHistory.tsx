@@ -6,6 +6,7 @@ import { FileText, Search, Store, Calendar, ChevronDown, ChevronUp, Download, Pr
 import { cn } from '@/lib/utils';
 import { PERMISSIONS } from '@/constants/permissions';
 import { useHasPermission } from '@/hooks/useHasPermission';
+import { fetchAvailabilityHistory, fetchAvailabilityReport } from '@/modules/availability';
 
 export function OrderHistory() {
   const canFilterBranches = useHasPermission(PERMISSIONS.BRANCH_SWITCH);
@@ -16,11 +17,30 @@ export function OrderHistory() {
   } = useReportStore();
 
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [availabilityRows, setAvailabilityRows] = useState<any[]>([]);
+  const [availabilityHistory, setAvailabilityHistory] = useState<any[]>([]);
 
   // Fetch data on mount and when filters change
   useEffect(() => {
     fetchData();
   }, [selectedOutletId, dateRange]);
+
+  useEffect(() => {
+    const outletId = selectedOutletId === 'ALL' ? null : selectedOutletId;
+    if (!outletId) {
+      setAvailabilityRows([]);
+      setAvailabilityHistory([]);
+      return;
+    }
+    void (async () => {
+      const [rows, history] = await Promise.all([
+        fetchAvailabilityReport(outletId),
+        fetchAvailabilityHistory(outletId),
+      ]);
+      setAvailabilityRows(rows);
+      setAvailabilityHistory(history as any[]);
+    })();
+  }, [selectedOutletId]);
 
   const toggleRow = (id: string) => {
     setExpandedRows(prev => {
@@ -119,6 +139,70 @@ export function OrderHistory() {
 
         </div>
       </div>
+
+      {selectedOutletId !== 'ALL' ? (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
+              <h2 className="text-base font-bold text-slate-800">Current Availability</h2>
+              <p className="text-xs text-slate-500">Shared availability status for the selected branch.</p>
+            </div>
+            <div className="max-h-80 overflow-auto">
+              {availabilityRows.length === 0 ? (
+                <p className="p-5 text-sm text-slate-500">No availability rows yet for this branch.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-slate-500">
+                    <tr>
+                      <th className="px-4 py-2 text-left">Product</th>
+                      <th className="px-4 py-2 text-left">Status</th>
+                      <th className="px-4 py-2 text-left">Servings</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {availabilityRows.slice(0, 25).map((row) => (
+                      <tr key={row.productId} className="border-t border-slate-100">
+                        <td className="px-4 py-2 font-medium text-slate-800">{row.productName}</td>
+                        <td className="px-4 py-2 capitalize text-slate-600">{String(row.status).replace(/_/g, ' ')}</td>
+                        <td className="px-4 py-2 text-slate-500">
+                          {row.availableServings == null ? '—' : Number(row.availableServings).toFixed(1)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
+              <h2 className="text-base font-bold text-slate-800">Availability History</h2>
+              <p className="text-xs text-slate-500">Manual overrides and inventory-driven transitions.</p>
+            </div>
+            <div className="max-h-80 overflow-auto divide-y divide-slate-100">
+              {availabilityHistory.length === 0 ? (
+                <p className="p-5 text-sm text-slate-500">No history yet for this branch.</p>
+              ) : (
+                availabilityHistory.slice(0, 20).map((row: any) => (
+                  <div key={row.id} className="px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-medium text-slate-800">{row.products?.name || 'Product'}</p>
+                      <p className="text-xs text-slate-400">{dayjs(row.created_at).format('DD MMM, hh:mm A')}</p>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {`${String(row.old_status || 'unknown').replace(/_/g, ' ')} -> ${String(row.new_status || 'unknown').replace(/_/g, ' ')}`}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {row.source || 'system'}{row.reason ? ` · ${row.reason}` : ''}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
