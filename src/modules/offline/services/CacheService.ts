@@ -157,8 +157,11 @@ export const CacheService = {
     }
 
     try {
-      const { data: recipes } = await supabase.from('recipes').select('*').limit(5000);
-      if (recipes?.length) {
+      const { data: recipes, error: recipesErr } = await supabase
+        .from('recipes')
+        .select('*')
+        .limit(5000);
+      if (!recipesErr && recipes?.length) {
         const db = getOfflineDB();
         await db.recipes_cache.bulkPut(
           recipes.map((r) => ({
@@ -173,21 +176,24 @@ export const CacheService = {
       /* optional */
     }
 
+    // Tax lives in client settings store (no tax_settings table) — cache local snapshot
     try {
-      const { data: taxes } = await supabase.from('tax_settings').select('*').limit(500);
-      if (taxes?.length) {
-        const db = getOfflineDB();
-        await db.tax_cache.bulkPut(
-          taxes.map((t: { id?: string; key?: string }, i: number) => ({
-            ...createSyncableBase({ sync_status: 'SYNCED' }),
-            outlet_id: outletId,
-            tax_key: String(t.id || t.key || `tax-${i}`),
-            data: t,
-          }))
-        );
-      }
+      const { useSettingsStore } = await import('@/store/useSettingsStore');
+      const tax = useSettingsStore.getState();
+      await this.putSetting(
+        'tax_snapshot',
+        {
+          taxMode: tax.taxMode,
+          defaultTaxRate: tax.defaultTaxRate,
+          taxInclusive: tax.taxInclusive,
+          serviceChargeMode: tax.serviceChargeMode,
+          serviceChargeValue: tax.serviceChargeValue,
+          roundingRule: tax.roundingRule,
+        },
+        outletId
+      );
     } catch {
-      /* optional table */
+      /* optional */
     }
 
     await this.putSetting('catalog_last_refreshed_at', nowIso(), outletId);
