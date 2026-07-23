@@ -197,7 +197,7 @@ export function POSHeldOrders({ onResumed }: Props) {
                     <Button
                       type="button"
                       variant="outline"
-                      className="h-9 rounded-xl text-[11px] font-bold"
+                      className="h-9 rounded-xl border-slate-200 bg-white text-[11px] font-bold text-slate-900"
                       onClick={() => void handleTransfer(order.id)}
                     >
                       <ArrowRightLeft className="mr-1 h-3.5 w-3.5" />
@@ -207,8 +207,8 @@ export function POSHeldOrders({ onResumed }: Props) {
                       type="button"
                       variant="outline"
                       className={cn(
-                        'h-9 rounded-xl text-[11px] font-bold',
-                        merging && 'border-brand-orange text-brand-orange'
+                        'h-9 rounded-xl border-slate-200 bg-white text-[11px] font-bold text-slate-900',
+                        merging && 'border-[#FF6A00] text-[#FF6A00]'
                       )}
                       onClick={() => void handleMergePick(order.id)}
                     >

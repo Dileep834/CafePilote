@@ -1165,7 +1165,7 @@ export function CheckoutPage() {
                         'h-10 rounded-xl text-xs font-bold transition-all',
                         amount === recommended
                           ? 'border-emerald-400 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-200'
-                          : 'border-slate-200 hover:border-brand-orange/40 hover:text-brand-orange'
+                          : 'border-slate-200 bg-white text-slate-900 hover:border-[#FF6A00]/40 hover:text-[#FF6A00]'
                       )}
                       onClick={() => handleQuickAmount(amount)}
                     >

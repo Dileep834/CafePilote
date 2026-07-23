@@ -321,21 +321,21 @@ export function Cart({ onOpenHeld, onClose }: Props) {
   function renderQuickSettle() {
     return (
       <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-        <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl">
           <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
             <div>
-              <p className="text-[11px] font-black uppercase tracking-wider text-brand-orange">
+              <p className="text-[11px] font-black uppercase tracking-wider text-[#FF6A00]">
                 Fast payment
               </p>
               <h3 className="mt-1 text-xl font-black text-slate-950">Settle payment</h3>
-              <p className="mt-1 text-sm font-semibold text-slate-500">
+              <p className="mt-1 text-sm font-semibold text-slate-600">
                 {activeTableLabel ? `Table ${activeTableLabel}` : 'Counter order'}
               </p>
             </div>
             <button
               type="button"
               onClick={() => setQuickSettleOpen(false)}
-              className="h-9 w-9 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              className="h-9 w-9 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-800"
               aria-label="Close quick settle"
             >
               <X className="mx-auto h-4 w-4" />
@@ -350,7 +350,7 @@ export function Cart({ onOpenHeld, onClose }: Props) {
               </p>
             </div>
             <div>
-              <p className="mb-2 text-xs font-black uppercase tracking-wider text-slate-400">Cash</p>
+              <p className="mb-2 text-xs font-black uppercase tracking-wider text-slate-600">Cash</p>
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   type="button"
@@ -367,7 +367,7 @@ export function Cart({ onOpenHeld, onClose }: Props) {
                     type="button"
                     disabled={quickSettleBusy}
                     variant="outline"
-                    className="h-12 rounded-xl font-bold"
+                    className="h-12 rounded-xl border-slate-200 bg-white font-bold text-slate-900 hover:border-[#FF6A00]/40 hover:bg-orange-50 hover:text-[#FF6A00]"
                     onClick={() => void handleQuickSettle('cash', amount)}
                   >
                     ₹{amount}
@@ -384,17 +384,17 @@ export function Cart({ onOpenHeld, onClose }: Props) {
                     type="button"
                     disabled={quickSettleBusy}
                     variant="outline"
-                    className="h-16 flex-col gap-1 rounded-xl"
+                    className="h-16 flex-col gap-1 rounded-xl border-slate-200 bg-white text-slate-900 hover:border-[#FF6A00]/40 hover:bg-orange-50 hover:text-[#FF6A00]"
                     onClick={() => void handleQuickSettle(method.id)}
                   >
                     <Icon className="h-4 w-4" />
-                    <span className="text-xs font-bold">{method.label}</span>
+                    <span className="text-xs font-bold text-inherit">{method.label}</span>
                   </Button>
                 );
               })}
             </div>
             {quickSettleBusy && (
-              <p className="flex items-center justify-center gap-2 text-sm font-semibold text-slate-500">
+              <p className="flex items-center justify-center gap-2 text-sm font-semibold text-slate-600">
                 <Loader2 className="h-4 w-4 animate-spin" /> Processing…
               </p>
             )}
@@ -406,7 +406,7 @@ export function Cart({ onOpenHeld, onClose }: Props) {
             <Button
               type="button"
               variant="outline"
-              className="h-11 w-full rounded-xl font-bold"
+              className="h-11 w-full rounded-xl border-slate-200 bg-white font-bold text-slate-900 hover:bg-slate-50"
               onClick={() => {
                 syncActiveTableBill();
                 navigate('/erp/pos/checkout');
@@ -421,7 +421,7 @@ export function Cart({ onOpenHeld, onClose }: Props) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white text-slate-900">
       {/* HEADER — fixed */}
       <div className="z-10 shrink-0 border-b border-slate-100 bg-white">
         {onClose && (

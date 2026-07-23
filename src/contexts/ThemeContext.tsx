@@ -27,12 +27,8 @@ export const CustomThemeProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, []);
 
   useEffect(() => {
-    const root = document.documentElement;
-    if (mode === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
+    // Keep document on light tokens — ERP/POS white chrome; MUI dark is scoped via ThemeProvider only.
+    document.documentElement.classList.remove('dark');
   }, [mode]);
 
   const toggleTheme = () => {
@@ -62,6 +58,8 @@ export const CustomThemeProvider: React.FC<{ children: React.ReactNode }> = ({ c
             },
             body: {
               fontFamily: '"Poppins", system-ui, sans-serif',
+              /* Keep ERP/POS readable on white panels even when MUI dark theme is toggled */
+              color: '#0f172a',
               WebkitFontSmoothing: 'auto',
               MozOsxFontSmoothing: 'auto',
             },

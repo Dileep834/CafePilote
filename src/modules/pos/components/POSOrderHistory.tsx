@@ -629,7 +629,7 @@ function HistoryBody({
                         <Button
                           type="button"
                           variant="outline"
-                          className="h-9 rounded-xl px-2 text-[11px] font-bold"
+                          className="h-9 rounded-xl border-slate-200 bg-white px-2 text-[11px] font-bold text-slate-900"
                           onClick={() => setExpanded(order.id)}
                         >
                           <Receipt className="mr-1 h-3.5 w-3.5" />
@@ -638,7 +638,7 @@ function HistoryBody({
                         <Button
                           type="button"
                           variant="outline"
-                          className="h-9 rounded-xl px-2 text-[11px] font-bold"
+                          className="h-9 rounded-xl border-slate-200 bg-white px-2 text-[11px] font-bold text-slate-900"
                           onClick={() => printReceipt(order)}
                         >
                           <Printer className="mr-1 h-3.5 w-3.5" />

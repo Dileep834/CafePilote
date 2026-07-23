@@ -64,13 +64,11 @@ body {
   margin: 0;
 }
 
-/* Heading font only — size/tracking come from Tailwind per page.
-   Do not set large display letter-spacing here; it collapses small ERP titles
-   (e.g. Online Order Hub) into overlapping glyphs. */
+/* Headings inherit page color by default. Explicit Tailwind text-* wins when set.
+   Avoid forcing --text-h here — html.dark made headings near-white on white POS/ERP. */
 h1,
 h2 {
   font-family: var(--heading);
-  color: var(--text-h);
   letter-spacing: normal;
 }
 p {
