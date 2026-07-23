@@ -1,5 +1,6 @@
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { HelmetProvider } from 'react-helmet-async';
 import { CustomThemeProvider } from './contexts/ThemeContext';
 import AppRoutes from './routes';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -32,18 +33,20 @@ function App() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ErrorBoundary area="app">
-        <CustomThemeProvider>
-          <BrowserRouter>
-            <ErrorBoundary area="routes">
-              <StaffSessionManager />
-              <AppRoutes />
-            </ErrorBoundary>
-          </BrowserRouter>
-        </CustomThemeProvider>
-      </ErrorBoundary>
-    </QueryClientProvider>
+    <HelmetProvider>
+      <QueryClientProvider client={queryClient}>
+        <ErrorBoundary area="app">
+          <CustomThemeProvider>
+            <BrowserRouter>
+              <ErrorBoundary area="routes">
+                <StaffSessionManager />
+                <AppRoutes />
+              </ErrorBoundary>
+            </BrowserRouter>
+          </CustomThemeProvider>
+        </ErrorBoundary>
+      </QueryClientProvider>
+    </HelmetProvider>
   );
 }
 

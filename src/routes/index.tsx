@@ -38,6 +38,7 @@ import { VoucherManagement } from '../modules/marketing/pages/VoucherManagement'
 import { TablesDashboard } from '../modules/tables/pages/TablesDashboard';
 import { CustomerMenuLayout } from '../modules/customer/layouts/CustomerMenuLayout';
 import { CustomerMenu } from '../modules/customer/pages/CustomerMenu';
+import { MarketingSeoRoutes } from '../pages/marketing/MarketingSeoRoutes';
 
 const FloorDesignerPage = React.lazy(() =>
   import('../modules/floordesigner/pages/FloorDesignerPage').then((m) => ({
@@ -139,7 +140,10 @@ const AppRoutes = () => {
             <Route path="/" element={<Login />} />
           </Route>
         ) : (
-          <Route path="/" element={<MarketingHome />} />
+          <>
+            <Route path="/" element={<MarketingHome />} />
+            {MarketingSeoRoutes()}
+          </>
         )}
 
         {/* Staff auth */}
@@ -573,7 +577,8 @@ const AppRoutes = () => {
         <Route path="/waste" element={<Navigate to="/erp/inventory/waste" replace />} />
         <Route path="/purchase/orders" element={<Navigate to="/erp/purchase" replace />} />
         <Route path="/dashboard" element={<Navigate to="/erp" replace />} />
-        <Route path="/reports" element={<Navigate to="/erp/reports" replace />} />
+        {/* Legacy /reports → ERP only on app host; marketing host serves SEO /reports */}
+        {appHost ? <Route path="/reports" element={<Navigate to="/erp/reports" replace />} /> : null}
         <Route path="/settings" element={<Navigate to="/erp/settings" replace />} />
         <Route path="/control-panel" element={<Navigate to="/erp/control-panel" replace />} />
         <Route path="/users" element={<Navigate to="/erp/users" replace />} />

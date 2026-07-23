@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/generate-sitemap.mjs",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "seo:sitemap": "node scripts/generate-sitemap.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -35,6 +37,7 @@
     "qrcode": "^1.5.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "react-helmet-async": "^3.0.0",
     "react-hook-form": "^7.81.0",
     "react-konva": "^19.2.5",
     "react-router-dom": "^7.18.1",

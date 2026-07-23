@@ -4,6 +4,9 @@ import { APP_DOMAIN, APP_NAME, APP_TAGLINE } from '@/constants';
 import { CafePilotsLogo } from '@/components/CafePilotsLogo';
 import { loginPath } from '@/lib/appHost';
 import { cn } from '@/lib/utils';
+import { SeoHead } from './seo/SeoHead';
+import { JsonLd } from './seo/JsonLd';
+import { getPageMeta } from './seo/siteConfig';
 import {
   ArrowRight,
   BarChart3,
@@ -20,11 +23,9 @@ import {
 } from 'lucide-react';
 
 const CONTACT_EMAIL = 'singhdileep834@gmail.com';
-const SEO_TITLE = `${APP_NAME} - Restaurant POS, QR Ordering, KDS and Inventory OS`;
-const SEO_DESCRIPTION =
-  'CafePilots is a complete restaurant operating system for cafes, restaurants, pubs, bars, bakeries, QSRs, cloud kitchens and multi-outlet food businesses: POS billing, QR ordering, KDS, inventory, CRM and reports.';
 const HERO_IMAGE =
   'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=2400';
+const homeMeta = getPageMeta('/')!;
 
 const PRODUCT_AREAS = [
   {
@@ -198,16 +199,27 @@ export default function LandingPage() {
   }, []);
 
   useEffect(() => {
-    document.title = SEO_TITLE;
-    const meta = document.querySelector('meta[name="description"]');
-    if (meta) meta.setAttribute('content', SEO_DESCRIPTION);
-
     const timer = window.setTimeout(() => setHeroReady(true), 60);
     return () => window.clearTimeout(timer);
   }, []);
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-white text-slate-950 font-sans antialiased">
+      <SeoHead meta={homeMeta} />
+      <JsonLd
+        faqs={[
+          {
+            question: 'What is CafePilots?',
+            answer:
+              'CafePilots is cloud restaurant POS software with billing, QR ordering, KDS, inventory, CRM and multi-outlet reports.',
+          },
+          {
+            question: 'Who is CafePilots for?',
+            answer:
+              'Cafes, restaurants, bakeries, pubs, bars, QSRs and cloud kitchens that need one F&B operating system.',
+          },
+        ]}
+      />
       <header className="relative isolate overflow-hidden bg-brand-navy text-white">
         <div
           className={cn(
@@ -228,18 +240,36 @@ export default function LandingPage() {
             <CafePilotsLogo size={40} withWordmark withDivider onDark />
           </Link>
           <div className="flex items-center gap-2">
-            <a
-              href={mailHref}
+            <Link
+              to="/features"
+              className="hidden rounded-md px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 sm:inline-flex"
+            >
+              Features
+            </Link>
+            <Link
+              to="/pricing"
+              className="hidden rounded-md px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 sm:inline-flex"
+            >
+              Pricing
+            </Link>
+            <Link
+              to="/blog"
+              className="hidden rounded-md px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 md:inline-flex"
+            >
+              Blog
+            </Link>
+            <Link
+              to="/contact"
               className="hidden rounded-md border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/45 hover:bg-white/10 sm:inline-flex"
             >
               Contact us
-            </a>
-            <a
-              href={mailHref}
+            </Link>
+            <Link
+              to="/restaurant-pos"
               className="hidden rounded-md bg-brand-orange px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-black/20 transition hover:bg-brand-orange-light hover:text-brand-navy sm:inline-flex"
             >
-              Get started
-            </a>
+              Restaurant POS
+            </Link>
             <Link
               to={appHref}
               className="rounded-md border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/45 hover:bg-white/10"
@@ -628,15 +658,30 @@ export default function LandingPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-4 text-sm font-semibold text-slate-600">
-            <button type="button" onClick={() => scrollToId('features')} className="hover:text-slate-950">
+            <Link to="/features" className="hover:text-slate-950">
               Features
-            </button>
-            <a href={mailHref} className="hover:text-slate-950">
+            </Link>
+            <Link to="/pricing" className="hover:text-slate-950">
+              Pricing
+            </Link>
+            <Link to="/restaurant-pos" className="hover:text-slate-950">
+              Restaurant POS
+            </Link>
+            <Link to="/qr-ordering" className="hover:text-slate-950">
+              QR Ordering
+            </Link>
+            <Link to="/kds" className="hover:text-slate-950">
+              KDS
+            </Link>
+            <Link to="/inventory" className="hover:text-slate-950">
+              Inventory
+            </Link>
+            <Link to="/blog" className="hover:text-slate-950">
+              Blog
+            </Link>
+            <Link to="/contact" className="hover:text-slate-950">
               Contact
-            </a>
-            <a href={mailHref} className="text-brand-orange hover:text-brand-navy">
-              Get started
-            </a>
+            </Link>
             <Link to={appHref} className="hover:text-slate-950">
               Login
             </Link>
