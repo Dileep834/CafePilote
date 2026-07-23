@@ -45,9 +45,7 @@ export function MobileOpsTableList() {
 
   return (
     <div className="h-full overflow-y-auto p-3 space-y-2 bg-[#F3F3F8]">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1 mb-1">
-        Tables
-      </p>
+      <p className="mb-1 px-1 text-sm font-semibold text-slate-700">Tables</p>
       {rows.map(({ obj, table }) => {
         const bill = getOpenBillForTable(table, tables);
         const status = toCanvasStatus(table.status, {
@@ -74,13 +72,13 @@ export function MobileOpsTableList() {
                 className="w-2.5 h-2.5 rounded-full shrink-0"
                 style={{ backgroundColor: TABLE_STATUS_COLORS[status] }}
               />
-              <span className="text-base font-black" style={{ color: BRAND.navy }}>
+              <span className="text-base font-bold text-slate-900" style={{ color: BRAND.navy }}>
                 {table.tableNumber}
               </span>
-              <span className="text-[11px] font-semibold text-slate-400 capitalize">
+              <span className="text-xs font-semibold capitalize text-slate-500">
                 {table.status}
               </span>
-              <span className="ml-auto text-[11px] font-semibold text-slate-500 inline-flex items-center gap-1">
+              <span className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-slate-600">
                 <Users className="w-3 h-3" />
                 {table.capacity}
               </span>
@@ -89,7 +87,7 @@ export function MobileOpsTableList() {
               <button
                 type="button"
                 disabled={clearBlocked}
-                className="flex-1 h-8 rounded-xl text-[11px] font-bold text-white disabled:opacity-50"
+                className="h-8 flex-1 rounded-xl text-xs font-bold text-white disabled:opacity-50"
                 style={{ backgroundColor: BRAND.orange }}
                 title={
                   clearBlocked ? 'Pay the open bill before clearing this table' : undefined
@@ -114,7 +112,7 @@ export function MobileOpsTableList() {
               </button>
               <button
                 type="button"
-                className="h-8 px-3 rounded-xl text-[11px] font-bold text-white inline-flex items-center gap-1"
+                className="inline-flex h-8 items-center gap-1 rounded-xl px-3 text-xs font-bold text-white"
                 style={{ backgroundColor: BRAND.navy }}
                 onClick={(e) => {
                   e.stopPropagation();

@@ -115,7 +115,8 @@ export function ObjectRenderer({
           height={o.height}
           align="center"
           verticalAlign="middle"
-          fontSize={o.fontSize || (linkedTable?.tableNumber || o.tableNumber ? 13 : 10)}
+          fontSize={o.fontSize || (linkedTable?.tableNumber || o.tableNumber ? 14 : 12)}
+          fontFamily="Poppins, system-ui, sans-serif"
           fontStyle="bold"
           fill={linkedTable && status ? '#fff' : BRAND.navy}
           listening={false}

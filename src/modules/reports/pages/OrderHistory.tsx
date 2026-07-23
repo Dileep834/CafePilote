@@ -1,29 +1,113 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useReportStore } from '../store/useReportStore';
 import dayjs from 'dayjs';
 import { formatCurrency } from '@/utils/format';
-import { FileText, Search, Store, Calendar, ChevronDown, ChevronUp, Download, Printer, Clock3, WalletCards } from 'lucide-react';
+import {
+  FileText,
+  Search,
+  Store,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  Download,
+  Printer,
+  Clock3,
+  WalletCards,
+  RefreshCw,
+  Filter,
+  ReceiptText,
+  Ban,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { InventoryCard } from '@/modules/inventory/components/InventoryCard';
 import { PERMISSIONS } from '@/constants/permissions';
 import { useHasPermission } from '@/hooks/useHasPermission';
 import { fetchAvailabilityHistory, fetchAvailabilityReport } from '@/modules/availability';
 
+function StatusChip({ status }: { status: string }) {
+  const s = String(status || '').toLowerCase();
+  const tone =
+    s === 'delivered' || s === 'completed' || s === 'paid'
+      ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/15'
+      : s === 'ready'
+        ? 'bg-sky-50 text-sky-700 ring-sky-600/15'
+        : s.includes('cancel')
+          ? 'bg-rose-50 text-rose-700 ring-rose-600/15'
+          : 'bg-amber-50 text-amber-800 ring-amber-600/15';
+  return (
+    <span
+      className={cn(
+        'inline-flex rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ring-1 ring-inset',
+        tone
+      )}
+    >
+      {status || '—'}
+    </span>
+  );
+}
+
+function exportOrdersCsv(orders: ReturnType<typeof useReportStore.getState>['orders']) {
+  const header = [
+    'Order ID',
+    'Created',
+    'Branch',
+    'Customer',
+    'Table',
+    'Total',
+    'Payment',
+    'Kitchen Status',
+    'Source',
+  ];
+  const lines = orders.map((o) =>
+    [
+      o.id,
+      o.created_at,
+      o.outlets?.name || '',
+      o.customer_name || '',
+      o.table_number || '',
+      o.total_amount,
+      o.payment_method,
+      o.kitchen_status,
+      o.order_source || '',
+    ]
+      .map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`)
+      .join(',')
+  );
+  const blob = new Blob([[header.join(','), ...lines].join('\n')], {
+    type: 'text/csv;charset=utf-8;',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `reports-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function OrderHistory() {
   const canFilterBranches = useHasPermission(PERMISSIONS.BRANCH_SWITCH);
   const {
-    orders, outlets, isLoading, error,
-    selectedOutletId, dateRange,
-    setOutletFilter, setDateRange, fetchData
+    orders,
+    outlets,
+    isLoading,
+    error,
+    selectedOutletId,
+    dateRange,
+    setOutletFilter,
+    setDateRange,
+    fetchData,
   } = useReportStore();
 
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [availabilityRows, setAvailabilityRows] = useState<any[]>([]);
   const [availabilityHistory, setAvailabilityHistory] = useState<any[]>([]);
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [search, setSearch] = useState('');
 
-  // Fetch data on mount and when filters change
   useEffect(() => {
-    fetchData();
-  }, [selectedOutletId, dateRange]);
+    void fetchData();
+  }, [selectedOutletId, dateRange, fetchData]);
 
   useEffect(() => {
     const outletId = selectedOutletId === 'ALL' ? null : selectedOutletId;
@@ -43,129 +127,279 @@ export function OrderHistory() {
   }, [selectedOutletId]);
 
   const toggleRow = (id: string) => {
-    setExpandedRows(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(id)) newSet.delete(id);
-      else newSet.add(id);
-      return newSet;
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
     });
   };
 
-  const totalSalesAmount = orders.reduce((sum, order) => sum + order.total_amount, 0);
-  const averageOrderValue = orders.length > 0 ? totalSalesAmount / orders.length : 0;
-  const paymentMix = orders.reduce<Record<string, number>>((acc, order) => {
-    const method = order.payment_method || 'unknown';
-    acc[method] = (acc[method] || 0) + 1;
-    return acc;
-  }, {});
-  const topPaymentMethod =
-    Object.entries(paymentMix).sort((a, b) => b[1] - a[1])[0]?.[0] || 'No payments';
-  const hourlySales = orders.reduce<Record<string, number>>((acc, order) => {
-    const hour = dayjs(order.created_at).format('ha');
-    acc[hour] = (acc[hour] || 0) + order.total_amount;
-    return acc;
-  }, {});
-  const peakHour = Object.entries(hourlySales).sort((a, b) => b[1] - a[1])[0];
-  const cancelledBills = orders.filter((order) => String(order.status || '').toLowerCase().includes('cancel')).length;
+  const filteredOrders = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return orders;
+    return orders.filter((o) => {
+      const id = o.id.toLowerCase();
+      const customer = String(o.customer_name || '').toLowerCase();
+      const table = String(o.table_number || '').toLowerCase();
+      const pay = String(o.payment_method || '').toLowerCase();
+      const branch = String(o.outlets?.name || '').toLowerCase();
+      return (
+        id.includes(q) ||
+        customer.includes(q) ||
+        table.includes(q) ||
+        pay.includes(q) ||
+        branch.includes(q)
+      );
+    });
+  }, [orders, search]);
+
+  const kpis = useMemo(() => {
+    const totalSalesAmount = orders.reduce((sum, order) => sum + order.total_amount, 0);
+    const averageOrderValue = orders.length > 0 ? totalSalesAmount / orders.length : 0;
+    const paymentMix = orders.reduce<Record<string, number>>((acc, order) => {
+      const method = order.payment_method || 'unknown';
+      acc[method] = (acc[method] || 0) + 1;
+      return acc;
+    }, {});
+    const topPaymentMethod =
+      Object.entries(paymentMix).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+    const hourlySales = orders.reduce<Record<string, number>>((acc, order) => {
+      const hour = dayjs(order.created_at).format('ha');
+      acc[hour] = (acc[hour] || 0) + order.total_amount;
+      return acc;
+    }, {});
+    const peakHour = Object.entries(hourlySales).sort((a, b) => b[1] - a[1])[0];
+    const cancelledBills = orders.filter((order) =>
+      String(order.status || '').toLowerCase().includes('cancel')
+    ).length;
+    return {
+      totalSalesAmount,
+      averageOrderValue,
+      topPaymentMethod,
+      peakHour: peakHour ? peakHour[0] : '—',
+      cancelledBills,
+      orderCount: orders.length,
+    };
+  }, [orders]);
+
+  const activeFilterCount =
+    (search.trim() ? 1 : 0) +
+    (dateRange !== 'today' ? 1 : 0) +
+    (selectedOutletId !== 'ALL' ? 1 : 0);
+
+  const colSpan = canFilterBranches ? 8 : 7;
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-            <FileText className="w-6 h-6 text-orange-600" />
-            Restaurant Reports
-          </h1>
-          <p className="text-slate-500 text-sm">Sales, payments, discounts, peak hours, and table performance</p>
+    <div className="mx-auto w-full max-w-[1600px] space-y-3 px-1 pb-6 sm:px-0">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-black tracking-tight text-slate-900">Reports</h1>
+          <p className="mt-0.5 max-w-2xl text-sm font-medium text-slate-500">
+            Sales, payments, discounts, peak hours, and table performance.
+          </p>
         </div>
-
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-3">
-
-          {/* Branch Filter (Only for Admins) */}
-          {canFilterBranches && (
-            <div className="flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
-              <div className="pl-3 py-2 bg-slate-50 border-r border-slate-200">
-                <Store className="w-4 h-4 text-slate-500" />
-              </div>
-              <select
-                className="bg-transparent border-none text-sm font-medium focus:ring-0 py-2 pl-3 pr-8 cursor-pointer"
-                value={selectedOutletId}
-                onChange={(e) => setOutletFilter(e.target.value)}
-              >
-                <option value="ALL">Global (All Branches)</option>
-                {outlets.map(o => (
-                  <option key={o.id} value={o.id}>{o.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Date Filter */}
-          <div className="flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
-            <div className="pl-3 py-2 bg-slate-50 border-r border-slate-200">
-              <Calendar className="w-4 h-4 text-slate-500" />
-            </div>
-            <select
-              className="bg-transparent border-none text-sm font-medium focus:ring-0 py-2 pl-3 pr-8 cursor-pointer"
-              value={dateRange}
-              onChange={(e: any) => setDateRange(e.target.value)}
-            >
-              <option value="today">Today</option>
-              <option value="7days">Last 7 Days</option>
-              <option value="30days">Last 30 Days</option>
-              <option value="all">All Time</option>
-            </select>
-          </div>
-
-          {[
-            { label: 'Excel', icon: Download },
-            { label: 'PDF', icon: FileText },
-            { label: 'CSV', icon: Download },
-            { label: 'Print', icon: Printer, action: () => window.print() },
-          ].map((action) => (
-            <button
-              key={action.label}
-              type="button"
-              onClick={action.action}
-              className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 shadow-sm hover:bg-slate-50"
-            >
-              <action.icon className="mr-1.5 inline h-3.5 w-3.5" />
-              {action.label}
-            </button>
-          ))}
-
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 rounded-xl border-slate-200"
+            onClick={() => setFiltersOpen((v) => !v)}
+          >
+            <Filter className="mr-1.5 h-3.5 w-3.5" />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="ml-1.5 rounded-md bg-orange-100 px-1.5 py-0.5 text-[10px] font-black text-orange-700">
+                {activeFilterCount}
+              </span>
+            )}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 rounded-xl border-slate-200"
+            disabled={!filteredOrders.length}
+            onClick={() => exportOrdersCsv(filteredOrders)}
+          >
+            <Download className="mr-1.5 h-3.5 w-3.5" />
+            CSV
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 rounded-xl border-slate-200"
+            onClick={() => window.print()}
+          >
+            <Printer className="mr-1.5 h-3.5 w-3.5" />
+            Print
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 rounded-xl border-slate-200"
+            disabled={isLoading}
+            onClick={() => void fetchData()}
+          >
+            <RefreshCw className={cn('mr-1.5 h-3.5 w-3.5', isLoading && 'animate-spin')} />
+            Refresh
+          </Button>
         </div>
       </div>
 
+      {error && (
+        <p className="rounded-[12px] bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 ring-1 ring-amber-100">
+          {error}
+        </p>
+      )}
+
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-3 xl:grid-cols-6 lg:gap-3">
+        <InventoryCard
+          label="Revenue"
+          value={formatCurrency(kpis.totalSalesAmount)}
+          subtitle="Selected period"
+          icon={ReceiptText}
+          tone="emerald"
+        />
+        <InventoryCard
+          label="Orders"
+          value={String(kpis.orderCount)}
+          subtitle="Bills loaded"
+          icon={FileText}
+          tone="blue"
+        />
+        <InventoryCard
+          label="AOV"
+          value={formatCurrency(kpis.averageOrderValue)}
+          subtitle="Average ticket"
+          icon={WalletCards}
+          tone="orange"
+        />
+        <InventoryCard
+          label="Peak hour"
+          value={String(kpis.peakHour)}
+          subtitle="By sales volume"
+          icon={Clock3}
+          tone="amber"
+        />
+        <InventoryCard
+          label="Top payment"
+          value={String(kpis.topPaymentMethod)}
+          subtitle="Most used"
+          icon={WalletCards}
+          tone="slate"
+        />
+        <InventoryCard
+          label="Cancelled"
+          value={String(kpis.cancelledBills)}
+          subtitle="In period"
+          icon={Ban}
+          tone="red"
+        />
+      </div>
+
+      {filtersOpen && (
+        <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-100 sm:p-4">
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="min-w-[180px] flex-1 space-y-1">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Search
+              </span>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <input
+                  className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-8 pr-3 text-sm outline-none ring-orange-500/30 focus:ring-2"
+                  placeholder="Order, customer, table, payment…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+            </label>
+
+            {canFilterBranches && (
+              <label className="w-full space-y-1 sm:w-48">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  Branch
+                </span>
+                <div className="relative">
+                  <Store className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                  <select
+                    className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-8 pr-3 text-sm outline-none ring-orange-500/30 focus:ring-2"
+                    value={selectedOutletId}
+                    onChange={(e) => setOutletFilter(e.target.value)}
+                  >
+                    <option value="ALL">All branches</option>
+                    {outlets.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </label>
+            )}
+
+            <label className="w-full space-y-1 sm:w-44">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Date range
+              </span>
+              <div className="relative">
+                <Calendar className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <select
+                  className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-8 pr-3 text-sm outline-none ring-orange-500/30 focus:ring-2"
+                  value={dateRange}
+                  onChange={(e) =>
+                    setDateRange(e.target.value as 'today' | '7days' | '30days' | 'all')
+                  }
+                >
+                  <option value="today">Today</option>
+                  <option value="7days">Last 7 days</option>
+                  <option value="30days">Last 30 days</option>
+                  <option value="all">All time</option>
+                </select>
+              </div>
+            </label>
+          </div>
+        </div>
+      )}
+
       {selectedOutletId !== 'ALL' ? (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
-              <h2 className="text-base font-bold text-slate-800">Current Availability</h2>
-              <p className="text-xs text-slate-500">Shared availability status for the selected branch.</p>
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+          <section className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-100">
+            <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
+              <h2 className="text-base font-black text-slate-900">Current availability</h2>
+              <p className="text-sm font-medium text-slate-500">
+                Shared availability status for the selected branch
+              </p>
             </div>
             <div className="max-h-80 overflow-auto">
               {availabilityRows.length === 0 ? (
-                <p className="p-5 text-sm text-slate-500">No availability rows yet for this branch.</p>
+                <p className="px-5 py-8 text-center text-sm text-slate-400">
+                  No availability rows yet for this branch
+                </p>
               ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-slate-500">
+                <table className="w-full text-left text-xs">
+                  <thead className="sticky top-0 bg-slate-50/95 text-[10px] font-black uppercase tracking-wider text-slate-400 backdrop-blur">
                     <tr>
-                      <th className="px-4 py-2 text-left">Product</th>
-                      <th className="px-4 py-2 text-left">Status</th>
-                      <th className="px-4 py-2 text-left">Servings</th>
+                      <th className="px-4 py-2.5">Product</th>
+                      <th className="px-4 py-2.5">Status</th>
+                      <th className="px-4 py-2.5">Servings</th>
                     </tr>
                   </thead>
                   <tbody>
                     {availabilityRows.slice(0, 25).map((row) => (
-                      <tr key={row.productId} className="border-t border-slate-100">
-                        <td className="px-4 py-2 font-medium text-slate-800">{row.productName}</td>
-                        <td className="px-4 py-2 capitalize text-slate-600">{String(row.status).replace(/_/g, ' ')}</td>
-                        <td className="px-4 py-2 text-slate-500">
-                          {row.availableServings == null ? '—' : Number(row.availableServings).toFixed(1)}
+                      <tr key={row.productId} className="border-t border-slate-50">
+                        <td className="px-4 py-2.5 font-bold text-slate-900">{row.productName}</td>
+                        <td className="px-4 py-2.5 capitalize text-slate-600">
+                          {String(row.status).replace(/_/g, ' ')}
+                        </td>
+                        <td className="px-4 py-2.5 tabular-nums text-slate-500">
+                          {row.availableServings == null
+                            ? '—'
+                            : Number(row.availableServings).toFixed(1)}
                         </td>
                       </tr>
                     ))}
@@ -173,257 +407,199 @@ export function OrderHistory() {
                 </table>
               )}
             </div>
-          </div>
+          </section>
 
-          <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
-              <h2 className="text-base font-bold text-slate-800">Availability History</h2>
-              <p className="text-xs text-slate-500">Manual overrides and inventory-driven transitions.</p>
+          <section className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-100">
+            <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
+              <h2 className="text-base font-black text-slate-900">Availability history</h2>
+              <p className="text-sm font-medium text-slate-500">
+                Manual overrides and inventory-driven transitions
+              </p>
             </div>
-            <div className="max-h-80 overflow-auto divide-y divide-slate-100">
+            <div className="max-h-80 divide-y divide-slate-50 overflow-auto">
               {availabilityHistory.length === 0 ? (
-                <p className="p-5 text-sm text-slate-500">No history yet for this branch.</p>
+                <p className="px-5 py-8 text-center text-sm text-slate-400">
+                  No history yet for this branch
+                </p>
               ) : (
                 availabilityHistory.slice(0, 20).map((row: any) => (
                   <div key={row.id} className="px-4 py-3">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="font-medium text-slate-800">{row.products?.name || 'Product'}</p>
-                      <p className="text-xs text-slate-400">{dayjs(row.created_at).format('DD MMM, hh:mm A')}</p>
+                      <p className="font-bold text-slate-900">{row.products?.name || 'Product'}</p>
+                      <p className="text-[11px] text-slate-400">
+                        {dayjs(row.created_at).format('DD MMM, hh:mm A')}
+                      </p>
                     </div>
                     <p className="mt-1 text-sm text-slate-600">
-                      {`${String(row.old_status || 'unknown').replace(/_/g, ' ')} -> ${String(row.new_status || 'unknown').replace(/_/g, ' ')}`}
+                      {`${String(row.old_status || 'unknown').replace(/_/g, ' ')} → ${String(row.new_status || 'unknown').replace(/_/g, ' ')}`}
                     </p>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      {row.source || 'system'}{row.reason ? ` · ${row.reason}` : ''}
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                      {row.source || 'system'}
+                      {row.reason ? ` · ${row.reason}` : ''}
                     </p>
                   </div>
                 ))
               )}
             </div>
-          </div>
+          </section>
         </div>
       ) : null}
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
-        {[
-          { label: 'Revenue', value: formatCurrency(totalSalesAmount), icon: FileText, tone: 'bg-emerald-50 text-emerald-700' },
-          { label: 'Orders', value: orders.length, icon: Store, tone: 'bg-blue-50 text-blue-700' },
-          { label: 'AOV', value: formatCurrency(averageOrderValue), icon: WalletCards, tone: 'bg-orange-50 text-orange-700' },
-          { label: 'Peak hour', value: peakHour ? peakHour[0] : 'None', icon: Clock3, tone: 'bg-amber-50 text-amber-700' },
-          { label: 'Top payment', value: topPaymentMethod, icon: WalletCards, tone: 'bg-slate-50 text-slate-700' },
-          { label: 'Cancelled', value: cancelledBills, icon: Search, tone: 'bg-rose-50 text-rose-700' },
-        ].map((stat) => (
-          <div key={stat.label} className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${stat.tone}`}>
-              <stat.icon className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] text-slate-500 font-black uppercase tracking-wider">{stat.label}</p>
-              <p className="truncate text-lg font-black text-slate-800">{stat.value}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+      <section className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-100">
+        <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
+          <h2 className="text-base font-black text-slate-900">Order history</h2>
+          <p className="text-sm font-medium text-slate-500">
+            Showing {filteredOrders.length} of {orders.length} bills
+          </p>
+        </div>
 
-      {/* Data Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        {isLoading ? (
-          <div className="p-8 text-center text-slate-500 font-medium">Loading transactions...</div>
-        ) : error ? (
-          <div className="p-8 text-center text-red-500 font-medium">{error}</div>
+        {isLoading && orders.length === 0 ? (
+          <div className="px-6 py-16 text-center text-sm text-slate-400">Loading transactions…</div>
         ) : orders.length === 0 ? (
-          <div className="p-12 text-center">
-            <Search className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-            <h3 className="text-lg font-bold text-slate-700">No Orders Found</h3>
-            <p className="text-slate-500">There are no transactions for the selected filters.</p>
+          <div className="flex flex-col items-center px-6 py-16 text-center">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-[#FF6A00]">
+              <FileText className="h-6 w-6" />
+            </div>
+            <h3 className="text-lg font-black text-slate-900">No orders found</h3>
+            <p className="mt-1 max-w-md text-sm font-medium text-slate-500">
+              There are no transactions for the selected filters.
+            </p>
+          </div>
+        ) : filteredOrders.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <h3 className="text-base font-black text-slate-900">No bills match your search</h3>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-3 h-9 rounded-xl"
+              onClick={() => setSearch('')}
+            >
+              Clear search
+            </Button>
           </div>
         ) : (
-          <>
-            {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
-                    <th className="px-6 py-4 font-semibold">Order ID</th>
-                    <th className="px-6 py-4 font-semibold">Date & Time</th>
-                    {canFilterBranches && <th className="px-6 py-4 font-semibold">Branch</th>}
-                    <th className="px-6 py-4 font-semibold">Customer</th>
-                    <th className="px-6 py-4 font-semibold text-right">Total Amount</th>
-                    <th className="px-6 py-4 font-semibold text-center">Payment</th>
-                    <th className="px-6 py-4 font-semibold text-center">Status</th>
-                    <th className="px-6 py-4"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {orders.map((order) => {
-                    const isExpanded = expandedRows.has(order.id);
-                    return (
-                      <React.Fragment key={order.id}>
-                        <tr
-                          onClick={() => toggleRow(order.id)}
-                          className="hover:bg-slate-50 cursor-pointer transition-colors group"
-                        >
-                          <td className="px-6 py-4">
-                            <span className="font-mono text-sm font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded-md">
-                              #{order.id.substring(0, 8).toUpperCase()}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-sm font-medium text-slate-700">
-                            {dayjs(order.created_at).format('MMM D, YYYY')}
-                            <span className="block text-slate-400 text-xs">{dayjs(order.created_at).format('hh:mm A')}</span>
-                          </td>
-                          {canFilterBranches && (
-                            <td className="px-6 py-4 text-sm font-medium text-slate-700">
-                              {order.outlets?.name || <span className="text-slate-400 italic">Unknown</span>}
-                            </td>
-                          )}
-                          <td className="px-6 py-4 text-sm font-medium text-slate-700">
-                            {order.table_number ? (
-                              <span className="font-bold text-brand-navy">Table {order.table_number}</span>
-                            ) : order.customer_name ? (
-                              order.customer_name
-                            ) : (
-                              <span className="text-slate-400 italic">Walk-in</span>
-                            )}
-                            {order.order_source === 'qr' && (
-                              <span className="ml-2 text-[10px] font-bold uppercase text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded">QR</span>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[880px] text-left text-xs">
+              <thead className="sticky top-0 z-10 bg-slate-50/95 text-[10px] font-black uppercase tracking-wider text-slate-400 backdrop-blur">
+                <tr>
+                  <th className="px-4 py-2.5">Order</th>
+                  <th className="px-4 py-2.5">When</th>
+                  {canFilterBranches ? <th className="px-4 py-2.5">Branch</th> : null}
+                  <th className="px-4 py-2.5">Customer</th>
+                  <th className="px-4 py-2.5 text-right">Total</th>
+                  <th className="px-4 py-2.5 text-center">Payment</th>
+                  <th className="px-4 py-2.5 text-center">Status</th>
+                  <th className="px-4 py-2.5" />
+                </tr>
+              </thead>
+              <tbody>
+                {filteredOrders.map((order) => {
+                  const isExpanded = expandedRows.has(order.id);
+                  return (
+                    <React.Fragment key={order.id}>
+                      <tr
+                        onClick={() => toggleRow(order.id)}
+                        className="cursor-pointer border-t border-slate-50 transition-colors hover:bg-slate-50/80"
+                      >
+                        <td className="px-4 py-2.5">
+                          <span className="rounded-md bg-orange-50 px-2 py-0.5 font-mono text-[10px] font-black text-[#FF6A00] ring-1 ring-inset ring-orange-600/15">
+                            #{order.id.substring(0, 8).toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 font-medium text-slate-700">
+                          {dayjs(order.created_at).format('MMM D, YYYY')}
+                          <span className="block text-[11px] text-slate-400">
+                            {dayjs(order.created_at).format('hh:mm A')}
+                          </span>
+                        </td>
+                        {canFilterBranches ? (
+                          <td className="px-4 py-2.5 font-medium text-slate-700">
+                            {order.outlets?.name || (
+                              <span className="italic text-slate-400">Unknown</span>
                             )}
                           </td>
-                          <td className="px-6 py-4 text-sm font-black text-slate-900 text-right">
-                            {formatCurrency(order.total_amount)}
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-                              {order.payment_method}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className={cn(
-                              "text-xs font-bold uppercase tracking-wider px-2 py-1 rounded-full",
-                              order.kitchen_status === 'delivered' ? "bg-green-100 text-green-700" :
-                              order.kitchen_status === 'ready' ? "bg-blue-100 text-blue-700" :
-                              "bg-amber-100 text-amber-700"
-                            )}>
-                              {order.kitchen_status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <button className="text-slate-400 group-hover:text-orange-600 transition-colors">
-                              {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                            </button>
-                          </td>
-                        </tr>
-
-                        {/* Expanded Row Content */}
-                        {isExpanded && (
-                          <tr className="bg-slate-50/50">
-                            <td colSpan={canFilterBranches ? 8 : 7} className="px-6 py-4 border-l-4 border-l-orange-500">
-                              <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-                                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Itemized Receipt</h4>
-                                <div className="space-y-2">
-                                  {order.items?.map(item => (
-                                    <div key={item.id} className="flex justify-between items-center text-sm">
-                                      <div className="flex items-center gap-3">
-                                        <span className="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">{item.quantity}x</span>
-                                        <span className="font-medium text-slate-700">{item.product_name}</span>
-                                      </div>
-                                      <div className="font-medium text-slate-900">
-                                        {formatCurrency(item.total_price)}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Card List View */}
-            <div className="md:hidden flex flex-col divide-y divide-slate-100">
-              {orders.map((order) => {
-                const isExpanded = expandedRows.has(order.id);
-                return (
-                  <div key={order.id} className="p-4 bg-white hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => toggleRow(order.id)}>
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex flex-col gap-1.5">
-                        <span className="font-mono text-xs font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-md inline-block w-fit">
-                          #{order.id.substring(0, 8).toUpperCase()}
-                        </span>
-                        <span className="text-sm font-medium text-slate-700">
+                        ) : null}
+                        <td className="px-4 py-2.5 font-medium text-slate-700">
                           {order.table_number ? (
-                            <span className="font-bold text-brand-navy">Table {order.table_number}</span>
+                            <span className="font-bold text-slate-900">
+                              Table {order.table_number}
+                            </span>
                           ) : order.customer_name ? (
                             order.customer_name
                           ) : (
-                            <span className="text-slate-400 italic">Walk-in</span>
+                            <span className="italic text-slate-400">Walk-in</span>
                           )}
-                          {order.order_source === 'qr' && (
-                            <span className="ml-1 text-[10px] font-bold uppercase text-sky-600 bg-sky-50 px-1 py-0.5 rounded">QR</span>
-                          )}
-                        </span>
-                      </div>
-                      <div className="text-right flex flex-col gap-1 items-end">
-                        <span className="text-base font-black text-slate-900">
+                          {order.order_source === 'qr' ? (
+                            <span className="ml-2 rounded-md bg-sky-50 px-1.5 py-0.5 text-[10px] font-black uppercase text-sky-700 ring-1 ring-inset ring-sky-600/15">
+                              QR
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-2.5 text-right text-sm font-black tabular-nums text-slate-900">
                           {formatCurrency(order.total_amount)}
-                        </span>
-                        <span className={cn(
-                          "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full mt-0.5",
-                          order.kitchen_status === 'delivered' ? "bg-green-100 text-green-700" :
-                          order.kitchen_status === 'ready' ? "bg-blue-100 text-blue-700" :
-                          "bg-amber-100 text-amber-700"
-                        )}>
-                          {order.kitchen_status}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center text-xs text-slate-500 mt-3 pt-2 border-t border-slate-50">
-                      <span>{dayjs(order.created_at).format('MMM D, h:mm A')}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold uppercase text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{order.payment_method}</span>
-                        <button className="text-slate-400">
-                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Expanded Mobile View */}
-                    {isExpanded && (
-                      <div className="mt-3 pt-3 border-t border-slate-100">
-                        {canFilterBranches && (
-                          <div className="mb-3 text-xs text-slate-500">
-                            Branch: <span className="font-medium text-slate-700">{order.outlets?.name || <span className="italic">Unknown</span>}</span>
-                          </div>
-                        )}
-                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Itemized Receipt</h4>
-                        <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                          {order.items?.map(item => (
-                            <div key={item.id} className="flex justify-between items-center text-xs">
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-slate-600 bg-white shadow-sm px-1.5 py-0.5 rounded">{item.quantity}x</span>
-                                <span className="font-medium text-slate-700">{item.product_name}</span>
-                              </div>
-                              <div className="font-medium text-slate-900">
-                                {formatCurrency(item.total_price)}
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase text-slate-600">
+                            {order.payment_method}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <StatusChip status={order.kitchen_status} />
+                        </td>
+                        <td className="px-4 py-2.5 text-right text-slate-400">
+                          {isExpanded ? (
+                            <ChevronUp className="ml-auto h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="ml-auto h-4 w-4" />
+                          )}
+                        </td>
+                      </tr>
+                      {isExpanded ? (
+                        <tr className="bg-slate-50/60">
+                          <td
+                            colSpan={colSpan}
+                            className="border-l-4 border-l-[#FF6A00] px-4 py-3"
+                          >
+                            <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+                              <h4 className="mb-3 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                Itemized receipt
+                              </h4>
+                              <div className="space-y-2">
+                                {order.items?.map((item) => (
+                                  <div
+                                    key={item.id}
+                                    className="flex items-center justify-between text-sm"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-700">
+                                        {item.quantity}×
+                                      </span>
+                                      <span className="font-semibold text-slate-800">
+                                        {item.product_name}
+                                      </span>
+                                    </div>
+                                    <div className="font-black tabular-nums text-slate-900">
+                                      {formatCurrency(item.total_price)}
+                                    </div>
+                                  </div>
+                                ))}
+                                {!order.items?.length ? (
+                                  <p className="text-sm text-slate-400">No line items</p>
+                                ) : null}
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

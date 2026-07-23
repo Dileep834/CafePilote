@@ -128,10 +128,10 @@ export function FloorOpsPanel({ onPrintQr, onEditLayout }: Props) {
           >
             <div className="w-[300px] h-full flex flex-col">
               <div className="px-4 py-3 border-b border-slate-100">
-                <p className="text-sm font-bold" style={{ color: BRAND.navy }}>
+                <p className="text-base font-bold text-slate-900" style={{ color: BRAND.navy }}>
                   {obj ? displayNumber : 'Floor board'}
                 </p>
-                <p className="text-[11px] text-slate-400">
+                <p className="mt-0.5 text-sm font-medium text-slate-600">
                   {obj
                     ? linked
                       ? 'Linked to Table Management'
@@ -213,23 +213,23 @@ export function FloorOpsPanel({ onPrintQr, onEditLayout }: Props) {
                           className="w-3 h-3 rounded-full"
                           style={{ backgroundColor: TABLE_STATUS_COLORS[canvasStatus] }}
                         />
-                        <span className="text-xs font-bold uppercase tracking-wide text-slate-600">
+                        <span className="text-sm font-semibold text-slate-700">
                           {STATUS_LABEL[linked.status]}
                         </span>
                       </div>
                       <p
-                        className="text-3xl font-black tracking-tight"
+                        className="text-3xl font-bold tracking-tight text-slate-900"
                         style={{ color: BRAND.navy }}
                       >
                         {linked.tableNumber}
                       </p>
-                      <div className="mt-2 flex items-center gap-3 text-xs font-semibold text-slate-600">
+                      <div className="mt-2 flex items-center gap-3 text-sm font-semibold text-slate-600">
                         <span className="inline-flex items-center gap-1">
                           <Users className="w-3.5 h-3.5" />
                           {linked.capacity} seats
                         </span>
                         {bill && bill.items.length > 0 && (
-                          <span className="ml-auto font-black" style={{ color: BRAND.orange }}>
+                          <span className="ml-auto text-sm font-bold" style={{ color: BRAND.orange }}>
                             {formatCurrency(getBillTotal(bill))}
                           </span>
                         )}
@@ -259,12 +259,12 @@ export function FloorOpsPanel({ onPrintQr, onEditLayout }: Props) {
                           {nextAction.label}
                         </Button>
                         {clearBlocked && (
-                          <p className="text-[11px] text-amber-700 font-medium text-center">
+                          <p className="text-center text-sm font-medium text-amber-800">
                             Pay the open bill first, then clear the table.
                           </p>
                         )}
                         {lastError && !clearBlocked && (
-                          <p className="text-[11px] text-rose-600 text-center">{lastError}</p>
+                          <p className="text-center text-sm font-medium text-rose-600">{lastError}</p>
                         )}
                       </div>
                     )}
@@ -295,7 +295,7 @@ export function FloorOpsPanel({ onPrintQr, onEditLayout }: Props) {
 
                     <button
                       type="button"
-                      className="w-full text-[11px] font-semibold text-slate-400 hover:text-rose-600 flex items-center justify-center gap-1 py-1"
+                      className="flex w-full items-center justify-center gap-1 py-1.5 text-sm font-semibold text-slate-500 hover:text-rose-600"
                       onClick={() => {
                         if (
                           window.confirm(
@@ -326,11 +326,11 @@ export function FloorOpsPanel({ onPrintQr, onEditLayout }: Props) {
                     ) : (
                       <>
                         <label className="block">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          <span className="text-sm font-semibold text-slate-700">
                             Link to table
                           </span>
                           <select
-                            className="mt-1 w-full h-10 rounded-xl border border-slate-200 px-3 text-sm font-semibold"
+                            className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-900"
                             value={linkId}
                             onChange={(e) => setLinkId(e.target.value)}
                           >

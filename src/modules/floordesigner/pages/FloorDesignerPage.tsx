@@ -22,6 +22,7 @@ import type { ObjectKind } from '../types';
 import { BRAND } from '@/constants';
 import type { Table } from '@/types';
 import { cn } from '@/lib/utils';
+import { LayoutTemplate, SlidersHorizontal } from 'lucide-react';
 
 type Props = {
   /**
@@ -58,6 +59,8 @@ export function FloorDesignerPage({ variant = 'designer' }: Props) {
   const setPendingPlace = useFloorStore((s) => s.setPendingPlace);
   const setLibraryOpen = useFloorStore((s) => s.setLibraryOpen);
   const setPropsOpen = useFloorStore((s) => s.setPropsOpen);
+  const libraryOpen = useFloorStore((s) => s.libraryOpen);
+  const propsOpen = useFloorStore((s) => s.propsOpen);
   const repairTableLinks = useFloorStore((s) => s.repairTableLinks);
 
   const tables = useTableStore((s) => s.tables);
@@ -178,23 +181,45 @@ export function FloorDesignerPage({ variant = 'designer' }: Props) {
     else void addFromCatalog(item, worldX, worldY);
   };
 
+  useEffect(() => {
+    if (isOps) return;
+    const mq = window.matchMedia('(max-width: 1023px)');
+    const collapse = () => {
+      if (mq.matches) {
+        setLibraryOpen(false);
+        setPropsOpen(false);
+      }
+    };
+    collapse();
+    mq.addEventListener('change', collapse);
+    return () => mq.removeEventListener('change', collapse);
+  }, [isOps, setLibraryOpen, setPropsOpen]);
+
   return (
     <div
-      className={
-        isOps
-          ? 'flex flex-col h-full min-h-0 overflow-hidden'
-          : 'flex flex-col h-[calc(100dvh-4rem)] min-h-[560px] -m-4 md:-m-6 overflow-hidden'
-      }
+      className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden font-sans erp-crisp-text"
       style={{ backgroundColor: BRAND.gray }}
     >
       {!isOps && (
-        <div className="px-4 pt-3 pb-1 flex items-center justify-between gap-3 shrink-0 flex-wrap">
-          <div>
-            <h1 className="text-lg font-bold" style={{ color: BRAND.navy }}>
+        <div className="flex shrink-0 flex-wrap items-end justify-between gap-2 border-b border-slate-200/80 bg-white/80 px-3 py-2.5 backdrop-blur-md sm:gap-3 sm:px-4 sm:py-3">
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
               Floor Designer
             </h1>
-            <p className="text-xs text-slate-500">
-              Floor layout · {mode === 'preview' ? 'Live preview' : 'Edit mode'}
+            <p className="mt-0.5 text-xs font-medium text-slate-600 sm:text-sm">
+              <span className="sm:hidden">
+                {mode === 'preview' ? 'Preview' : 'Edit'}
+                {layout ? ` · ${layout.objects.length}` : ''}
+              </span>
+              <span className="hidden sm:inline">
+                Drag furniture onto the plan · {mode === 'preview' ? 'Live preview' : 'Edit mode'}
+                {layout ? (
+                  <span className="text-slate-500">
+                    {' '}
+                    · {layout.objects.length} object{layout.objects.length === 1 ? '' : 's'}
+                  </span>
+                ) : null}
+              </span>
             </p>
           </div>
         </div>
@@ -209,8 +234,8 @@ export function FloorDesignerPage({ variant = 'designer' }: Props) {
       )}
 
       {isOps && (
-        <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-slate-200 bg-white/90 flex-wrap">
-          <p className="text-xs text-slate-500 flex-1 min-w-[120px]">Live floor</p>
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-white/90 px-3 py-2">
+          <p className="min-w-0 flex-1 text-sm font-medium text-slate-600">Live floor</p>
           <FloorToolbar
             containerRef={containerRef}
             onGenerateQr={() => void handleGenerateQr()}
@@ -220,30 +245,24 @@ export function FloorDesignerPage({ variant = 'designer' }: Props) {
         </div>
       )}
 
-      <div className="flex-1 min-h-0 flex">
-        {/* Catalog sidebar: desktop only */}
-        {!isOps && (
-          <div className="hidden lg:flex shrink-0">
-            <FloorSidebar />
-          </div>
-        )}
+      <div className="relative flex min-h-0 flex-1">
+        {!isOps && <FloorSidebar />}
 
-        <div className="relative flex-1 min-w-0 min-h-0 overflow-hidden">
+        <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
           <div
             ref={containerRef}
-            className="relative h-full w-full min-h-0 overflow-hidden"
+            className="relative h-full w-full min-h-0 touch-pan-x touch-pan-y overflow-hidden"
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleCanvasDrop}
           >
             {isLoading ? (
-              <div className="h-full flex items-center justify-center text-slate-400 animate-pulse">
+              <div className="flex h-full animate-pulse items-center justify-center text-slate-400">
                 Loading floors…
               </div>
             ) : (
               <>
-                {/* Ops phones: compact table list; canvas from tablet up */}
                 {isOps && (
-                  <div className="md:hidden h-full">
+                  <div className="h-full md:hidden">
                     <MobileOpsTableList />
                   </div>
                 )}
@@ -256,24 +275,55 @@ export function FloorDesignerPage({ variant = 'designer' }: Props) {
               </>
             )}
             {lastError && (
-              <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium px-3 py-2">
+              <div className="absolute left-1/2 top-3 z-30 max-w-[min(24rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
                 {lastError}
               </div>
             )}
           </div>
+
+          {/* Mobile / tablet quick open */}
+          {!isOps && (
+            <div
+              className={cn(
+                'pointer-events-none absolute bottom-3 left-3 right-3 z-30 flex items-end justify-between gap-2 md:bottom-4 lg:hidden',
+                (libraryOpen || propsOpen) && 'invisible'
+              )}
+            >              <button
+                type="button"
+                className="pointer-events-auto flex h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 text-sm font-bold text-slate-800 shadow-lg touch-manipulation"
+                onClick={() => {
+                  setLibraryOpen(true);
+                  setPropsOpen(false);
+                }}
+              >
+                <LayoutTemplate className="h-4 w-4 text-[#FF6A00]" />
+                Library
+              </button>
+              <button
+                type="button"
+                className="pointer-events-auto flex h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 text-sm font-bold text-slate-800 shadow-lg touch-manipulation"
+                onClick={() => {
+                  setPropsOpen(true);
+                  setLibraryOpen(false);
+                }}
+              >
+                <SlidersHorizontal className="h-4 w-4 text-[#FF6A00]" />
+                Properties
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Side panel: tablet+ */}
-        <div className="hidden md:flex shrink-0">
-          {isOps ? (
+        {isOps ? (
+          <div className="hidden shrink-0 md:flex">
             <FloorOpsPanel
               onPrintQr={() => void handleGenerateQr()}
               onEditLayout={() => navigate('/erp/floor')}
             />
-          ) : (
-            <FloorPropertiesPanel onPrintQr={() => void handleGenerateQr()} />
-          )}
-        </div>
+          </div>
+        ) : (
+          <FloorPropertiesPanel onPrintQr={() => void handleGenerateQr()} />
+        )}
       </div>
 
       <FloorTabs opsMode={isOps} />

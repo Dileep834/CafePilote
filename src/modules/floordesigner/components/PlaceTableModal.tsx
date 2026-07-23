@@ -81,9 +81,9 @@ export function PlaceTableModal({ open, item, defaultTableNumber, onClose, onCon
   if (!open || !item) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-[#0D1B2A]/45 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-[#0D1B2A]/45 p-0 backdrop-blur-sm sm:items-center sm:p-4">
       <div
-        className="w-full max-w-sm rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden"
+        className="flex max-h-[min(92dvh,720px)] w-full max-w-sm flex-col overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-2xl sm:rounded-2xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="place-table-title"
@@ -111,18 +111,16 @@ export function PlaceTableModal({ open, item, defaultTableNumber, onClose, onCon
           </button>
         </div>
 
-        <div className="p-5 space-y-4">
+        <div className="space-y-4 overflow-y-auto overscroll-contain p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <label className="block">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Table number
-            </span>
+            <span className="text-sm font-semibold text-slate-700">Table number</span>
             <input
               value={tableNumber}
               onChange={(e) => {
                 setTableNumber(e.target.value);
                 setLinkExistingId('');
               }}
-              className="mt-1 w-full h-10 rounded-xl border border-slate-200 px-3 text-sm font-semibold uppercase"
+              className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold uppercase text-slate-900"
               autoFocus
             />
           </label>
@@ -166,11 +164,9 @@ export function PlaceTableModal({ open, item, defaultTableNumber, onClose, onCon
 
           {freeToLink.length > 0 && (
             <label className="block">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Or link existing table
-              </span>
+              <span className="text-sm font-semibold text-slate-700">Or link existing table</span>
               <select
-                className="mt-1 w-full h-10 rounded-xl border border-slate-200 px-3 text-sm font-semibold"
+                className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-900"
                 value={linkExistingId}
                 onChange={(e) => setLinkExistingId(e.target.value)}
               >

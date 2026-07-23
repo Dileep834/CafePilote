@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from 'react';
-import { useCrmStore } from '../store/useCrmStore';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Users,
   Plus,
@@ -12,17 +11,36 @@ import {
   Radio,
   RefreshCw,
   MapPin,
-  Calendar,
-  MessageSquare,
   Gift,
   TrendingUp,
+  Filter,
+  X,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { InventoryCard } from '@/modules/inventory/components/InventoryCard';
 import { formatCurrency } from '@/utils/format';
+import { cn } from '@/lib/utils';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { BRAND } from '@/constants';
+import { useCrmStore } from '../store/useCrmStore';
 
 dayjs.extend(relativeTime);
+
+function StatusChip({ active }: { active: boolean }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ring-1 ring-inset',
+        active
+          ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/15'
+          : 'bg-slate-100 text-slate-500 ring-slate-600/10'
+      )}
+    >
+      {active ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+      {active ? 'Eligible' : 'Banned'}
+    </span>
+  );
+}
 
 export function CustomerManagement() {
   const {
@@ -39,6 +57,8 @@ export function CustomerManagement() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'banned'>('all');
+  const [filtersOpen, setFiltersOpen] = useState(true);
   const [formData, setFormData] = useState({ name: '', phone: '', email: '' });
 
   useEffect(() => {
@@ -51,480 +71,465 @@ export function CustomerManagement() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim() || !formData.phone.trim()) return;
-
     await addCustomer(formData);
     setIsModalOpen(false);
     setFormData({ name: '', phone: '', email: '' });
   };
 
-  const filteredCustomers = customers.filter(
-    (c) =>
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (c.phone && c.phone.includes(searchQuery)) ||
-      (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredCustomers = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return customers.filter((c) => {
+      if (statusFilter === 'active' && !c.is_active) return false;
+      if (statusFilter === 'banned' && c.is_active) return false;
+      if (!q) return true;
+      return (
+        c.name.toLowerCase().includes(q) ||
+        (c.phone && c.phone.includes(searchQuery)) ||
+        (c.email && c.email.toLowerCase().includes(q))
+      );
+    });
+  }, [customers, searchQuery, statusFilter]);
+
+  const crmStats = useMemo(
+    () => ({
+      totalCustomers: customers.length,
+      activeCustomers: customers.filter((c) => c.is_active).length,
+      liveGuests: liveGuests.length,
+      loyaltyPoints: customers.reduce((sum, c) => sum + (Number(c.loyalty_points) || 0), 0),
+      lifetimeSpend: customers.reduce((sum, c) => sum + (Number(c.total_spend) || 0), 0),
+      vipCustomers: customers.filter((c) => Number(c.total_spend) >= 5000).length,
+    }),
+    [customers, liveGuests]
   );
-  const crmStats = {
-    totalCustomers: customers.length,
-    activeCustomers: customers.filter((customer) => customer.is_active).length,
-    liveGuests: liveGuests.length,
-    loyaltyPoints: customers.reduce((sum, customer) => sum + (Number(customer.loyalty_points) || 0), 0),
-    lifetimeSpend: customers.reduce((sum, customer) => sum + (Number(customer.total_spend) || 0), 0),
-    vipCustomers: customers.filter((customer) => Number(customer.total_spend) >= 5000).length,
-  };
+
+  const activeFilterCount =
+    (searchQuery.trim() ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0);
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-            <Users className="w-6 h-6" style={{ color: BRAND.orange }} />
-            Customers
-          </h1>
-          <p className="text-slate-500 text-sm">
-            Live dine-in guests plus your CRM directory
+    <div className="mx-auto w-full max-w-[1600px] space-y-3 px-1 pb-6 sm:px-0">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-black tracking-tight text-slate-900">CRM / Guests</h1>
+          <p className="mt-0.5 max-w-2xl text-sm font-medium text-slate-500">
+            Live dine-in guests plus your customer directory and loyalty.
           </p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search directory…"
-              className="pl-9 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-orange-200 focus:border-orange-400 w-56 md:w-64 h-10"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <button
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
             type="button"
-            onClick={() => setIsModalOpen(true)}
-            className="text-white px-4 py-2 rounded-lg font-medium hover:opacity-95 transition-colors flex items-center gap-2 shadow-sm h-10"
-            style={{ backgroundColor: BRAND.orange }}
+            variant="outline"
+            size="sm"
+            className="h-9 rounded-xl border-slate-200"
+            onClick={() => setFiltersOpen((v) => !v)}
           >
-            <Plus className="w-5 h-5" />
-            Add Customer
-          </button>
+            <Filter className="mr-1.5 h-3.5 w-3.5" />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="ml-1.5 rounded-md bg-orange-100 px-1.5 py-0.5 text-[10px] font-black text-orange-700">
+                {activeFilterCount}
+              </span>
+            )}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 rounded-xl border-slate-200"
+            disabled={liveLoading || isLoading}
+            onClick={() => {
+              void fetchCustomers();
+              void fetchLiveGuests();
+            }}
+          >
+            <RefreshCw
+              className={cn('mr-1.5 h-3.5 w-3.5', (liveLoading || isLoading) && 'animate-spin')}
+            />
+            Refresh
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="h-9 rounded-xl bg-[#FF6A00] px-4 font-bold text-white hover:bg-[#e55f00]"
+            onClick={() => setIsModalOpen(true)}
+          >
+            <Plus className="mr-1.5 h-4 w-4" />
+            Add customer
+          </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
-        {[
-          { label: 'Customers', value: crmStats.totalCustomers, icon: Users, tone: 'bg-slate-50 text-slate-700' },
-          { label: 'Live guests', value: crmStats.liveGuests, icon: Radio, tone: 'bg-emerald-50 text-emerald-700' },
-          { label: 'Eligible', value: crmStats.activeCustomers, icon: CheckCircle2, tone: 'bg-green-50 text-green-700' },
-          { label: 'Reward points', value: crmStats.loyaltyPoints, icon: Star, tone: 'bg-amber-50 text-amber-700' },
-          { label: 'Lifetime spend', value: formatCurrency(crmStats.lifetimeSpend), icon: TrendingUp, tone: 'bg-orange-50 text-orange-700' },
-          { label: 'VIP guests', value: crmStats.vipCustomers, icon: Gift, tone: 'bg-sky-50 text-sky-700' },
-        ].map((stat) => (
-          <div key={stat.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${stat.tone}`}>
-              <stat.icon className="h-5 w-5" />
-            </div>
-            <p className="truncate text-[11px] font-black uppercase tracking-wider text-slate-400">{stat.label}</p>
-            <p className="truncate text-lg font-black text-slate-900">{stat.value}</p>
-          </div>
-        ))}
+      {error && (
+        <p className="rounded-[12px] bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 ring-1 ring-amber-100">
+          {error}
+        </p>
+      )}
+
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 xl:grid-cols-6 lg:gap-3">
+        <InventoryCard
+          label="Customers"
+          value={String(crmStats.totalCustomers)}
+          subtitle="Directory"
+          icon={Users}
+          tone="slate"
+        />
+        <InventoryCard
+          label="Live guests"
+          value={String(crmStats.liveGuests)}
+          subtitle="Signed in now"
+          icon={Radio}
+          tone="emerald"
+        />
+        <InventoryCard
+          label="Eligible"
+          value={String(crmStats.activeCustomers)}
+          subtitle="Active profiles"
+          icon={CheckCircle2}
+          tone="blue"
+        />
+        <InventoryCard
+          label="Reward points"
+          value={String(crmStats.loyaltyPoints)}
+          subtitle="Loyalty balance"
+          icon={Star}
+          tone="amber"
+        />
+        <InventoryCard
+          label="Lifetime spend"
+          value={formatCurrency(crmStats.lifetimeSpend)}
+          subtitle="All customers"
+          icon={TrendingUp}
+          tone="orange"
+        />
+        <InventoryCard
+          label="VIP guests"
+          value={String(crmStats.vipCustomers)}
+          subtitle="Spend ≥ ₹5,000"
+          icon={Gift}
+          tone="red"
+        />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
-        {[
-          { label: 'Birthday reminders', value: 'This week', icon: Calendar },
-          { label: 'WhatsApp follow-up', value: `${crmStats.liveGuests} live tables`, icon: MessageSquare },
-          { label: 'Favorite items', value: 'From order history', icon: Star },
-          { label: 'Visit frequency', value: 'Auto ranked', icon: TrendingUp },
-        ].map((item) => (
-          <div key={item.label} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-orange-600 shadow-sm">
-              <item.icon className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-black text-slate-800">{item.label}</p>
-              <p className="truncate text-xs font-semibold text-slate-500">{item.value}</p>
-            </div>
+      {filtersOpen && (
+        <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-100 sm:p-4">
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="min-w-[200px] flex-1 space-y-1">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Search directory
+              </span>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <input
+                  className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-8 pr-3 text-sm outline-none ring-orange-500/30 focus:ring-2"
+                  placeholder="Name, phone, email…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </label>
+            <label className="w-full space-y-1 sm:w-40">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Status
+              </span>
+              <select
+                className="h-9 w-full rounded-xl border border-slate-200 bg-white px-2.5 text-sm outline-none ring-orange-500/30 focus:ring-2"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+              >
+                <option value="all">All</option>
+                <option value="active">Eligible</option>
+                <option value="banned">Banned</option>
+              </select>
+            </label>
+            {activeFilterCount > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 rounded-xl border-slate-200"
+                onClick={() => {
+                  setSearchQuery('');
+                  setStatusFilter('all');
+                }}
+              >
+                <X className="mr-1.5 h-3.5 w-3.5" />
+                Clear
+              </Button>
+            )}
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/80">
-          <div className="flex items-center gap-2 min-w-0">
+      {/* Live guests */}
+      <section className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-100">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
+          <div className="flex min-w-0 items-center gap-2">
             <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
             </span>
-            <h2 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-              <Radio className="w-4 h-4 text-emerald-600" />
-              Signed in now
-            </h2>
-            <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+            <h2 className="text-base font-black text-slate-900">Signed in now</h2>
+            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600">
               {liveGuests.length}
             </span>
           </div>
-          <button
+          <Button
             type="button"
-            onClick={() => void fetchLiveGuests()}
-            className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1"
+            variant="outline"
+            size="sm"
+            className="h-8 rounded-xl border-slate-200"
             disabled={liveLoading}
+            onClick={() => void fetchLiveGuests()}
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${liveLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={cn('mr-1.5 h-3.5 w-3.5', liveLoading && 'animate-spin')} />
             Refresh
-          </button>
+          </Button>
         </div>
 
         {liveLoading && liveGuests.length === 0 ? (
-          <div className="p-6 text-center text-slate-500 text-sm">Checking live sessions…</div>
+          <div className="px-6 py-10 text-center text-sm text-slate-400">Checking live sessions…</div>
         ) : liveGuests.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-sm font-semibold text-slate-600">No guests signed in at tables</p>
-            <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-              When a customer scans a QR and signs in (Google or email), they appear here. If this
-              stays empty after a guest login, run{' '}
-              <code className="bg-slate-100 px-1 rounded">scripts/guest_sessions_schema.sql</code>{' '}
-              in Supabase.
+          <div className="flex flex-col items-center px-6 py-12 text-center">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+              <Radio className="h-6 w-6" />
+            </div>
+            <h3 className="text-base font-black text-slate-900">No guests signed in</h3>
+            <p className="mt-1 max-w-md text-sm font-medium text-slate-500">
+              Guests who scan a QR and sign in appear here. If this stays empty, run{' '}
+              <code className="rounded bg-slate-100 px-1 text-xs">guest_sessions_schema.sql</code>.
             </p>
           </div>
         ) : (
-          <>
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-white text-slate-500 text-xs uppercase tracking-wider border-b border-slate-100">
-                    <th className="px-5 py-3 font-semibold">Guest</th>
-                    <th className="px-5 py-3 font-semibold">Table</th>
-                    <th className="px-5 py-3 font-semibold">Signed in</th>
-                    <th className="px-5 py-3 font-semibold">Last seen</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {liveGuests.map((g) => (
-                    <tr key={g.id} className="hover:bg-emerald-50/40">
-                      <td className="px-5 py-3">
-                        <div className="font-bold text-slate-800">{g.guest_name || 'Guest'}</div>
-                        <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                          <Mail className="w-3 h-3" />
-                          {g.guest_email}
-                        </div>
-                      </td>
-                      <td className="px-5 py-3">
-                        <div className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-700">
-                          <MapPin className="w-3.5 h-3.5 text-orange-500" />
-                          {g.table_number || '—'}
-                        </div>
-                        <div className="text-[10px] uppercase font-bold text-slate-400 mt-0.5">
-                          {g.provider || 'email'}
-                        </div>
-                      </td>
-                      <td className="px-5 py-3 text-sm text-slate-600">
-                        {dayjs(g.started_at).format('h:mm A')}
-                      </td>
-                      <td className="px-5 py-3 text-sm text-slate-500">
-                        {dayjs(g.last_seen_at).fromNow()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile View for Live Guests */}
-            <div className="md:hidden flex flex-col divide-y divide-slate-50">
-              {liveGuests.map((g) => (
-                <div key={g.id} className="p-4 hover:bg-emerald-50/40 flex flex-col gap-3">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="font-bold text-slate-800">{g.guest_name || 'Guest'}</div>
-                      <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                        <Mail className="w-3 h-3" />
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left text-xs">
+              <thead className="bg-slate-50/95 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                <tr>
+                  <th className="px-4 py-2.5">Guest</th>
+                  <th className="px-4 py-2.5">Table</th>
+                  <th className="px-4 py-2.5">Signed in</th>
+                  <th className="px-4 py-2.5">Last seen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {liveGuests.map((g) => (
+                  <tr
+                    key={g.id}
+                    className="border-t border-slate-50 transition-colors hover:bg-slate-50/80"
+                  >
+                    <td className="px-4 py-2.5">
+                      <p className="font-bold text-slate-900">{g.guest_name || 'Guest'}</p>
+                      <p className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-500">
+                        <Mail className="h-3 w-3" />
                         {g.guest_email}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-700">
-                        <MapPin className="w-3.5 h-3.5 text-orange-500" />
+                      </p>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className="inline-flex items-center gap-1 font-bold text-slate-800">
+                        <MapPin className="h-3.5 w-3.5 text-[#FF6A00]" />
                         {g.table_number || '—'}
-                      </div>
-                      <div className="text-[10px] uppercase font-bold text-slate-400 mt-0.5">
-                        {g.provider || 'email'}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center text-xs">
-                    <div className="text-slate-600">
-                      <span className="font-semibold text-slate-500">In: </span>
-                      {dayjs(g.started_at).format('h:mm A')}
-                    </div>
-                    <div className="text-slate-500">
-                      <span className="font-semibold text-slate-500">Seen: </span>
-                      {dayjs(g.last_seen_at).fromNow()}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-
-      <div>
-        <h2 className="text-sm font-bold text-slate-700 mb-2 px-0.5">Customer directory</h2>
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          {isLoading ? (
-            <div className="p-8 text-center text-slate-500 font-medium">Loading customers…</div>
-          ) : error && customers.length === 0 && liveGuests.length === 0 ? (
-            <div className="p-8 text-center text-red-500 font-medium">{error}</div>
-          ) : customers.length === 0 ? (
-            <div className="p-12 text-center">
-              <Users className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-              <h3 className="text-lg font-bold text-slate-700">No customers in directory yet</h3>
-              <p className="text-slate-500 mb-6 text-sm">
-                Guests who sign in via QR are added automatically. You can also add manually.
-              </p>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(true)}
-                className="bg-orange-50 text-orange-700 px-4 py-2 rounded-lg font-medium hover:bg-orange-100 transition-colors inline-flex items-center gap-2"
-              >
-                <Plus className="w-5 h-5" />
-                Add Customer
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
-                      <th className="px-6 py-4 font-semibold">Name</th>
-                      <th className="px-6 py-4 font-semibold">Contact Info</th>
-                      <th className="px-6 py-4 font-semibold text-center">Loyalty Points</th>
-                      <th className="px-6 py-4 font-semibold text-right">Lifetime Spend</th>
-                      <th className="px-6 py-4 font-semibold text-center">Status</th>
-                      <th className="px-6 py-4 font-semibold text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredCustomers.map((customer) => (
-                      <tr key={customer.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="font-bold text-slate-800">{customer.name}</div>
-                          <div className="text-xs text-slate-400 mt-0.5">
-                            Joined {dayjs(customer.created_at).format('MMM YYYY')}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 space-y-1">
-                          {customer.phone && (
-                            <div className="flex items-center gap-2 text-sm text-slate-600 font-medium">
-                              <Phone className="w-4 h-4 text-slate-400" />
-                              {customer.phone}
-                            </div>
-                          )}
-                          {customer.email && (
-                            <div className="flex items-center gap-2 text-sm text-slate-500">
-                              <Mail className="w-4 h-4 text-slate-400" />
-                              {customer.email}
-                            </div>
-                          )}
-                          {!customer.phone && !customer.email && (
-                            <span className="text-slate-400 italic text-sm">No contact info</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <div className="inline-flex items-center justify-center gap-1.5 font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full w-20">
-                            <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                            {customer.loyalty_points}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="font-black text-slate-900">
-                            {formatCurrency(customer.total_spend)}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <span
-                            className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${
-                              customer.is_active
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-slate-100 text-slate-500'
-                            }`}
-                          >
-                            {customer.is_active ? (
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                            ) : (
-                              <XCircle className="w-3.5 h-3.5" />
-                            )}
-                            {customer.is_active ? 'Eligible' : 'Banned'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() => toggleCustomerStatus(customer.id, customer.is_active)}
-                            className={`text-sm font-medium px-3 py-1.5 rounded transition-colors ${
-                              customer.is_active
-                                ? 'text-red-600 hover:bg-red-50'
-                                : 'text-green-600 hover:bg-green-50'
-                            }`}
-                          >
-                            {customer.is_active ? 'Ban' : 'Unban'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mobile Card View */}
-              <div className="md:hidden flex flex-col divide-y divide-slate-100">
-                {filteredCustomers.map((customer) => (
-                  <div key={customer.id} className="p-4 bg-white hover:bg-slate-50 transition-colors">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <div className="font-bold text-slate-800 text-base">{customer.name}</div>
-                        <div className="text-xs text-slate-400 mt-0.5">
-                          Joined {dayjs(customer.created_at).format('MMM YYYY')}
-                        </div>
-                      </div>
-                      <span
-                        className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                          customer.is_active
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-slate-100 text-slate-500'
-                        }`}
-                      >
-                        {customer.is_active ? (
-                          <CheckCircle2 className="w-3 h-3" />
-                        ) : (
-                          <XCircle className="w-3 h-3" />
-                        )}
-                        {customer.is_active ? 'Eligible' : 'Banned'}
                       </span>
-                    </div>
+                      <p className="mt-0.5 text-[10px] font-black uppercase tracking-wide text-slate-400">
+                        {g.provider || 'email'}
+                      </p>
+                    </td>
+                    <td className="px-4 py-2.5 font-medium text-slate-600">
+                      {dayjs(g.started_at).format('h:mm A')}
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-500">{dayjs(g.last_seen_at).fromNow()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
-                    <div className="space-y-1.5 mb-4">
-                      {customer.phone && (
-                        <div className="flex items-center gap-2 text-sm text-slate-600 font-medium">
-                          <Phone className="w-4 h-4 text-slate-400" />
+      {/* Directory */}
+      <section className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-100">
+        <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
+          <h2 className="text-base font-black text-slate-900">Customer directory</h2>
+          <p className="text-sm font-medium text-slate-500">
+            Showing {filteredCustomers.length} of {customers.length}
+          </p>
+        </div>
+
+        {isLoading && customers.length === 0 ? (
+          <div className="px-6 py-12 text-center text-sm text-slate-400">Loading customers…</div>
+        ) : customers.length === 0 ? (
+          <div className="flex flex-col items-center px-6 py-16 text-center">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-[#FF6A00]">
+              <Users className="h-6 w-6" />
+            </div>
+            <h3 className="text-lg font-black text-slate-900">No customers yet</h3>
+            <p className="mt-1 max-w-md text-sm font-medium text-slate-500">
+              QR sign-ins are added automatically, or add a profile manually.
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              className="mt-4 h-9 rounded-xl bg-[#FF6A00] font-bold text-white hover:bg-[#e55f00]"
+              onClick={() => setIsModalOpen(true)}
+            >
+              <Plus className="mr-1.5 h-4 w-4" />
+              Add customer
+            </Button>
+          </div>
+        ) : filteredCustomers.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <h3 className="text-base font-black text-slate-900">No customers match filters</h3>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-3 h-9 rounded-xl"
+              onClick={() => {
+                setSearchQuery('');
+                setStatusFilter('all');
+              }}
+            >
+              Clear filters
+            </Button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[880px] text-left text-xs">
+              <thead className="sticky top-0 z-10 bg-slate-50/95 text-[10px] font-black uppercase tracking-wider text-slate-400 backdrop-blur">
+                <tr>
+                  <th className="px-4 py-2.5">Name</th>
+                  <th className="px-4 py-2.5">Contact</th>
+                  <th className="px-4 py-2.5 text-center">Loyalty</th>
+                  <th className="px-4 py-2.5 text-right">Lifetime spend</th>
+                  <th className="px-4 py-2.5 text-center">Status</th>
+                  <th className="px-4 py-2.5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredCustomers.map((customer) => (
+                  <tr
+                    key={customer.id}
+                    className="border-t border-slate-50 transition-colors hover:bg-slate-50/80"
+                  >
+                    <td className="px-4 py-2.5">
+                      <p className="font-bold text-slate-900">{customer.name}</p>
+                      <p className="text-[11px] text-slate-400">
+                        Joined {dayjs(customer.created_at).format('MMM YYYY')}
+                      </p>
+                    </td>
+                    <td className="px-4 py-2.5 space-y-1">
+                      {customer.phone ? (
+                        <p className="flex items-center gap-1.5 font-medium text-slate-700">
+                          <Phone className="h-3.5 w-3.5 text-slate-400" />
                           {customer.phone}
-                        </div>
-                      )}
-                      {customer.email && (
-                        <div className="flex items-center gap-2 text-sm text-slate-500">
-                          <Mail className="w-4 h-4 text-slate-400" />
+                        </p>
+                      ) : null}
+                      {customer.email ? (
+                        <p className="flex items-center gap-1.5 text-slate-500">
+                          <Mail className="h-3.5 w-3.5 text-slate-400" />
                           {customer.email}
-                        </div>
-                      )}
-                      {!customer.phone && !customer.email && (
-                        <span className="text-slate-400 italic text-sm">No contact info</span>
-                      )}
-                    </div>
-
-                    <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-lg mb-4">
-                      <div className="flex flex-col">
-                        <span className="text-xs text-slate-500 font-semibold mb-0.5">Loyalty</span>
-                        <div className="inline-flex items-center gap-1 font-bold text-amber-600">
-                          <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                          {customer.loyalty_points}
-                        </div>
-                      </div>
-                      <div className="flex flex-col text-right">
-                        <span className="text-xs text-slate-500 font-semibold mb-0.5">Lifetime Spend</span>
-                        <div className="font-black text-slate-900">
-                          {formatCurrency(customer.total_spend)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end pt-3 border-t border-slate-50">
-                      <button
+                        </p>
+                      ) : null}
+                      {!customer.phone && !customer.email ? (
+                        <span className="italic text-slate-400">No contact</span>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-700 ring-1 ring-inset ring-amber-600/15">
+                        <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                        {customer.loyalty_points}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-sm font-black tabular-nums text-slate-900">
+                      {formatCurrency(customer.total_spend)}
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      <StatusChip active={customer.is_active} />
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      <Button
                         type="button"
-                        onClick={() => toggleCustomerStatus(customer.id, customer.is_active)}
-                        className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded transition-colors ${
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          'h-8 rounded-xl',
                           customer.is_active
-                            ? 'text-red-600 bg-red-50'
-                            : 'text-green-600 bg-green-50'
-                        }`}
+                            ? 'border-rose-200 text-rose-700 hover:bg-rose-50'
+                            : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                        )}
+                        onClick={() => void toggleCustomerStatus(customer.id, customer.is_active)}
                       >
                         {customer.is_active ? 'Ban' : 'Unban'}
-                      </button>
-                    </div>
-                  </div>
+                      </Button>
+                    </td>
+                  </tr>
                 ))}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h2 className="text-lg font-bold text-slate-800">Register Customer</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-slate-100">
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+              <h2 className="text-lg font-black text-slate-900">Register customer</h2>
               <button
                 type="button"
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600"
               >
-                ✕
+                <X className="h-4 w-4" />
               </button>
             </div>
-
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Full Name *</label>
+            <form onSubmit={handleSubmit} className="space-y-3 p-5">
+              <label className="block space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  Full name *
+                </span>
                 <input
                   required
-                  type="text"
-                  placeholder="e.g. John Doe"
-                  className="w-full border border-slate-200 rounded-lg focus:ring-2 focus:ring-orange-200 focus:border-orange-400 shadow-sm h-10 px-3"
+                  className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none ring-orange-500/30 focus:ring-2"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
-                  Phone Number *
-                </label>
+              </label>
+              <label className="block space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  Phone *
+                </span>
                 <input
                   required
                   type="tel"
-                  placeholder="e.g. 555-0192"
-                  className="w-full border border-slate-200 rounded-lg focus:ring-2 focus:ring-orange-200 focus:border-orange-400 shadow-sm h-10 px-3"
+                  className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none ring-orange-500/30 focus:ring-2"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
-                  Email Address (Optional)
-                </label>
+              </label>
+              <label className="block space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  Email
+                </span>
                 <input
                   type="email"
-                  placeholder="e.g. john@example.com"
-                  className="w-full border border-slate-200 rounded-lg focus:ring-2 focus:ring-orange-200 focus:border-orange-400 shadow-sm h-10 px-3"
+                  className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none ring-orange-500/30 focus:ring-2"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 />
-              </div>
-
-              <div className="pt-4 flex gap-3">
-                <button
+              </label>
+              <div className="flex gap-2 pt-2">
+                <Button
                   type="button"
+                  variant="outline"
+                  className="h-10 flex-1 rounded-xl"
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium hover:bg-slate-50 transition-colors"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
-                  className="flex-1 text-white px-4 py-2 rounded-lg font-medium hover:opacity-95 transition-colors"
-                  style={{ backgroundColor: BRAND.orange }}
+                  className="h-10 flex-1 rounded-xl bg-[#FF6A00] font-bold text-white hover:bg-[#e55f00]"
                 >
-                  Save Profile
-                </button>
+                  Save profile
+                </Button>
               </div>
             </form>
           </div>

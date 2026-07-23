@@ -3,33 +3,33 @@
 -- ============================================================
 -- Safe to re-run in Supabase SQL Editor.
 --
--- Order (this file is self-contained):
---   1) Restore / seed Backbenchers (real customer — never merge into HQ)
---   2) Seed CafePilots HQ (platform owner / Super Admin tenant)
---   3) company_subscriptions schema + plan_id CHECK (Lite..Enterprise)
---   4) Seed default subscriptions
---   5) Attach Super Admin users to HQ (not Backbenchers)
+-- TENANT MAP (do not confuse)
+--   CafePilots HQ  a1000000-0000-4000-8000-000000000001  ← DEMO + platform owner
+--                  subdomain: cafepilots-hq
+--   Backbenchers   c1000000-0000-0000-0000-000000000001  ← REAL customer (protect)
+--                  subdomain: backbenchers
 --
--- Related (run separately if needed):
---   scripts/assign_orphans_to_hq.sql
---   scripts/saas_tenant_floor_patch.sql   -- floors.company_id only
---   scripts/phase2_enterprise_schema.sql  -- app_notifications, etc.
+-- BACKBENCHERS GUARANTEE
+--   This script NEVER:
+--     • renames / re-subdomains Backbenchers when already correct
+--     • overwrites Backbenchers subscription plan/status
+--     • moves Backbenchers outlets / products / orders / menus
+--     • deletes any Backbenchers rows
+--   Demo / Super Admin work uses CafePilots HQ only.
+--
+-- Order (this file is self-contained):
+--   1) Ensure Backbenchers row exists (insert-only if missing)
+--   2) Seed CafePilots HQ demo / platform company
+--   3) company_subscriptions schema + plan_id CHECK (Lite..Enterprise)
+--   4) Seed default subscriptions (DO NOTHING if plan already set)
+--   5) Attach Super Admin users to CafePilots HQ (not Backbenchers)
 -- ============================================================
 
 -- ------------------------------------------------------------
--- 1) Backbenchers = real customer company
+-- 1) Backbenchers = real customer company (protect existing data)
 -- ------------------------------------------------------------
-UPDATE public.companies
-SET
-  name = 'Backbenchers Cafeteria',
-  subdomain = 'backbenchers',
-  updated_at = NOW()
-WHERE id = 'c1000000-0000-0000-0000-000000000001'
-  AND (
-    lower(name) IN ('cafepilots hq', 'cafepilots demo', 'cafepilots')
-    OR subdomain IN ('cafepilots-hq')
-  );
-
+-- Insert only when the fixed UUID is missing. Do not rewrite
+-- name / subdomain / is_active / onboarding fields on re-run.
 INSERT INTO public.companies (id, name, subdomain, is_active)
 VALUES (
   'c1000000-0000-0000-0000-000000000001',
@@ -37,21 +37,23 @@ VALUES (
   'backbenchers',
   true
 )
-ON CONFLICT (id) DO UPDATE
+ON CONFLICT (id) DO NOTHING;
+
+-- One-time repair ONLY if this UUID was wrongly labeled as HQ/demo.
+-- Does nothing when name/subdomain are already Backbenchers.
+UPDATE public.companies
 SET
-  name = CASE
-    WHEN lower(companies.name) IN ('cafepilots hq', 'cafepilots demo', 'cafepilots')
-      THEN 'Backbenchers Cafeteria'
-    ELSE companies.name
-  END,
-  subdomain = CASE
-    WHEN companies.subdomain IN ('cafepilots-hq') THEN 'backbenchers'
-    ELSE COALESCE(companies.subdomain, 'backbenchers')
-  END,
-  is_active = true;
+  name = 'Backbenchers Cafeteria',
+  subdomain = 'backbenchers',
+  updated_at = NOW()
+WHERE id = 'c1000000-0000-0000-0000-000000000001'
+  AND (
+    lower(COALESCE(name, '')) IN ('cafepilots hq', 'cafepilots demo', 'cafepilots')
+    OR COALESCE(subdomain, '') IN ('cafepilots-hq')
+  );
 
 -- ------------------------------------------------------------
--- 2) CafePilots HQ = platform-owner company (Super Admin)
+-- 2) CafePilots HQ = DEMO company + platform owner (Super Admin)
 -- ------------------------------------------------------------
 INSERT INTO public.companies (id, name, subdomain, is_active)
 VALUES (
@@ -164,12 +166,16 @@ INSERT INTO public.company_subscriptions (company_id, plan_id, status)
 VALUES ('a1000000-0000-4000-8000-000000000001', 'enterprise', 'active')
 ON CONFLICT (company_id) DO NOTHING;
 
+-- Backbenchers: insert professional ONLY if no row exists — never change plan
 INSERT INTO public.company_subscriptions (company_id, plan_id, status)
 VALUES ('c1000000-0000-0000-0000-000000000001', 'professional', 'active')
 ON CONFLICT (company_id) DO NOTHING;
 
 -- ------------------------------------------------------------
 -- 5) Super Admin → CafePilots HQ (never Backbenchers)
+--     Only moves Super Admin role users with unset / placeholder /
+--     wrongly-attached-to-Backbenchers company_id.
+--     Does NOT touch Admin / Manager / Cashier / Staff of Backbenchers.
 -- ------------------------------------------------------------
 UPDATE public.users
 SET company_id = 'a1000000-0000-4000-8000-000000000001'
@@ -177,9 +183,5 @@ WHERE role = 'Super Admin'
   AND (
     company_id IS NULL
     OR company_id::text IN ('SYSTEM', 'default-company', '')
+    OR company_id::text = 'c1000000-0000-0000-0000-000000000001'
   );
-
-UPDATE public.users
-SET company_id = 'a1000000-0000-4000-8000-000000000001'
-WHERE role = 'Super Admin'
-  AND company_id::text = 'c1000000-0000-0000-0000-000000000001';

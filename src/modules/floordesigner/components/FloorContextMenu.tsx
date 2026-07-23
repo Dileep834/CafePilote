@@ -1,5 +1,4 @@
 import React from 'react';
-import { BRAND } from '@/constants';
 import { cn } from '@/lib/utils';
 import { useFloorStore } from '../store/floorStore';
 import {
@@ -86,7 +85,7 @@ export function FloorContextMenu() {
         <Item icon={EyeOff} label={obj?.visible === false ? 'Show' : 'Hide'} onClick={toggleHideSelected} />
         <div className="h-px bg-slate-100 my-1" />
         <Item icon={Trash2} label="Delete" onClick={deleteSelected} danger />
-        <p className="px-3 pt-1 pb-0.5 text-[10px] text-slate-400" style={{ color: BRAND.steel }}>
+        <p className="px-3 pt-1 pb-0.5 text-xs font-medium text-slate-500">
           CafePilots Floor
         </p>
       </div>

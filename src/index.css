@@ -172,9 +172,11 @@ code {
   }
 }
 
-/* POS / dense UI: prevent transform layers from softening text */
+/* Dense / editor UIs: prevent transform layers from softening text (Windows ClearType) */
 .pos-crisp-text,
-.pos-crisp-text * {
+.pos-crisp-text *,
+.erp-crisp-text,
+.erp-crisp-text * {
   -webkit-font-smoothing: auto !important;
   -moz-osx-font-smoothing: auto !important;
   text-rendering: geometricPrecision;

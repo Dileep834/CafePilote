@@ -104,10 +104,10 @@ export function FloorToolbar({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        'h-9 w-9 rounded-xl flex items-center justify-center border transition-colors disabled:opacity-40',
+        'flex h-10 w-10 items-center justify-center rounded-xl border transition-colors touch-manipulation disabled:opacity-40 sm:h-9 sm:w-9',
         active
-          ? 'bg-[#0D1B2A] text-white border-[#0D1B2A]'
-          : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+          ? 'border-[#FF6A00]/40 bg-orange-50 text-[#FF6A00] shadow-sm'
+          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
       )}
     >
       {children}
@@ -146,7 +146,7 @@ export function FloorToolbar({
         <ToolBtn title="Fit screen" onClick={fit}>
           <Maximize2 className="w-4 h-4" />
         </ToolBtn>
-        <span className="text-[11px] font-semibold text-slate-500 w-12 text-center">
+        <span className="w-12 text-center text-xs font-semibold text-slate-600">
           {Math.round(scale * 100)}%
         </span>
         <div className="w-px h-6 bg-slate-200 mx-1" />
@@ -158,11 +158,11 @@ export function FloorToolbar({
   }
 
   return (
-    <div className="shrink-0 flex items-center gap-1.5 px-3 py-2 border-b border-slate-200 bg-white/90 backdrop-blur-md flex-wrap">
+    <div className="flex shrink-0 touch-pan-x gap-1.5 overflow-x-auto overscroll-x-contain border-b border-slate-200 bg-white px-2 py-2 shadow-sm [-webkit-overflow-scrolling:touch] sm:flex-wrap sm:overflow-visible sm:px-3 sm:py-2.5">
+      <div className="flex min-w-max items-center gap-1.5 sm:min-w-0 sm:flex-wrap">
       <Button
         type="button"
-        className="h-9 rounded-xl font-bold text-white px-4"
-        style={{ backgroundColor: BRAND.orange }}
+        className="h-10 shrink-0 rounded-xl bg-[#FF6A00] px-3 font-bold text-white hover:bg-[#e55f00] sm:h-9 sm:px-4"
         disabled={isSaving || !isDirty}
         onClick={() => void save()}
       >
@@ -209,9 +209,9 @@ export function FloorToolbar({
       <ToolBtn title="Fit screen" onClick={fit}>
         <Maximize2 className="w-4 h-4" />
       </ToolBtn>
-      <span className="text-[11px] font-semibold text-slate-500 w-12 text-center">
-        {Math.round(scale * 100)}%
-      </span>
+      <span className="w-12 text-center text-xs font-semibold text-slate-600">
+          {Math.round(scale * 100)}%
+        </span>
 
       <div className="w-px h-6 bg-slate-200 mx-1" />
 
@@ -249,9 +249,7 @@ export function FloorToolbar({
               onClick={() => setAlignOpen(false)}
             />
             <div className="absolute left-0 top-11 z-50 w-56 rounded-2xl border border-slate-200 bg-white shadow-xl p-2">
-              <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Align
-              </p>
+              <p className="px-2 py-1 text-sm font-semibold text-slate-700">Align</p>
               <div className="grid grid-cols-3 gap-1 mb-2">
                 {(
                   [
@@ -275,9 +273,7 @@ export function FloorToolbar({
                   </button>
                 ))}
               </div>
-              <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Distribute
-              </p>
+              <p className="px-2 py-1 text-sm font-semibold text-slate-700">Distribute</p>
               <div className="grid grid-cols-2 gap-1 mb-2">
                 <button
                   type="button"
@@ -414,7 +410,7 @@ export function FloorToolbar({
       <div className="flex-1" />
 
       {mode === 'design' && tool === 'pan' && (
-        <span className="text-[11px] font-bold text-[#0D1B2A] px-2 py-1 rounded-lg bg-slate-100">
+        <span className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-800">
           Pan · drag floor
         </span>
       )}
@@ -424,9 +420,10 @@ export function FloorToolbar({
       </ToolBtn>
 
       {isDirty && (
-        <span className="text-[11px] font-bold text-amber-600 px-2">Unsaved</span>
+        <span className="px-2 text-xs font-semibold text-amber-700">Unsaved</span>
       )}
       <input ref={fileRef} type="file" className="hidden" />
+      </div>
     </div>
   );
 }

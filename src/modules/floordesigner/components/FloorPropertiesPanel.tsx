@@ -2,6 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BRAND } from '@/constants';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { useFloorStore } from '../store/floorStore';
 import { useTableStore } from '@/modules/tables/store/useTableStore';
 import { useTableBillStore } from '@/modules/tables/store/useTableBillStore';
@@ -57,21 +58,37 @@ export function FloorPropertiesPanel({ onPrintQr }: Props) {
     label: string;
     children: React.ReactNode;
   }) => (
-    <label className="block mb-2.5">
-      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
-      <div className="mt-1">{children}</div>
+    <label className="mb-3 block">
+      <span className="text-sm font-semibold text-slate-700">{label}</span>
+      <div className="mt-1.5">{children}</div>
     </label>
   );
 
   const inputClass =
-    'w-full h-9 rounded-xl border border-slate-200 px-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6A00]/30';
+    'h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF6A00]/30';
 
   return (
-    <div className="relative shrink-0 flex">
+    <>
+      {propsOpen ? (
+        <button
+          type="button"
+          aria-label="Close properties"
+          className="fixed inset-0 z-[60] bg-slate-950/45 md:hidden"
+          onClick={() => setPropsOpen(false)}
+        />
+      ) : null}
+
+      <div
+        className={cn(
+          'relative hidden h-full shrink-0 md:flex',
+          propsOpen &&
+            'max-md:!flex max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:top-auto max-md:z-[65] max-md:max-h-[min(75dvh,640px)] max-md:flex-col max-md:overflow-hidden max-md:rounded-t-2xl max-md:border-t max-md:border-slate-200 max-md:bg-white max-md:shadow-2xl'
+        )}
+      >
       <button
         type="button"
         onClick={() => setPropsOpen(!propsOpen)}
-        className="w-6 h-6 rounded-full bg-white border border-slate-200 shadow flex items-center justify-center text-slate-500 mt-3 -ml-3 z-10"
+        className="z-10 mt-3 -ml-3 hidden h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow touch-manipulation md:flex"
         title={propsOpen ? 'Collapse properties' : 'Expand properties'}
       >
         {propsOpen ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
@@ -83,25 +100,35 @@ export function FloorPropertiesPanel({ onPrintQr }: Props) {
             animate={{ width: 280, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="h-full border-l border-slate-200 bg-white overflow-hidden"
+            className="h-full overflow-hidden border-l border-slate-200 bg-white max-md:!w-full max-md:border-l-0"
           >
-            <div className="w-[280px] h-full flex flex-col">
-              <div className="px-4 py-3 border-b border-slate-100">
-                <p className="text-sm font-bold" style={{ color: BRAND.navy }}>
-                  Properties
-                </p>
-                <p className="text-[11px] text-slate-400">
-                  {selectedIds.length === 0
-                    ? 'Floor settings'
-                    : selectedIds.length > 1
-                      ? `${selectedIds.length} selected`
-                      : linked?.tableNumber || obj?.tableNumber || obj?.name}
-                </p>
+            <div className="flex h-full w-full flex-col md:w-[280px]">
+              <div className="border-b border-slate-100 px-4 py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-base font-bold tracking-tight text-slate-900">Properties</p>
+                    <p className="mt-0.5 text-sm font-medium text-slate-600">
+                      {selectedIds.length === 0
+                        ? 'Floor settings'
+                        : selectedIds.length > 1
+                          ? `${selectedIds.length} selected`
+                          : linked?.tableNumber || obj?.tableNumber || obj?.name}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPropsOpen(false)}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-600 touch-manipulation md:hidden"
+                    aria-label="Close properties"
+                  >
+                    <ChevronRight className="h-4 w-4 rotate-90" />
+                  </button>
+                </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-4">
+              <div className="flex-1 overflow-y-auto overscroll-contain p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
                 {selectedIds.length > 1 && mode === 'design' && (
                   <div className="mb-4 rounded-2xl border border-slate-200 p-3">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                    <p className="mb-2 text-sm font-semibold text-slate-700">
                       Align {selectedIds.length} objects
                     </p>
                     <Button
@@ -128,7 +155,7 @@ export function FloorPropertiesPanel({ onPrintQr }: Props) {
                           key={action}
                           type="button"
                           onClick={() => alignSelected(action)}
-                          className="h-8 rounded-lg border border-slate-200 text-[11px] font-bold text-slate-600 hover:bg-slate-50"
+                          className="h-8 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                         >
                           {label}
                         </button>
@@ -140,15 +167,13 @@ export function FloorPropertiesPanel({ onPrintQr }: Props) {
                 {!obj && selectedIds.length === 0 && layout && (
                   <>
                     <div className="mb-4 rounded-2xl border border-slate-200 p-3">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-                        Floor size
-                      </p>
-                      <p className="text-[11px] text-slate-500 mb-3">
+                      <p className="mb-2 text-sm font-semibold text-slate-700">Floor size</p>
+                      <p className="mb-3 text-sm font-medium text-slate-600">
                         Layout area:{' '}
-                        <span className="font-bold text-[#0D1B2A]">
+                        <span className="font-bold text-slate-900">
                           {layout.floorSize.widthM} × {layout.floorSize.heightM} m
                         </span>
-                        <span className="text-slate-400">
+                        <span className="text-slate-500">
                           {' '}
                           (
                           {floorSizeToPixels(layout.floorSize).width}×
@@ -387,9 +412,7 @@ export function FloorPropertiesPanel({ onPrintQr }: Props) {
 
                     {obj.kind.includes('table') && obj.linkedTableId && linked && (
                       <div className="mt-3 rounded-2xl border border-slate-200 p-3 space-y-2">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                          Linked table
-                        </p>
+                        <p className="text-sm font-semibold text-slate-700">Linked table</p>
                         <Field label="Table number">
                           <input
                             className={inputClass}
@@ -445,7 +468,7 @@ export function FloorPropertiesPanel({ onPrintQr }: Props) {
                               {canvasStatus}
                             </span>
                             {bill && bill.items.length > 0 && (
-                              <span className="ml-auto text-xs font-black" style={{ color: BRAND.orange }}>
+                              <span className="ml-auto text-sm font-bold" style={{ color: BRAND.orange }}>
                                 {formatCurrency(getBillTotal(bill))}
                               </span>
                             )}
@@ -477,7 +500,7 @@ export function FloorPropertiesPanel({ onPrintQr }: Props) {
                         {mode === 'design' && (
                           <button
                             type="button"
-                            className="w-full text-[11px] font-semibold text-slate-400 hover:text-rose-600 flex items-center justify-center gap-1 py-1"
+                            className="flex w-full items-center justify-center gap-1 py-1.5 text-sm font-semibold text-slate-500 hover:text-rose-600"
                             onClick={() => {
                               if (
                                 window.confirm(
@@ -497,10 +520,8 @@ export function FloorPropertiesPanel({ onPrintQr }: Props) {
 
                     {obj.kind.includes('table') && !obj.linkedTableId && mode === 'design' && (
                       <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50/50 p-3 space-y-2">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
-                          Not linked
-                        </p>
-                        <p className="text-[11px] text-amber-800">
+                        <p className="text-sm font-semibold text-amber-800">Not linked</p>
+                        <p className="text-sm font-medium text-amber-900">
                           Link an existing table number — duplicates are not created.
                         </p>
                         <select
@@ -554,6 +575,7 @@ export function FloorPropertiesPanel({ onPrintQr }: Props) {
           </motion.aside>
         )}
       </AnimatePresence>
-    </div>
+      </div>
+    </>
   );
 }

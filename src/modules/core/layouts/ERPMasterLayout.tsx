@@ -87,7 +87,7 @@ export function ERPMasterLayout() {
 
         <main
           className={cn(
-            'relative z-0 flex min-h-0 min-w-0 flex-1 flex-col bg-slate-50',
+            'relative z-0 flex min-h-0 min-w-0 flex-1 flex-col bg-slate-50 font-sans erp-crisp-text',
             fullBleed ? 'overflow-hidden p-0' : 'overflow-y-auto p-4 sm:p-6 lg:p-8'
           )}
         >

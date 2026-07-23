@@ -25,6 +25,9 @@ export function FloorCanvas({ containerRef }: Props) {
   const lastPointer = useRef<{ x: number; y: number } | null>(null);
 
   const layout = useFloorStore((s) => s.layout);
+  const isLoadingFloor = useFloorStore((s) => s.isLoading);
+  const createFloor = useFloorStore((s) => s.createFloor);
+  const loadSampleLayout = useFloorStore((s) => s.loadSampleLayout);
   const mode = useFloorStore((s) => s.mode);
   const tool = useFloorStore((s) => s.tool);
   const selectedIds = useFloorStore((s) => s.selectedIds);
@@ -97,8 +100,36 @@ export function FloorCanvas({ containerRef }: Props) {
 
   if (!layout) {
     return (
-      <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
-        Loading floor…
+      <div className="flex h-full flex-1 flex-col items-center justify-center bg-[#F3F3F8] px-6 text-center">
+        {isLoadingFloor ? (
+          <p className="animate-pulse text-sm font-medium text-slate-400">Loading floor…</p>
+        ) : (
+          <>
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-[#FF6A00]">
+              <span className="text-lg font-bold">F</span>
+            </div>
+            <h2 className="text-lg font-bold text-slate-900">No floor layout yet</h2>
+            <p className="mt-1 max-w-sm text-sm font-medium text-slate-600">
+              Create a floor or load the sample café plan to start placing tables.
+            </p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                className="h-9 rounded-xl bg-[#FF6A00] px-4 text-sm font-bold text-white hover:bg-[#e55f00]"
+                onClick={() => void createFloor('Ground Floor')}
+              >
+                Create floor
+              </button>
+              <button
+                type="button"
+                className="h-9 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                onClick={() => void loadSampleLayout({ force: true })}
+              >
+                Load sample café
+              </button>
+            </div>
+          </>
+        )}
       </div>
     );
   }

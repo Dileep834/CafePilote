@@ -58,6 +58,51 @@ const StockAdjustments = React.lazy(() => import('../pages/Inventory/StockAdjust
 const WasteEntry = React.lazy(() => import('../pages/Waste/WasteEntry'));
 const NotFound = React.lazy(() => import('../pages/NotFound'));
 const SyncCenterPage = React.lazy(() => import('../modules/offline/pages/SyncCenterPage'));
+const SuperAdminDashboardPage = React.lazy(() =>
+  import('../modules/superAdmin/pages/SuperAdminDashboardPage').then((m) => ({
+    default: m.SuperAdminDashboardPage,
+  }))
+);
+const CreateCompanyWizardPage = React.lazy(() =>
+  import('../modules/superAdmin/pages/CreateCompanyWizardPage').then((m) => ({
+    default: m.CreateCompanyWizardPage,
+  }))
+);
+const SuperAdminCompaniesPage = React.lazy(() =>
+  import('../modules/superAdmin/pages/SuperAdminCompaniesPage').then((m) => ({
+    default: m.SuperAdminCompaniesPage,
+  }))
+);
+const TrialRequestsPage = React.lazy(() =>
+  import('../modules/superAdmin/pages/TrialRequestsPage').then((m) => ({
+    default: m.TrialRequestsPage,
+  }))
+);
+const SubscriptionPlansPage = React.lazy(() =>
+  import('../modules/superAdmin/pages/SubscriptionPlansPage').then((m) => ({
+    default: m.SubscriptionPlansPage,
+  }))
+);
+const SuperAdminIntegrationsPage = React.lazy(() =>
+  import('../modules/superAdmin/pages/SuperAdminStubPages').then((m) => ({
+    default: m.SuperAdminIntegrationsPage,
+  }))
+);
+const SuperAdminBillingPage = React.lazy(() =>
+  import('../modules/superAdmin/pages/SuperAdminStubPages').then((m) => ({
+    default: m.SuperAdminBillingPage,
+  }))
+);
+const SuperAdminNotificationsPage = React.lazy(() =>
+  import('../modules/superAdmin/pages/SuperAdminStubPages').then((m) => ({
+    default: m.SuperAdminNotificationsPage,
+  }))
+);
+const SuperAdminSettingsPage = React.lazy(() =>
+  import('../modules/superAdmin/pages/SuperAdminStubPages').then((m) => ({
+    default: m.SuperAdminSettingsPage,
+  }))
+);
 
 const ProtectedRoute = ({
   children,
@@ -559,6 +604,78 @@ const AppRoutes = () => {
             element={
               <ProtectedRoute requiredPermission={PERMISSIONS.COMPANIES_MANAGE}>
                 <Companies />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="super-admin"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.COMPANIES_MANAGE}>
+                <SuperAdminDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="super-admin/companies"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.COMPANIES_MANAGE}>
+                <SuperAdminCompaniesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="super-admin/create-company"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.COMPANIES_MANAGE}>
+                <CreateCompanyWizardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="super-admin/trials"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.COMPANIES_MANAGE}>
+                <TrialRequestsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="super-admin/plans"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.COMPANIES_MANAGE}>
+                <SubscriptionPlansPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="super-admin/integrations"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.COMPANIES_MANAGE}>
+                <SuperAdminIntegrationsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="super-admin/billing"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.COMPANIES_MANAGE}>
+                <SuperAdminBillingPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="super-admin/notifications"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.COMPANIES_MANAGE}>
+                <SuperAdminNotificationsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="super-admin/settings"
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.COMPANIES_MANAGE}>
+                <SuperAdminSettingsPage />
               </ProtectedRoute>
             }
           />

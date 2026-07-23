@@ -72,8 +72,8 @@ export const APP_TAGLINE = 'Run Every Food Business Smarter.';
 export const APP_DOMAIN = 'cafepilots.com';
 
 /**
- * Platform owner tenant (Super Admin / CafePilots HQ).
- * Separate from real customer companies. Never reuse a customer UUID.
+ * CafePilots HQ — demo + platform-owner tenant (Super Admin).
+ * Use this for sandbox / demo data. Never reuse a customer UUID.
  */
 export const HQ_COMPANY_ID = 'a1000000-0000-4000-8000-000000000001';
 export const HQ_COMPANY_NAME = 'CafePilots HQ';
@@ -82,7 +82,7 @@ export const HQ_COMPANY_SUBDOMAIN = 'cafepilots-hq';
 export const HQ_OUTLET_ID = 'a1000000-0000-4000-8000-000000000010';
 
 /**
- * Real customer tenant (Backbenchers). Historical seed id. Do not rename or merge.
+ * Backbenchers — real customer tenant. Protect; do not rename, merge, or wipe.
  */
 export const BACKBENCHERS_COMPANY_ID = 'c1000000-0000-0000-0000-000000000001';
 export const BACKBENCHERS_COMPANY_NAME = 'Backbenchers Cafeteria';

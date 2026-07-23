@@ -1,4 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
+import {
+  CheckCircle2,
+  CloudOff,
+  Download,
+  Loader2,
+  RefreshCw,
+  AlertTriangle,
+  Wifi,
+  WifiOff,
+  Inbox,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { InventoryCard } from '@/modules/inventory/components/InventoryCard';
+import { cn } from '@/lib/utils';
 import { SyncService } from '../services/SyncService';
 import { SyncQueueRepository } from '../repositories/SyncQueueRepository';
 import { OfflineOrderRepository } from '../repositories/OfflineOrderRepository';
@@ -11,6 +25,28 @@ import { bootstrapOfflinePos } from '../bootstrap';
 import { useTenantStore } from '@/store/useTenantStore';
 
 type Counts = { pending: number; failed: number; conflict: number; running: number };
+
+function StateChip({ state }: { state: string }) {
+  const s = state.toLowerCase();
+  const tone =
+    s === 'failed'
+      ? 'bg-rose-50 text-rose-700 ring-rose-600/15'
+      : s === 'conflict'
+        ? 'bg-amber-50 text-amber-800 ring-amber-600/15'
+        : s === 'pending' || s === 'retry'
+          ? 'bg-sky-50 text-sky-700 ring-sky-600/15'
+          : 'bg-slate-100 text-slate-700 ring-slate-600/10';
+  return (
+    <span
+      className={cn(
+        'inline-flex rounded-md px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ring-1 ring-inset',
+        tone
+      )}
+    >
+      {state}
+    </span>
+  );
+}
 
 export function SyncCenterPage() {
   const connectivity = useConnectivityStore();
@@ -117,138 +153,186 @@ export function SyncCenterPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Sync Center</h1>
-        <p className="text-sm text-slate-600">
-          Offline POS queue — pending jobs are never deleted until the server acknowledges commit.
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-[1600px] space-y-3 px-1 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-0">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Sync Center</h1>
+          <p className="mt-0.5 max-w-2xl text-sm font-medium text-slate-600">
+            Offline POS queue — pending jobs are never deleted until the server acknowledges commit.
+          </p>
+        </div>
+        <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-11 w-full rounded-xl border-slate-200 touch-manipulation sm:h-9 sm:w-auto"
+            disabled={busy || !connectivity.online}
+            onClick={() => void onRefreshCatalog()}
+          >
+            <RefreshCw className={cn('mr-1.5 h-3.5 w-3.5', busy && 'animate-spin')} />
+            Refresh catalog
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-11 w-full rounded-xl border-slate-200 touch-manipulation sm:h-9 sm:w-auto"
+            onClick={() => void onExport()}
+          >
+            <Download className="mr-1.5 h-3.5 w-3.5" />
+            Export logs
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="h-11 w-full rounded-xl bg-[#FF6A00] font-bold text-white touch-manipulation hover:bg-[#e55f00] sm:h-9 sm:w-auto"
+            disabled={busy || !connectivity.online}
+            onClick={() => void onSync()}
+          >
+            {busy ? (
+              <>
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                Working…
+              </>
+            ) : (
+              'Sync now'
+            )}
+          </Button>
+        </div>
+      </div>
 
       <div
-        className={`rounded-lg border p-4 ${
-          cache?.ready ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'
-        }`}
+        className={cn(
+          'rounded-xl px-4 py-3 text-sm font-medium shadow-sm ring-1',
+          cache?.ready
+            ? 'bg-emerald-50 text-emerald-900 ring-emerald-600/15'
+            : 'bg-amber-50 text-amber-900 ring-amber-600/15'
+        )}
       >
-        <div className="text-sm font-medium text-slate-900">
+        <div className="flex flex-wrap items-center gap-2 font-black">
+          {cache?.ready ? (
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+          ) : (
+            <CloudOff className="h-4 w-4 text-amber-600" />
+          )}
           Offline catalog: {cache?.ready ? 'Ready' : 'Not ready'}
         </div>
-        <p className="mt-1 text-sm text-slate-700">
-          Cached products: <strong>{cache?.products ?? 0}</strong>
-          {' · '}
-          recipes: <strong>{cache?.recipes ?? 0}</strong>
+        <p className="mt-1 text-xs font-medium opacity-90">
+          Cached products: {cache?.products ?? 0} · recipes: {cache?.recipes ?? 0}
           {cache?.lastRefreshedAt
             ? ` · last refresh ${new Date(cache.lastRefreshedAt).toLocaleString()}`
             : ' · never refreshed'}
-        </p>
-        <p className="mt-1 text-xs text-slate-600">
-          While online, click Refresh catalog (or open POS once). Then go offline — POS will use this
-          cache.
+          {' · '}
+          Local orders awaiting sync: {pendingOrders}
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
+        <InventoryCard
           label="Connectivity"
           value={connectivity.state}
-          hint={connectivity.latencyMs != null ? `${connectivity.latencyMs} ms` : undefined}
+          subtitle={
+            connectivity.latencyMs != null ? `${connectivity.latencyMs} ms latency` : 'Network status'
+          }
+          icon={connectivity.online ? Wifi : WifiOff}
+          tone={connectivity.online ? 'emerald' : 'red'}
         />
-        <Stat label="Pending jobs" value={String(counts.pending)} />
-        <Stat label="Failed / retry" value={String(counts.failed)} />
-        <Stat label="Conflicts" value={String(counts.conflict)} />
+        <InventoryCard
+          label="Pending jobs"
+          value={String(counts.pending)}
+          subtitle="Awaiting server ack"
+          icon={Inbox}
+          tone={counts.pending > 0 ? 'amber' : 'slate'}
+        />
+        <InventoryCard
+          label="Failed / retry"
+          value={String(counts.failed)}
+          subtitle="Need attention"
+          icon={AlertTriangle}
+          tone={counts.failed > 0 ? 'red' : 'slate'}
+        />
+        <InventoryCard
+          label="Conflicts"
+          value={String(counts.conflict)}
+          subtitle="Manual resolve"
+          icon={AlertTriangle}
+          tone={counts.conflict > 0 ? 'amber' : 'slate'}
+        />
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          disabled={busy || !connectivity.online}
-          onClick={() => void onRefreshCatalog()}
-          className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 disabled:opacity-50"
-        >
-          Refresh catalog
-        </button>
-        <button
-          type="button"
-          disabled={busy || !connectivity.online}
-          onClick={() => void onSync()}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
-          {busy ? 'Working…' : 'Sync now'}
-        </button>
-        <button
-          type="button"
-          onClick={() => void onExport()}
-          className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800"
-        >
-          Export logs
-        </button>
-        <span className="text-sm text-slate-500">
-          Local orders awaiting sync: <strong>{pendingOrders}</strong>
-        </span>
-      </div>
+      {message ? (
+        <p className="rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-100">
+          {message}
+        </p>
+      ) : null}
 
-      {message ? <p className="text-sm text-slate-700">{message}</p> : null}
-
-      <section className="overflow-hidden rounded-lg border border-slate-200">
-        <table className="min-w-full text-left text-sm">
-          <thead className="bg-slate-50 text-slate-600">
-            <tr>
-              <th className="px-3 py-2 font-medium">Type</th>
-              <th className="px-3 py-2 font-medium">State</th>
-              <th className="px-3 py-2 font-medium">Attempts</th>
-              <th className="px-3 py-2 font-medium">Error</th>
-              <th className="px-3 py-2 font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {jobs.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-slate-500">
-                  Queue empty — all caught up.
-                </td>
+      <section className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-100">
+        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+          <h2 className="text-sm font-black text-slate-900">Sync queue</h2>
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+            {jobs.length} job{jobs.length === 1 ? '' : 's'}
+          </span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                <th className="px-4 py-2.5 font-black">Type</th>
+                <th className="px-4 py-2.5 font-black">State</th>
+                <th className="px-4 py-2.5 font-black">Attempts</th>
+                <th className="px-4 py-2.5 font-black">Error</th>
+                <th className="px-4 py-2.5 font-black">Actions</th>
               </tr>
-            ) : (
-              jobs.map((job) => (
-                <tr key={job.id} className="border-t border-slate-100">
-                  <td className="px-3 py-2">{job.job_type}</td>
-                  <td className="px-3 py-2">{job.state}</td>
-                  <td className="px-3 py-2">{job.attempts}</td>
-                  <td className="max-w-xs truncate px-3 py-2 text-slate-500">{job.last_error || '—'}</td>
-                  <td className="px-3 py-2">
-                    {job.state === 'Conflict' ? (
-                      <button
-                        type="button"
-                        className="text-amber-700 underline"
-                        onClick={() => void onResolveConflict(job)}
-                      >
-                        Resolve
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="text-slate-800 underline"
-                        onClick={() => void onRetry(job.id)}
-                      >
-                        Retry
-                      </button>
-                    )}
+            </thead>
+            <tbody>
+              {jobs.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-12 text-center">
+                    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-[#FF6A00]">
+                      <CheckCircle2 className="h-6 w-6" />
+                    </div>
+                    <p className="text-sm font-black text-slate-900">Queue empty</p>
+                    <p className="mt-0.5 text-xs font-medium text-slate-500">All caught up.</p>
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                jobs.map((job) => (
+                  <tr key={job.id} className="border-t border-slate-50 hover:bg-slate-50/60">
+                    <td className="px-4 py-2.5 font-bold text-slate-900">{job.job_type}</td>
+                    <td className="px-4 py-2.5">
+                      <StateChip state={job.state} />
+                    </td>
+                    <td className="px-4 py-2.5 font-medium text-slate-600">{job.attempts}</td>
+                    <td className="max-w-xs truncate px-4 py-2.5 text-slate-500">
+                      {job.last_error || '—'}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {job.state === 'Conflict' ? (
+                        <button
+                          type="button"
+                          className="text-xs font-black text-amber-700 hover:underline"
+                          onClick={() => void onResolveConflict(job)}
+                        >
+                          Resolve
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="text-xs font-black text-[#FF6A00] hover:underline"
+                          onClick={() => void onRetry(job.id)}
+                        >
+                          Retry
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
-    </div>
-  );
-}
-
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-1 text-xl font-semibold text-slate-900">{value}</div>
-      {hint ? <div className="text-xs text-slate-500">{hint}</div> : null}
     </div>
   );
 }

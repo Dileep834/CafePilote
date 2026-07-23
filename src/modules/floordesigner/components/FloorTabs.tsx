@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { BRAND } from '@/constants';
 import { cn } from '@/lib/utils';
 import { useFloorStore } from '../store/floorStore';
 import { Plus, Pencil, Trash2, Check, X } from 'lucide-react';
@@ -26,8 +25,8 @@ export function FloorTabs({ opsMode = false }: Props) {
   const linkedCount = layout?.objects.filter((o) => o.linkedTableId).length || 0;
 
   return (
-    <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-t border-slate-200 bg-white">
-      <div className="flex items-center gap-1.5 overflow-x-auto flex-1 min-w-0">
+    <div className="flex shrink-0 items-center gap-2 border-t border-slate-200 bg-white px-2 py-2 shadow-[0_-1px_2px_rgba(15,23,42,0.04)] sm:gap-2 sm:px-3 sm:py-2.5 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto touch-pan-x [-webkit-overflow-scrolling:touch]">
         {floors.map((f) => {
           const active = f.id === activeFloorId;
           const editing = editingId === f.id;
@@ -35,10 +34,10 @@ export function FloorTabs({ opsMode = false }: Props) {
             <div
               key={f.id}
               className={cn(
-                'shrink-0 flex items-center gap-1 rounded-xl border px-2.5 h-9',
+                'flex h-9 shrink-0 items-center gap-1 rounded-xl border px-2.5',
                 active
-                  ? 'bg-[#0D1B2A] text-white border-[#0D1B2A]'
-                  : 'bg-slate-50 text-slate-600 border-slate-200'
+                  ? 'border-[#FF6A00]/40 bg-orange-50 text-[#FF6A00]'
+                  : 'border-slate-200 bg-slate-50 text-slate-600'
               )}
             >
               {editing && !opsMode ? (
@@ -72,7 +71,7 @@ export function FloorTabs({ opsMode = false }: Props) {
                 <>
                   <button
                     type="button"
-                    className="text-xs font-bold whitespace-nowrap"
+                    className="text-sm font-semibold whitespace-nowrap"
                     onClick={() => void switchFloor(f.id)}
                   >
                     {f.name}
@@ -127,7 +126,7 @@ export function FloorTabs({ opsMode = false }: Props) {
         )}
       </div>
 
-      <div className="shrink-0 flex items-center gap-3 text-[11px] text-slate-500 font-medium">
+      <div className="hidden shrink-0 items-center gap-3 text-sm font-medium text-slate-600 sm:flex">
         {opsMode ? (
           <>
             <span>Live</span>
@@ -150,11 +149,13 @@ export function FloorTabs({ opsMode = false }: Props) {
             )}
             <span>{layout?.objects.length || 0} objects</span>
             {isDirty ? (
-              <span className="font-bold" style={{ color: BRAND.orange }}>
+              <span className="rounded-md bg-orange-100 px-2 py-0.5 text-xs font-semibold text-[#FF6A00]">
                 Unsaved
               </span>
             ) : (
-              <span className="text-emerald-600 font-bold">Saved</span>
+              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                Saved
+              </span>
             )}
           </>
         )}

@@ -716,7 +716,7 @@ export function CheckoutPage() {
     const receiptTable = lastOrder?.tableLabel;
 
     return (
-      <div className="relative -m-4 flex h-screen w-full flex-col items-center justify-center bg-slate-50 p-6 sm:-m-6 lg:-m-8">
+      <div className="relative flex h-full min-h-0 w-full flex-col items-center justify-center overflow-y-auto bg-slate-50 p-6">
         <ThermalReceipt
           orderId={(lastOrder?.id || orderNumber).toString().slice(0, 8).toUpperCase()}
           items={receiptCart}
@@ -801,7 +801,7 @@ export function CheckoutPage() {
 
   return (
     <div
-      className="flex min-h-[calc(100vh-64px)] w-full flex-col bg-slate-50 pb-[var(--checkout-mobile-footer-space)] shadow-inner -m-4 overflow-visible sm:-m-6 md:h-[calc(100vh-64px)] md:flex-row md:overflow-hidden md:bg-white md:pb-0 lg:-m-8"
+      className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 pb-[var(--checkout-mobile-footer-space)] font-sans erp-crisp-text md:flex-row md:bg-white md:pb-0"
       style={
         {
           '--checkout-mobile-footer-space': checkoutError
@@ -811,13 +811,13 @@ export function CheckoutPage() {
       }
     >
       {/* LEFT: compressed order summary */}
-      <div className="relative z-10 flex w-full flex-col border-b border-slate-200 bg-white md:h-full md:w-[30%] md:max-w-sm md:border-b-0 md:border-r md:bg-slate-50/50">
+      <div className="relative z-10 flex w-full shrink-0 flex-col border-b border-slate-200 bg-white md:h-full md:w-[30%] md:max-w-sm md:border-b-0 md:border-r md:bg-slate-50/50">
         <div className="flex items-center gap-3 border-b border-slate-200/60 p-3 sm:p-4 md:p-5">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => navigate('/erp/pos')}
-            className="h-9 w-9 rounded-full text-slate-500 hover:bg-slate-200/50 hover:text-slate-900"
+            className="h-10 w-10 shrink-0 rounded-full text-slate-500 touch-manipulation hover:bg-slate-200/50 hover:text-slate-900 sm:h-9 sm:w-9"
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -875,8 +875,8 @@ export function CheckoutPage() {
         </div>
       </div>
 
-      {/* RIGHT: payment workspace */}
-      <div className="flex flex-1 flex-col bg-white p-3 pb-4 md:overflow-y-auto md:p-4 lg:p-5">
+      {/* RIGHT: payment workspace — must scroll on mobile (fullBleed main clips overflow) */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain bg-white p-3 pb-4 [-webkit-overflow-scrolling:touch] md:p-4 lg:p-5">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 lg:gap-4">
           {/* Rich payment header */}
           <div className="shrink-0 animate-in fade-in slide-in-from-top-2 rounded-2xl border border-slate-800 bg-slate-950 p-3 text-white shadow-sm duration-300 md:p-4">
@@ -1667,9 +1667,9 @@ export function CheckoutPage() {
         </div>
       </div>
 
-      {/* Mobile sticky CTA */}
+      {/* Mobile sticky CTA — above sidebar backdrop (z-70), below header menus */}
       <div
-        className="fixed inset-x-0 z-[70] border-t border-slate-200 bg-white/95 p-3 shadow-[0_-12px_32px_rgba(15,23,42,0.12)] backdrop-blur md:hidden"
+        className="fixed inset-x-0 z-[76] border-t border-slate-200 bg-white/95 p-3 shadow-[0_-12px_32px_rgba(15,23,42,0.12)] backdrop-blur touch-manipulation md:hidden"
         style={{
           bottom:
             'calc(var(--cafepilots-visual-bottom, 0px) + env(safe-area-inset-bottom, 0px))',
