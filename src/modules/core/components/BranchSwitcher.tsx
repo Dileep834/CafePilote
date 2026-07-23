@@ -73,10 +73,10 @@ export function BranchSwitcher({ className, onBranchChange }: Props) {
   return (
     <div className={cn('flex min-w-0 max-w-full items-center gap-2', className)}>
       <div className="mr-1 hidden min-w-0 flex-col items-end md:flex">
-        <span className="max-w-[160px] truncate text-[10px] font-bold uppercase tracking-wider text-slate-400">
+        <span className="max-w-[160px] truncate text-[10px] font-bold uppercase tracking-wider text-slate-500">
           {companyName || 'Company'}
         </span>
-        <span className="text-[10px] font-semibold text-slate-500">{plan.label} plan</span>
+        <span className="text-[10px] font-semibold text-slate-600">{plan.label} plan</span>
       </div>
 
       {!canSelect ? (

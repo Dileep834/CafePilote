@@ -710,7 +710,7 @@ function MetricTile({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <p className="truncate text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+            <p className="truncate text-xs font-semibold uppercase tracking-wide text-slate-600">{label}</p>
             <span className={cn('h-2 w-2 shrink-0 rounded-full', statusClass)} aria-hidden />
           </div>
           <p className="mt-1 text-2xl font-black leading-none tabular-nums text-slate-950">{value}</p>
@@ -727,9 +727,9 @@ function MetricTile({
                 {Math.abs(trend)}%
               </span>
             ) : null}
-            <span className="text-slate-500">{detail}</span>
+            <span className="text-slate-600">{detail}</span>
           </div>
-          {comparison ? <p className="mt-1 truncate text-[11px] font-semibold text-slate-400">{comparison}</p> : null}
+          {comparison ? <p className="mt-1 truncate text-[11px] font-semibold text-slate-600">{comparison}</p> : null}
         </div>
       </div>
       {actionLabel && onAction ? (
@@ -770,10 +770,10 @@ function PriorityItem({
         <Icon className="h-5 w-5" aria-hidden />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{title}</p>
+        <p className="text-xs font-bold uppercase tracking-wide text-slate-600">{title}</p>
         <p className="mt-1 text-lg font-black text-slate-950">{value}</p>
         <p className="mt-0.5 text-sm font-semibold text-slate-600">{detail}</p>
-        {meta ? <p className="mt-1 text-xs text-slate-400">{meta}</p> : null}
+        {meta ? <p className="mt-1 text-xs text-slate-600">{meta}</p> : null}
       </div>
       <span className="shrink-0 pt-1 text-xs font-bold text-[#FF6A00]">Open →</span>
     </button>
@@ -837,7 +837,7 @@ function QuickInsightsPanel({
       <CardContent className="space-y-4 p-4 pt-2">
         {groups.map((group) => (
           <div key={group.title}>
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">{group.title}</p>
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-600">{group.title}</p>
             <div className="grid grid-cols-1 gap-2">
               {group.items.map((insight) => (
                 <div
@@ -848,7 +848,7 @@ function QuickInsightsPanel({
                     <insight.icon className="h-4 w-4" aria-hidden />
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                    <p className="truncate text-[11px] font-bold uppercase tracking-wide text-slate-600">
                       {insight.label}
                     </p>
                     <p className="truncate text-sm font-bold text-slate-900">{insight.value}</p>
@@ -1012,11 +1012,11 @@ function SalesPulsePanel({
       <CardHeader className="space-y-3 p-4 pb-2 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
         <div>
           <CardTitle className="text-base font-bold">Sales pulse</CardTitle>
-          <p className="mt-1 text-xs font-semibold text-slate-500">Hourly revenue for today&apos;s service</p>
+          <p className="mt-1 text-xs font-semibold text-slate-600">Hourly revenue for today&apos;s service</p>
         </div>
         {hasSales ? (
           <div className="text-left sm:text-right">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Today&apos;s Revenue</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Today&apos;s Revenue</p>
             <p className="mt-0.5 text-2xl font-black tabular-nums text-slate-950">
               {formatCurrency(metrics.todayRevenue)}
             </p>
@@ -1037,11 +1037,11 @@ function SalesPulsePanel({
           <>
             <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
               <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Orders</p>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Orders</p>
                 <p className="mt-1 text-xl font-black tabular-nums text-slate-950">{metrics.completedOrders}</p>
               </div>
               <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Avg Order</p>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Avg Order</p>
                 <p className="mt-1 text-xl font-black tabular-nums text-slate-950">
                   {formatCurrency(metrics.averageOrderValue)}
                 </p>
@@ -1068,9 +1068,9 @@ function SalesPulsePanel({
           </>
         ) : (
           <div className="flex h-56 flex-col items-center justify-center rounded-xl bg-slate-50 px-4 text-center">
-            <BarChart3 className="mb-3 h-10 w-10 text-slate-300" aria-hidden />
+            <BarChart3 className="mb-3 h-10 w-10 text-slate-400" aria-hidden />
             <p className="text-base font-bold text-slate-800">No sales yet today</p>
-            <p className="mt-1 max-w-sm text-sm text-slate-500">
+            <p className="mt-1 max-w-sm text-sm text-slate-600">
               Create your first bill to start the hourly sales pulse.
             </p>
             {onNewBill ? (
@@ -1142,9 +1142,9 @@ function RecentActivityPanel({
                   </span>
                   <div className="ml-3 flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{item.time}</p>
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-600">{item.time}</p>
                       <p className="mt-0.5 truncate text-sm font-bold text-slate-900">{item.label}</p>
-                      <p className="truncate text-xs text-slate-500">{item.detail}</p>
+                      <p className="truncate text-xs text-slate-600">{item.detail}</p>
                     </div>
                     {item.amount > 0 ? (
                       <p className="shrink-0 text-sm font-black tabular-nums text-slate-900">
@@ -1158,9 +1158,9 @@ function RecentActivityPanel({
           </ol>
         ) : (
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
-            <Activity className="mx-auto mb-2 h-8 w-8 text-slate-300" aria-hidden />
+            <Activity className="mx-auto mb-2 h-8 w-8 text-slate-400" aria-hidden />
             <p className="text-sm font-bold text-slate-800">No service activity yet today</p>
-            <p className="mt-1 text-xs text-slate-500">Orders, kitchen tickets, and settlements will appear here.</p>
+            <p className="mt-1 text-xs text-slate-600">Orders, kitchen tickets, and settlements will appear here.</p>
             {onNewBill ? (
               <Button
                 type="button"
@@ -1632,13 +1632,13 @@ export function ERPHome() {
   const secondaryActions = quickActions.filter((a) => a.variant !== 'primary');
 
   return (
-    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-24 sm:pb-6">
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-24 text-slate-900 sm:pb-6">
       <LiteOnboardingWizard open={liteWizardOpen} onClose={() => setLiteWizardOpen(false)} />
 
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase text-slate-500">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase text-slate-600">
               <span>{companyName || 'CafePilots'}</span>
               <span className="h-1 w-1 rounded-full bg-slate-300" aria-hidden />
               <span>{activeOutlet?.name || 'All active branches'}</span>
@@ -1650,7 +1650,7 @@ export function ERPHome() {
             <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
               {marketingPlan === 'lite' ? 'Your café workspace' : 'Operations command center'}
             </h1>
-            <p className="mt-2 max-w-3xl text-sm text-slate-500">
+            <p className="mt-2 max-w-3xl text-sm text-slate-600">
               {user?.name ? `${user.name}, ` : ''}
               {marketingPlan === 'lite'
                 ? 'a simple setup for selling, tables, stock, and reports.'
@@ -1751,12 +1751,12 @@ export function ERPHome() {
           <section className="space-y-4">
             <div>
               <h2 className="text-base font-black text-slate-950">Work areas</h2>
-              <p className="mt-1 text-sm text-slate-500">Role-aware modules for the current session.</p>
+              <p className="mt-1 text-sm text-slate-600">Role-aware modules for the current session.</p>
             </div>
 
             {visibleSections.map((section) => (
               <div key={section.id} className="space-y-3">
-                <h3 className="px-0.5 text-xs font-bold uppercase tracking-wide text-slate-400">
+                <h3 className="px-0.5 text-xs font-bold uppercase tracking-wide text-slate-600">
                   {section.label}
                 </h3>
                 <div className="grid gap-3 md:grid-cols-2">
@@ -1790,7 +1790,7 @@ export function ERPHome() {
                               </span>
                             ) : null}
                           </div>
-                          <p className="mt-1 line-clamp-1 text-xs text-slate-500">{mod.description}</p>
+                          <p className="mt-1 line-clamp-1 text-xs text-slate-600">{mod.description}</p>
                           {live ? (
                             <p className="mt-1.5 text-xs font-semibold text-slate-700">{live.count}</p>
                           ) : null}
@@ -1807,7 +1807,7 @@ export function ERPHome() {
 
             {(!hasFlag('aiCopilot') || !hasFlag('executiveBI') || !hasFlag('onlineOrders')) && (
               <div className="space-y-3 pt-2">
-                <h3 className="px-0.5 text-xs font-bold uppercase tracking-wide text-slate-400">
+                <h3 className="px-0.5 text-xs font-bold uppercase tracking-wide text-slate-600">
                   Grow with CafePilots
                 </h3>
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -1896,23 +1896,23 @@ export function ERPHome() {
               <CardContent className="space-y-3 p-4 pt-2">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-xl bg-slate-50 p-3">
-                    <p className="text-xs font-semibold text-slate-500">Occupied</p>
+                    <p className="text-xs font-semibold text-slate-600">Occupied</p>
                     <p className="mt-1 text-lg font-black tabular-nums text-slate-950">{tableStats.occupied}</p>
                   </div>
                   <div className="rounded-xl bg-slate-50 p-3">
-                    <p className="text-xs font-semibold text-slate-500">Reserved</p>
+                    <p className="text-xs font-semibold text-slate-600">Reserved</p>
                     <p className="mt-1 text-lg font-black tabular-nums text-slate-950">{tableStats.reserved}</p>
                   </div>
                   <div className="rounded-xl bg-slate-50 p-3">
-                    <p className="text-xs font-semibold text-slate-500">Cleaning</p>
+                    <p className="text-xs font-semibold text-slate-600">Cleaning</p>
                     <p className="mt-1 text-lg font-black tabular-nums text-slate-950">{tableStats.cleaning}</p>
                   </div>
                   <div className="rounded-xl bg-slate-50 p-3">
-                    <p className="text-xs font-semibold text-slate-500">Available</p>
+                    <p className="text-xs font-semibold text-slate-600">Available</p>
                     <p className="mt-1 text-lg font-black tabular-nums text-slate-950">{tableStats.available}</p>
                   </div>
                 </div>
-                <div className="rounded-xl border border-slate-200 p-3 text-xs text-slate-500">
+                <div className="rounded-xl border border-slate-200 p-3 text-xs text-slate-600">
                   <div className="flex items-center justify-between gap-2">
                     <span>Last viewed</span>
                     <span className="font-semibold text-slate-700">{currentTimeLabel}</span>

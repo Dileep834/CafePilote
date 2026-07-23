@@ -6,8 +6,9 @@
 @tailwind utilities;
 
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
+  /* Body/default copy — keep strong on white ERP chrome (not washed purple-gray) */
+  --text: #334155;
+  --text-h: #0f172a;
   --bg: #fff;
   --border: #e5e4e7;
   --code-bg: #f4f3ec;
@@ -23,8 +24,9 @@
   --mono: ui-monospace, Consolas, monospace;
   --cafepilots-visual-bottom: 0px;
 
-  color-scheme: light dark;
-  color: var(--text);
+  /* ERP is light by default — do NOT follow OS dark mode (that washed headings white-on-white) */
+  color-scheme: light;
+  color: var(--text-h);
   background: var(--bg);
   font-synthesis: none;
   /* Crisp HD text on Windows/desktop (avoid soft antialiased glyphs) */
@@ -33,24 +35,29 @@
   -moz-osx-font-smoothing: auto;
 }
 
+/* Only invert marketing social icons when the OS is dark — never flip ERP text tokens */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
   #social .button-icon {
     filter: invert(1) brightness(2);
   }
+}
+
+/* Explicit app dark mode (html.dark) — kept in sync with Tailwind .dark tokens */
+html.dark {
+  --text: #cbd5e1;
+  --text-h: #f8fafc;
+  --bg: #16171d;
+  --border: #2e303a;
+  --code-bg: #1f2028;
+  --accent: #FF6A00;
+  --accent-bg: rgba(255, 106, 0, 0.15);
+  --accent-border: rgba(255, 106, 0, 0.5);
+  --social-bg: rgba(47, 48, 58, 0.5);
+  --shadow:
+    rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+  color-scheme: dark;
+  color: var(--text-h);
+  background: var(--bg);
 }
 
 body {
@@ -102,7 +109,7 @@ code {
     --secondary: oklch(0.97 0 0);
     --secondary-foreground: oklch(0.205 0 0);
     --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
+    --muted-foreground: oklch(0.42 0 0);
     --accent: oklch(0.97 0 0);
     --accent-foreground: oklch(0.205 0 0);
     --destructive: oklch(0.577 0.245 27.325);
