@@ -65,6 +65,7 @@ export function KitchenDisplay() {
   const [draggingOrderId, setDraggingOrderId] = useState<string | null>(null);
   const [nowLabel, setNowLabel] = useState(() => dayjs().format('HH:mm:ss'));
   const [showCompleted, setShowCompleted] = useState(false);
+  const [mobileTab, setMobileTab] = useState<KitchenStatus>('pending');
 
   useEffect(() => {
     fetchOrders();
@@ -114,6 +115,13 @@ export function KitchenDisplay() {
     setDraggingOrderId(null);
   };
 
+  const advanceOrder = async (orderId: string, next: KitchenStatus) => {
+    await updateOrderStatus(orderId, next);
+    if (next !== 'delivered' && typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
+      setMobileTab(next);
+    }
+  };
+
   const TicketCard = ({ order, column }: { order: KitchenOrder; column: KitchenColumn }) => {
     const age = orderAgeMinutes(order);
     const prep = estimatePrepMinutes(order);
@@ -149,7 +157,7 @@ export function KitchenDisplay() {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <GripVertical className="h-4 w-4 shrink-0 text-slate-500" />
+                <GripVertical className="hidden h-4 w-4 shrink-0 text-slate-500 md:block" />
                 <span className="shrink-0 text-lg font-black text-white">
                   #{order.id.substring(0, 5).toUpperCase()}
                 </span>
@@ -173,7 +181,7 @@ export function KitchenDisplay() {
                 )}
               </div>
             </div>
-            <div className={cn('flex shrink-0 items-center gap-1.5 text-sm font-black', isLate ? 'text-red-400 animate-pulse' : 'text-slate-400')}>
+            <div className={cn('flex shrink-0 items-center gap-1.5 text-sm font-black', isLate ? 'animate-pulse text-red-400' : 'text-slate-400')}>
               <Clock className="h-4 w-4" />
               <span>{age}m</span>
             </div>
@@ -187,7 +195,7 @@ export function KitchenDisplay() {
                 {item.quantity}x
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-lg font-bold leading-tight text-slate-100">{item.product_name}</div>
+                <div className="text-base font-bold leading-tight text-slate-100 sm:text-lg">{item.product_name}</div>
                 {item.notes && <div className="mt-1 text-xs font-semibold text-amber-200">{item.notes}</div>}
               </div>
             </div>
@@ -203,7 +211,7 @@ export function KitchenDisplay() {
           <button
             type="button"
             onClick={() => void bumpOrder(order.id)}
-            className="inline-flex h-11 items-center justify-center gap-1 rounded-lg bg-slate-700 px-3 text-xs font-black text-white hover:bg-slate-600"
+            className="inline-flex h-12 min-w-[4.5rem] items-center justify-center gap-1 rounded-xl bg-slate-700 px-3 text-xs font-black text-white touch-manipulation hover:bg-slate-600"
             title="Bump"
           >
             <Zap className="h-4 w-4" />
@@ -212,9 +220,9 @@ export function KitchenDisplay() {
           {column.next && (
             <button
               type="button"
-              onClick={() => updateOrderStatus(order.id, column.next!)}
+              onClick={() => void advanceOrder(order.id, column.next!)}
               className={cn(
-                'flex flex-1 items-center justify-center gap-2 rounded-lg py-3 font-black text-white transition-colors',
+                'flex h-12 flex-1 items-center justify-center gap-2 rounded-xl py-3 font-black text-white touch-manipulation transition-colors',
                 column.next === 'preparing'
                   ? 'bg-blue-600 hover:bg-blue-500'
                   : column.next === 'ready'
@@ -231,155 +239,204 @@ export function KitchenDisplay() {
     );
   };
 
-  return (
-    <div className="flex min-h-[calc(100svh-4rem)] flex-col bg-[#020617] p-4 font-sans text-slate-200 md:min-h-screen md:p-6 lg:p-8">
-      <div className="mb-6 flex shrink-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h1 className="flex items-center gap-3 text-3xl font-black tracking-tight text-white">
-            <Utensils className="h-8 w-8 text-amber-500" />
-            Kitchen Display System
-          </h1>
-          <p className="mt-1 font-semibold text-slate-400">Real-time order fulfillment tracker</p>
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-          <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-2">
-            <p className="text-[10px] font-black uppercase text-slate-500">Delayed</p>
-            <p className={cn('text-lg font-black', delayedCount > 0 ? 'text-red-400' : 'text-emerald-400')}>{delayedCount}</p>
-          </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-2">
-            <p className="text-[10px] font-black uppercase text-slate-500">Items</p>
-            <p className="text-lg font-black text-white">{activeQty}</p>
-          </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-2">
-            <p className="text-[10px] font-black uppercase text-slate-500">All day</p>
-            <p className="text-lg font-black text-amber-300">{allDayCount}</p>
-          </div>
-          <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-4 py-2">
-            <span className="relative flex h-3 w-3">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
-            </span>
-            <span className="text-sm font-black uppercase tracking-widest text-emerald-400">Live</span>
-          </div>
-          <div className="rounded-xl bg-slate-800 px-4 py-2 font-mono text-xl font-black text-white shadow-inner">
-            {nowLabel}
-          </div>
-        </div>
-      </div>
-
-      <div className="mb-4 flex flex-wrap gap-1.5">
-        {DEFAULT_KITCHEN_STATIONS.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => setSelectedStation(s.id)}
+  const renderColumn = (column: KitchenColumn, opts?: { fill?: boolean }) => {
+    const Icon = column.icon;
+    const columnOrders = grouped[column.status];
+    return (
+      <div
+        key={column.status}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={() => void handleDrop(column.status)}
+        className={cn(
+          'flex min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-800 bg-[#0B1220] shadow-sm',
+          opts?.fill ? 'h-full' : 'min-h-[280px] md:min-h-0'
+        )}
+      >
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-800 bg-slate-900 px-4 py-3 sm:px-5 sm:py-4">
+          <h2
             className={cn(
-              'rounded-xl px-3 py-1.5 text-xs font-bold transition',
-              selectedStation === s.id
-                ? 'bg-amber-500 text-slate-950'
-                : 'bg-slate-900 text-slate-300 ring-1 ring-slate-800 hover:bg-slate-800'
+              'flex items-center gap-2 text-base font-black sm:text-lg',
+              column.color === 'amber'
+                ? 'text-amber-500'
+                : column.color === 'blue'
+                  ? 'text-blue-400'
+                  : 'text-green-400'
             )}
           >
-            {s.label}
-          </button>
-        ))}
-        <button
-          type="button"
-          onClick={() => {
-            setShowCompleted((v) => !v);
-            void fetchCompletedToday();
-          }}
-          className={cn(
-            'ml-auto rounded-xl px-3 py-1.5 text-xs font-bold',
-            showCompleted ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-900 text-slate-400'
-          )}
-        >
-          Completed queue ({completedToday.length})
-        </button>
-      </div>
-
-      {showCompleted && (
-        <div className="mb-4 max-h-40 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-950 p-3">
-          <div className="space-y-2">
-            {completedToday.map((order) => (
-              <div
-                key={order.id}
-                className="flex items-center justify-between gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs"
-              >
-                <span className="font-black text-white">#{order.id.slice(0, 5).toUpperCase()}</span>
-                <span className="truncate text-slate-400">
-                  {order.table_number ? `T${order.table_number}` : order.customer_name || '—'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => void recallOrder(order.id)}
-                  className="inline-flex items-center gap-1 rounded-lg bg-slate-800 px-2 py-1 font-bold text-amber-300"
-                >
-                  <RotateCcw className="h-3 w-3" />
-                  Recall
-                </button>
-              </div>
-            ))}
-            {!completedToday.length && (
-              <p className="py-4 text-center text-slate-500">No completed tickets today</p>
+            <Icon className="h-5 w-5" />
+            {column.title}
+          </h2>
+          <span
+            className={cn(
+              'rounded-full px-3 py-1 text-sm font-black',
+              column.color === 'amber'
+                ? 'bg-amber-500/20 text-amber-500'
+                : column.color === 'blue'
+                  ? 'bg-blue-500/20 text-blue-400'
+                  : 'bg-green-500/20 text-green-400'
             )}
+          >
+            {columnOrders.length}
+          </span>
+        </div>
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-[#050B18] p-3 [-webkit-overflow-scrolling:touch] sm:space-y-4 sm:p-4">
+          {columnOrders.length === 0 && !isLoading && (
+            <div className="flex min-h-[180px] flex-col items-center justify-center text-slate-400 md:min-h-[240px]">
+              {column.status === 'pending' ? (
+                <ChefHat className="mb-3 h-12 w-12 text-slate-700" />
+              ) : (
+                <TimerReset className="mb-3 h-10 w-10 text-slate-700" />
+              )}
+              <p className="font-bold">No {column.title.toLowerCase()} tickets</p>
+              <p className="mt-1 text-xs font-semibold text-slate-500">
+                Use Start / Ready / Deliver to move tickets
+              </p>
+            </div>
+          )}
+          {columnOrders.map((order) => (
+            <TicketCard key={order.id} order={order} column={column} />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-[#020617] font-sans text-slate-200">
+      <div className="shrink-0 space-y-3 border-b border-slate-800/80 px-3 py-3 sm:space-y-4 sm:px-4 sm:py-4 md:px-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <h1 className="flex items-center gap-2 text-xl font-black tracking-tight text-white sm:gap-3 sm:text-3xl">
+              <Utensils className="h-6 w-6 shrink-0 text-amber-500 sm:h-8 sm:w-8" />
+              <span className="truncate">Kitchen Display</span>
+            </h1>
+            <p className="mt-0.5 text-sm font-semibold text-slate-400">Real-time order fulfillment</p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center">
+            <div className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 sm:px-4">
+              <p className="text-[10px] font-black uppercase text-slate-500">Delayed</p>
+              <p className={cn('text-lg font-black', delayedCount > 0 ? 'text-red-400' : 'text-emerald-400')}>
+                {delayedCount}
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 sm:px-4">
+              <p className="text-[10px] font-black uppercase text-slate-500">Items</p>
+              <p className="text-lg font-black text-white">{activeQty}</p>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 sm:px-4">
+              <p className="text-[10px] font-black uppercase text-slate-500">All day</p>
+              <p className="text-lg font-black text-amber-300">{allDayCount}</p>
+            </div>
+            <div className="col-span-2 flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 sm:col-span-1 sm:px-4">
+              <span className="relative flex h-3 w-3">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
+              </span>
+              <span className="text-xs font-black uppercase tracking-widest text-emerald-400 sm:text-sm">Live</span>
+            </div>
+            <div className="rounded-xl bg-slate-800 px-3 py-2 text-center font-mono text-base font-black text-white shadow-inner sm:px-4 sm:text-xl">
+              {nowLabel}
+            </div>
           </div>
         </div>
-      )}
 
-      <div className="grid flex-1 grid-cols-1 gap-4 min-h-0 md:grid-cols-3 lg:gap-6">
-        {COLUMNS.map((column) => {
-          const Icon = column.icon;
-          const columnOrders = grouped[column.status];
-          return (
-            <div
-              key={column.status}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={() => void handleDrop(column.status)}
-              className="flex min-h-[360px] flex-col overflow-hidden rounded-2xl border border-slate-800 bg-[#0B1220] shadow-sm md:min-h-[480px]"
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5 touch-pan-x [-webkit-overflow-scrolling:touch]">
+          {DEFAULT_KITCHEN_STATIONS.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setSelectedStation(s.id)}
+              className={cn(
+                'h-10 shrink-0 rounded-xl px-3 text-xs font-bold transition touch-manipulation',
+                selectedStation === s.id
+                  ? 'bg-amber-500 text-slate-950'
+                  : 'bg-slate-900 text-slate-300 ring-1 ring-slate-800 hover:bg-slate-800'
+              )}
             >
-              <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-5 py-4">
-                <h2
-                  className={cn(
-                    'flex items-center gap-2 text-lg font-black',
-                    column.color === 'amber'
-                      ? 'text-amber-500'
-                      : column.color === 'blue'
-                        ? 'text-blue-400'
-                        : 'text-green-400'
-                  )}
+              {s.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              setShowCompleted((v) => !v);
+              void fetchCompletedToday();
+            }}
+            className={cn(
+              'ml-auto h-10 shrink-0 rounded-xl px-3 text-xs font-bold touch-manipulation',
+              showCompleted ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-900 text-slate-400'
+            )}
+          >
+            Done ({completedToday.length})
+          </button>
+        </div>
+
+        {showCompleted && (
+          <div className="max-h-36 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-950 p-3">
+            <div className="space-y-2">
+              {completedToday.map((order) => (
+                <div
+                  key={order.id}
+                  className="flex items-center justify-between gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs"
                 >
-                  <Icon className="h-5 w-5" />
-                  {column.title}
-                </h2>
-                <span
-                  className={cn(
-                    'rounded-full px-3 py-1 text-sm font-black',
-                    column.color === 'amber'
-                      ? 'bg-amber-500/20 text-amber-500'
-                      : column.color === 'blue'
-                        ? 'bg-blue-500/20 text-blue-400'
-                        : 'bg-green-500/20 text-green-400'
-                  )}
-                >
-                  {columnOrders.length}
-                </span>
-              </div>
-              <div className="flex-1 space-y-4 overflow-y-auto bg-[#050B18] p-4">
-                {columnOrders.length === 0 && !isLoading && (
-                  <div className="flex min-h-[240px] flex-col items-center justify-center text-slate-400 md:min-h-[360px]">
-                    {column.status === 'pending' ? <ChefHat className="mb-3 h-12 w-12 text-slate-700" /> : <TimerReset className="mb-3 h-10 w-10 text-slate-700" />}
-                    <p className="font-bold">No {column.title.toLowerCase()} tickets</p>
-                    <p className="mt-1 text-xs font-semibold text-slate-500">Drop tickets here to update status</p>
-                  </div>
-                )}
-                {columnOrders.map((order) => (
-                  <TicketCard key={order.id} order={order} column={column} />
-                ))}
-              </div>
+                  <span className="font-black text-white">#{order.id.slice(0, 5).toUpperCase()}</span>
+                  <span className="truncate text-slate-400">
+                    {order.table_number ? `T${order.table_number}` : order.customer_name || '—'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void recallOrder(order.id)}
+                    className="inline-flex h-9 items-center gap-1 rounded-lg bg-slate-800 px-2.5 font-bold text-amber-300 touch-manipulation"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    Recall
+                  </button>
+                </div>
+              ))}
+              {!completedToday.length && (
+                <p className="py-4 text-center text-slate-500">No completed tickets today</p>
+              )}
             </div>
-          );
-        })}
+          </div>
+        )}
+
+        {/* Mobile status tabs */}
+        <div className="grid grid-cols-3 gap-1.5 md:hidden">
+          {COLUMNS.map((column) => {
+            const count = grouped[column.status].length;
+            const active = mobileTab === column.status;
+            return (
+              <button
+                key={column.status}
+                type="button"
+                onClick={() => setMobileTab(column.status)}
+                className={cn(
+                  'flex h-12 flex-col items-center justify-center rounded-xl text-xs font-black touch-manipulation',
+                  active
+                    ? column.color === 'amber'
+                      ? 'bg-amber-500 text-slate-950'
+                      : column.color === 'blue'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-emerald-500 text-white'
+                    : 'bg-slate-900 text-slate-300 ring-1 ring-slate-800'
+                )}
+              >
+                <span>{column.title}</span>
+                <span className={cn('text-[10px]', active ? 'opacity-90' : 'text-slate-500')}>{count}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Mobile: one active lane */}
+      <div className="min-h-0 flex-1 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden">
+        {renderColumn(COLUMNS.find((c) => c.status === mobileTab) || COLUMNS[0], { fill: true })}
+      </div>
+
+      {/* Tablet / desktop: three lanes */}
+      <div className="hidden min-h-0 flex-1 grid-cols-3 gap-4 overflow-hidden p-4 md:grid lg:gap-6 lg:p-6">
+        {COLUMNS.map((column) => renderColumn(column, { fill: true }))}
       </div>
 
       {draggingOrderId && (
@@ -390,3 +447,4 @@ export function KitchenDisplay() {
     </div>
   );
 }
+
