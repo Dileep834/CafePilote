@@ -70,16 +70,25 @@ export function Header({
   // On overlay pages (POS), desktop toggle drives the overlay — hide the Sheet duplicate.
   const useSheetNav = !forceMenuButton;
 
+  const menuBtnClass =
+    'h-10 w-10 shrink-0 rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm touch-manipulation hover:bg-slate-50 hover:text-slate-950 hover:border-slate-300 focus-visible:ring-2 focus-visible:ring-[#FF6A00]/30';
+
   return (
-    <header className="relative z-[80] flex h-14 w-full shrink-0 items-center gap-2 overflow-x-hidden border-b bg-white px-3 shadow-sm sm:h-16 sm:gap-3 sm:px-6">
+    <header className="relative z-[80] flex h-14 w-full shrink-0 items-center gap-2 overflow-x-hidden border-b border-slate-200 bg-white px-3 shadow-sm sm:h-16 sm:gap-3 sm:px-6">
       {/* Left: nav + logo */}
-      <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
+      <div className="relative z-[90] flex shrink-0 items-center gap-1.5 sm:gap-3">
         {useSheetNav ? (
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger
               render={
-                <Button variant="ghost" size="icon" className="shrink-0 xl:hidden">
-                  <Menu className="h-5 w-5" />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className={cn(menuBtnClass, 'xl:hidden')}
+                  aria-label="Open navigation menu"
+                >
+                  <Menu className="h-5 w-5 text-slate-800" strokeWidth={2.25} />
                   <span className="sr-only">Toggle navigation menu</span>
                 </Button>
               }
@@ -95,16 +104,15 @@ export function Header({
         ) : null}
 
         <Button
-          variant="ghost"
+          type="button"
+          variant="outline"
           size="icon"
-          className={cn(
-            'shrink-0 text-slate-500 hover:bg-slate-100',
-            forceMenuButton ? 'flex' : 'hidden xl:flex'
-          )}
+          className={cn(menuBtnClass, forceMenuButton ? 'flex' : 'hidden xl:flex')}
           onClick={onToggleSidebar}
           aria-expanded={isSidebarOpen}
+          aria-label="Toggle sidebar"
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-5 w-5 text-slate-800" strokeWidth={2.25} />
           <span className="sr-only">Toggle sidebar</span>
         </Button>
 
